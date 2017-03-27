@@ -1,0 +1,16 @@
+{
+  "name": "flex-js",
+  "version": "1.0.0",
+  "description": "FLEX.JS - Fast lexer (tokenizer, scanner) for JavaScript inspired by FLEX lexer generator",
+  "main": "index.js",
+  "repository": "https://github.com/sormy/flex-js.git",
+  "author": "Artem Butusov <art.sormy@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "test": "mocha 'src/**.spec.js'"
+  },
+  "dependencies": {
+    "chai": "^3.5.0",
+    "mocha": "^3.2.0"
+  }
+}
