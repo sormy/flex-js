@@ -621,3 +621,9 @@ parser.parse();
 ## Performance considerations
 
 TODO: Add some notes about performance.
+
+## Alternative Lexers
+
+- https://github.com/tantaman/lexed.js
+- https://github.com/aaditmshah/lexer
+- https://github.com/YuhangGe/jslex
