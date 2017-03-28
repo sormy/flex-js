@@ -27,6 +27,9 @@ This lexer is inspired by well-known FLEX lexer generator for C. See more: http:
 - yywrap()
 - EOF rule handling is slightly different (TODO: fix?)
 - custom output buffer
+- NO debug mode (TODO: fix)
+- NO trace mode (TODO: fix)
+- Track line number (TODO: fix)
 
 ## Simple example
 
