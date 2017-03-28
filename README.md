@@ -6,7 +6,7 @@ FLEX.JS - Fast lexer (tokenizer, scanner) for JavaScript inspired by FLEX lexer 
 
 This is a library for creating scanners: programs which recognized lexical patterns in text. It analyzes its input for occurrences of the regular expressions. Whenever it finds one, it executes the corresponding JavaScript code.
 
-This lexer is inspired by well-known FLEX lexer generator for C. See more: https://github.com/westes/flex
+This lexer is inspired by well-known FLEX lexer generator for C. See more: http://westes.github.io/flex/manual/ and https://github.com/westes/flex
 
 ## What is common between FLEX and FLEX.JS
 
