@@ -554,21 +554,21 @@ Often, such as in some of the examples above, you wind up writing a whole bunch 
 So, for example,
 
 ```javascript
-lexer.addStateRules('ESC', {
-  '\\n': function () { return '\n'; },
-  '\\r': function () { return '\r'; },
-  '\\f': function () { return '\f'; },
-  '\\0': function () { return '\0'; },
-});
+lexer.addStateRules('ESC', [
+  { expression: '\\n', action: function () { return '\n'; } },
+  { expression: '\\r', action: function () { return '\r'; } },
+  { expression: '\\f', action: function () { return '\f'; } },
+  { expression: '\\0', action: function () { return '\0'; } }
+]);
 ```
 
 is equivalent to:
 
 ```javascript
-lexer.addStateRule('ESC', '\\n': function () { return '\n'; });
-lexer.addStateRule('ESC', '\\r': function () { return '\r'; });
-lexer.addStateRule('ESC', '\\f': function () { return '\f'; });
-lexer.addStateRule('ESC', '\\0': function () { return '\0'; });
+lexer.addStateRule('ESC', '\\n', function () { return '\n'; });
+lexer.addStateRule('ESC', '\\r', function () { return '\r'; });
+lexer.addStateRule('ESC', '\\f', function () { return '\f'; });
+lexer.addStateRule('ESC', '\\0', function () { return '\0'; });
 ```
 
 Three routines are available for manipulating stacks of start conditions:

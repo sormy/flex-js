@@ -246,14 +246,14 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
  * Add multiple rules into one or more states at once.
  *
  * @param {string[]|string} states      Single state or state array, case sensitive.
- * @param {Object}          rules       Key is an expression, value is action.
+ * @param {Array}          rules       Each item should have expression and action keys.
  *
  * @public
  */
 Lexer.prototype.addStateRules = function (states, rules) {
-  for (var expression in rules) {
-    var action = rules[expression];
-    this.addStateRule(states, expression, action);
+  for (var index in rules) {
+    var rule = rules[index];
+    this.addStateRule(states, rule.expression, rule.action);
   }
 };
 
@@ -275,15 +275,12 @@ Lexer.prototype.addRule = function (expression, action) {
 /**
  * Add multiple rules without explicit state.
  *
- * @param {Object}          rules       Key is an expression, value is action.
+ * @param {Array}          rules       Each item should have expression and action keys.
  *
  * @public
  */
 Lexer.prototype.addRules = function (rules) {
-  for (var expression in rules) {
-    var action = rules[expression];
-    this.addRule(expression, action);
-  }
+  this.addStateRules(undefined, rules);
 };
 
 /**
