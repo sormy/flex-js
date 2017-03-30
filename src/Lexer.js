@@ -243,6 +243,21 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
 };
 
 /**
+ * Add multiple rules into one or more states at once.
+ *
+ * @param {string[]|string} states      Single state or state array, case sensitive.
+ * @param {Object}          rules       Key is an expression, value is action.
+ *
+ * @public
+ */
+Lexer.prototype.addStateRules = function (states, rules) {
+  for (var expression in rules) {
+    var action = rules[expression];
+    this.addStateRule(states, expression, action);
+  }
+};
+
+/**
  * Add rule without explicit state.
  *
  * Based on inclusive/exclusive state option it could be available within any state
@@ -255,6 +270,20 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
  */
 Lexer.prototype.addRule = function (expression, action) {
   this.addStateRule(undefined, expression, action);
+};
+
+/**
+ * Add multiple rules without explicit state.
+ *
+ * @param {Object}          rules       Key is an expression, value is action.
+ *
+ * @public
+ */
+Lexer.prototype.addRules = function (rules) {
+  for (var expression in rules) {
+    var action = rules[expression];
+    this.addRule(expression, action);
+  }
 };
 
 /**
@@ -447,6 +476,17 @@ Lexer.prototype.popState = function () {
   }
   var oldState = this.stateStack.pop();
   this.begin(oldState);
+};
+
+/**
+ * Switch state.
+ *
+ * @param {string} [newState] Switch to specific state or initial if omitted.
+ *
+ * @public
+ */
+Lexer.prototype.switchState = function (newState) {
+  this.begin(newState);
 };
 
 /**

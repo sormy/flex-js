@@ -89,7 +89,9 @@ The **rules** section of the lexer configuration contains a series of rules of t
 
 ```javascript
 lexer.addRule(pattern, action);
+lexer.addRules(rules);
 lexer.addStateRule(state, pattern, action);
+lexer.addStateRules(state, rules);
 ```
 
 Lexer defaults and definitions should be added before adding new rules.
@@ -547,8 +549,31 @@ while ((token = lexer.lex()) !== Lexer.EOF) {
 console.log(strings);
 ```
 
+Often, such as in some of the examples above, you wind up writing a whole bunch of rules all preceded by the same start condition(s). Flex makes this a little easier and cleaner by introducing a notion of start condition scope. A start condition scope could be defined with `addRules(rules)` or `addStateRules(states, rules)`.
+
+So, for example,
+
+```javascript
+lexer.addStateRules('ESC', {
+  '\\n': function () { return '\n'; },
+  '\\r': function () { return '\r'; },
+  '\\f': function () { return '\f'; },
+  '\\0': function () { return '\0'; },
+});
+```
+
+is equivalent to:
+
+```javascript
+lexer.addStateRule('ESC', '\\n': function () { return '\n'; });
+lexer.addStateRule('ESC', '\\r': function () { return '\r'; });
+lexer.addStateRule('ESC', '\\f': function () { return '\f'; });
+lexer.addStateRule('ESC', '\\0': function () { return '\0'; });
+```
+
 Three routines are available for manipulating stacks of start conditions:
 
+- `switchState(newState)` switch to new state and loose previous state value (the same as `begin()`).
 - `pushState(newState)` pushes the current start condition onto the top of the start condition stack and switches to `newState` as though you had used `begin(newState)` (recall that start condition names are also strings).
 - `popState()` pops the top of the stack and switches to it via BEGIN.
 - `topState()` returns the top of the stack without altering the stack's contents.
