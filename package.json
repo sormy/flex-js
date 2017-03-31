@@ -1,6 +1,6 @@
 {
   "name": "flex-js",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "FLEX.JS - Fast lexer (tokenizer, scanner) for JavaScript inspired by FLEX lexer generator",
   "main": "index.js",
   "repository": "https://github.com/sormy/flex-js.git",

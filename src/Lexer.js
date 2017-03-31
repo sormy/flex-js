@@ -569,7 +569,10 @@ Lexer.prototype.scan = function () {
   this.rejectedRules = [];
 
   // rule action could change buffer or position, so EOF state could be changed too
-  isEOF = this.index >= this.source.length;
+  // we need revalidate EOF only if EOF was identified before action were executed
+  if (isEOF) {
+    isEOF = this.index >= this.source.length;
+  }
 
   return isEOF ? this.terminate() : actionResult;
 };
