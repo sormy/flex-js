@@ -187,6 +187,7 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
 
   var source;
   var flags;
+  var fixedWidth;
 
   if (expression === Lexer.RULE_EOF) {
     source = null;
@@ -195,6 +196,7 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
       throw new Error('Empty expression for rule "' + name + '"');
     }
     source = this.escapeRegExp(expression);
+    fixedWidth = expression.length;
     flags = '';
   } else if (expression instanceof RegExp) {
     if (expression.source === '(?:)') {
@@ -230,7 +232,8 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
     hasBOL: hasBOL,
     hasEOL: hasEOL,
     isEOF: isEOF,
-    action: action
+    action: action,
+    fixedWidth: fixedWidth // used for weighted match optmization
   };
 
   for (var index in states) {
@@ -517,22 +520,26 @@ Lexer.prototype.scan = function () {
         break;
       }
     } else {
-      var curMatch = this.execRegExp(rule.expression);
-      if (curMatch !== undefined) {
-        var curMatchLength = curMatch.length;
+      if (rule.fixedWidth === undefined
+        || rule.fixedWidth > matchedValueLength
+      ) {
+        var curMatch = this.execRegExp(rule.expression);
+        if (curMatch !== undefined) {
+          var curMatchLength = curMatch.length;
 
-        if (rule.hasBOL) {
-          curMatchLength++;
-        }
-        if (rule.hasEOL) {
-          curMatchLength++;
-        }
+          if (rule.hasBOL) {
+            curMatchLength++;
+          }
+          if (rule.hasEOL) {
+            curMatchLength++;
+          }
 
-        if (curMatchLength > matchedValueLength) {
-          matchedRule = rule;
-          matchedIndex = index;
-          matchedValue = curMatch;
-          matchedValueLength = curMatchLength;
+          if (curMatchLength > matchedValueLength) {
+            matchedRule = rule;
+            matchedIndex = index;
+            matchedValue = curMatch;
+            matchedValueLength = curMatchLength;
+          }
         }
       }
     }
