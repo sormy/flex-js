@@ -69,6 +69,7 @@ Lexer.prototype.clear = function () {
   this.definitions = [];
   this.rules = {};
   this.ignoreCase = false;
+  this.debugEnabled = false;
 
   this.addState(Lexer.STATE_INITIAL);
 
@@ -86,6 +87,19 @@ Lexer.prototype.clear = function () {
  */
 Lexer.prototype.setIgnoreCase = function (ignoreCase) {
   this.ignoreCase = ignoreCase;
+};
+
+/**
+ * Set debug enabled.
+ *
+ * By default it is disabled.
+ *
+ * @param {boolean} debugEnabled
+ *
+ * @public
+ */
+Lexer.prototype.setDebugEnabled = function (debugEnabled) {
+  this.debugEnabled = debugEnabled;
 };
 
 /**
@@ -561,6 +575,10 @@ Lexer.prototype.scan = function () {
     }
   }
 
+  if (matchedRule && this.debugEnabled) {
+    this.logAccept(this.state, matchedRule.expression, matchedValue);
+  }
+
   this.ruleIndex = matchedIndex;
   this.text = this.readMore ? this.text : '';
   this.readMore = false
@@ -598,6 +616,28 @@ Lexer.prototype.scan = function () {
   }
 
   return isEOF ? this.terminate() : actionResult;
+};
+
+/**
+ * @private
+ */
+Lexer.prototype.logAccept = function (state, expression, value) {
+  console.log(
+    ' - [' + state + '] accepting rule'+
+    ' /' + this.encodeString(expression.source) + '/' +
+    ' ("' + this.encodeString(value) + '")'
+  );
+}
+
+/**
+ * @private
+ */
+Lexer.prototype.encodeString = function (s) {
+  return s.replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/\t/g, '\\t')
+    .replace(/\f/g, '\\f')
+    .replace(/\0/g, '\\0');
 };
 
 /**

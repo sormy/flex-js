@@ -27,8 +27,6 @@ This lexer is inspired by well-known FLEX lexer generator for C. See more: http:
 - yywrap()
 - EOF rule handling is slightly different (TODO: fix?)
 - custom output buffer
-- NO debug mode (TODO: fix)
-- NO trace mode (TODO: fix)
 - Track line number (TODO: fix)
 
 ## Simple example
@@ -98,9 +96,8 @@ Lexer defaults and definitions should be added before adding new rules.
 
 ## Options
 
-- Ignore Cae - case sensivity could be set via `setIgnoreCase(false)` or `setIgnoreCase(true)`. By defalt lexer is case sensitive.
-- debug mode (TODO)
-- trace mode (TODO)
+- Ignore Case - case sensivity could be set via `setIgnoreCase(false)` or `setIgnoreCase(true)`. By defalt lexer is case sensitive.
+- Debug Mode - debug mode could be enabled with `setDebugEnabled(true)`. In debug mode lexer will output on console state, expression and matched value for each accepted value.
 - track line number (TODO)
 - read from stdin or custom file handler without boilerplate (TODO)
 - echo to stdout, stderr or custom file handler (TODO)
