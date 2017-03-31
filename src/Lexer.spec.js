@@ -482,13 +482,7 @@ describe('Lexer', function() {
     );
 
 
-    var strings = [];
-
-    var token;
-    while ((token = lexer.lex()) !== Lexer.EOF) {
-      strings.push(token);
-    }
-
+    var strings = lexer.lexAll();
 
     expect(strings).to.eql([
       'simple text',

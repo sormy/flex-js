@@ -316,6 +316,22 @@ Lexer.prototype.lex = function () {
 };
 
 /**
+ * Run lexer until end, collect all tokens into array and return it.
+ *
+ * @return {Array} Array of tokens.
+ *
+ * @public
+ */
+Lexer.prototype.lexAll = function () {
+  var result = [];
+  var token;
+  while ((token = this.lex()) !== Lexer.EOF) {
+    result.push(token);
+  }
+  return result;
+};
+
+/**
  * DISCARD action.
  *
  * @public
