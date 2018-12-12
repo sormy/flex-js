@@ -1,0 +1,16 @@
+{
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "ecmaVersion": 5,
+    "sourceType": "module"
+  },
+  "env": {
+    "mocha": true,
+    "node": true
+  },
+  "rules": {
+    "no-redeclare": 0,
+    "no-console": 0,
+    "quotes": ["error", "single"]
+  }
+}

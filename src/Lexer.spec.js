@@ -81,7 +81,7 @@ describe('Lexer', function() {
     var lexer = new Lexer();
     lexer.addDefinition('DIGIT', /[0-9]/);
     lexer.addRule(/{DIGIT}\.{DIGIT}/);
-    expect(lexer).with.deep.property('rules.INITIAL.0.expression.source').to.equal('(?:[0-9])\\.(?:[0-9])');
+    expect(lexer).with.deep.nested.property('rules.INITIAL.0.expression.source').to.equal('(?:[0-9])\\.(?:[0-9])');
   });
 
   it('#lex() - echo all', function() {

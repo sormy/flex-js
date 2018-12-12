@@ -652,3 +652,7 @@ TODO: Add some notes about performance.
 - https://github.com/tantaman/lexed.js
 - https://github.com/aaditmshah/lexer
 - https://github.com/YuhangGe/jslex
+
+## License
+
+MIT

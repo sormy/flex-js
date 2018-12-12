@@ -207,14 +207,14 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
     source = null;
   } else if (typeof expression === 'string') {
     if (expression.length === 0) {
-      throw new Error('Empty expression for rule "' + name + '"');
+      throw new Error('Empty expression for rule used in states "' + states.join(', ') + '"');
     }
     source = this.escapeRegExp(expression);
     fixedWidth = expression.length;
     flags = '';
   } else if (expression instanceof RegExp) {
     if (expression.source === '(?:)') {
-      throw new Error('Empty expression for rule "' + name + '"');
+      throw new Error('Empty expression for rule used in states "' + states.join(', ') + '"');
     }
     if (expression.flags !== '') {
       var notSupportedFlags = expression.flags
