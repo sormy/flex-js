@@ -113,7 +113,7 @@ Lexer defaults and definitions should be added before adding new rules.
 
 Read more here: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions
 
-The patterns are written using an standard syntex for JavaScript regular expressions + string values are also supported. These are:
+The patterns are written using an standard syntax for JavaScript regular expressions + string values are also supported. These are:
 
 - `"[xyz]\"foo"` - the literal string: `[xyz]"foo`
 - `/x/` - match the character `x`
