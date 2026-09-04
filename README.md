@@ -25,7 +25,7 @@ This lexer is inspired by well-known FLEX lexer generator for C. See more: http:
 - support buffer switch
 - custom input handler
 - yywrap()
-- EOF rule handling is slightly different (TODO: fix?)
+- An `<<EOF>>` action may only return a token if it refilled the buffer with `restart()` or `unput()`; otherwise the scan terminates and the return value is dropped.
 - custom output buffer
 - Track line number (TODO: fix)
 
@@ -591,10 +591,22 @@ The special rule `"<<EOF>>"` or `Lexer.RULE_EOF` indicates actions which are to 
 - use `reject()` to try another EOF rule (what???).
 - return something if buffer refilled with `restart()` or `unput()`.
 
-<<EOF>> rules may not be used with other patterns; they may only be qualified with a list of start conditions. If an unqualified <<EOF>> rule is given, it applies to all start conditions which do not already have <<EOF>> actions. To specify an <<EOF>> rule for only the initial start condition, use
+<<EOF>> rules may not be used with other patterns; they may only be qualified with a list of start conditions. An unqualified `<<EOF>>` rule is a fallback: it applies to every inclusive start condition that does not already carry an `<<EOF>>` rule of its own, whichever of the two was registered first.
 
 ```javascript
 lexer.addRule(Lexer.RULE_EOF, action);
+```
+
+To specify an `<<EOF>>` rule for only the initial start condition, use
+
+```javascript
+lexer.addStateRule(Lexer.STATE_INITIAL, Lexer.RULE_EOF, action);
+```
+
+To specify one for every start condition, including exclusive ones, use
+
+```javascript
+lexer.addStateRule(Lexer.STATE_ANY, Lexer.RULE_EOF, action);
 ```
 
 These rules are useful for catching things like unclosed comments. An example:

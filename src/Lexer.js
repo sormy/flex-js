@@ -164,7 +164,9 @@ Lexer.prototype.addDefinition = function (name, expression) {
  * @public
  */
 Lexer.prototype.addStateRule = function (states, expression, action) {
-  if (states === undefined || states === null) {
+  var isUnqualified = states === undefined || states === null;
+
+  if (isUnqualified) {
     // convert default state into list of target states
     states = [];
     for (var index in this.states) {
@@ -247,6 +249,7 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
   var rule = {
     expression: compiledExpression,
     isEOF: isEOF,
+    isFallbackEOF: isEOF && isUnqualified,
     anchorWeight: isEOF ? 0 : this.getAnchorWeight(compiledExpression),
     firstCharCodes: isEOF ? null : firstCharCodes(compiledExpression),
     action: action,
@@ -709,6 +712,7 @@ Lexer.prototype.buildDispatch = function (rules) {
   var byCharCode = new Array(ASCII_LIMIT);
   var nonAscii = [];
   var eof = [];
+  var fallbackEof = [];
   var charCode;
 
   for (charCode = 0; charCode < ASCII_LIMIT; charCode++) {
@@ -719,7 +723,8 @@ Lexer.prototype.buildDispatch = function (rules) {
     var rule = rules[index];
 
     if (rule.isEOF) {
-      eof.push(index);
+      // a state's own EOF rule outranks an unqualified one, whatever the order
+      (rule.isFallbackEOF ? fallbackEof : eof).push(index);
       continue;
     }
 
@@ -746,7 +751,7 @@ Lexer.prototype.buildDispatch = function (rules) {
     }
   }
 
-  return { byCharCode: byCharCode, nonAscii: nonAscii, eof: eof };
+  return { byCharCode: byCharCode, nonAscii: nonAscii, eof: eof.concat(fallbackEof) };
 };
 
 module.exports = Lexer;

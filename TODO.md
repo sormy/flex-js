@@ -5,7 +5,7 @@ reproduced against the current code unless marked otherwise.
 
 ## Critical
 
-- [ ] **`<<EOF>>` rules crash on any non-empty input.** `scan()` reaches the
+- [x] **`<<EOF>>` rules crash on any non-empty input.** `scan()` reaches the
   non-EOF branch for every rule, including EOF rules, which store
   `expression: null` — `execRegExp()` then throws
   `TypeError: Cannot set properties of null (setting 'lastIndex')`.
@@ -20,8 +20,18 @@ reproduced against the current code unless marked otherwise.
   lexer.lexAll(); // throws
   ```
 
-  *Fixed incidentally by the rule-dispatch rewrite: EOF rules now live in
-  their own bucket and are never entered on the non-EOF path.*
+  *Fixed by the rule-dispatch rewrite: EOF rules live in their own bucket and
+  are never entered on the non-EOF path. The whole documented contract — plain
+  termination, `restart()`/`unput()` refill, returning a token after a refill,
+  `reject()` fall-through, and state-qualified rules — is covered by
+  `src/eof.spec.js`.*
+
+- [x] **An unqualified `<<EOF>>` rule outranked a state's own one.** Registering
+  `addRule(Lexer.RULE_EOF, ...)` before `addStateRule('quote', Lexer.RULE_EOF, ...)`
+  meant the general rule fired inside `quote`, contradicting both flex and the
+  README ("applies to all start conditions which do not already have `<<EOF>>`
+  actions"). Unqualified EOF rules are now sorted after qualified ones when the
+  dispatch is built, so declaration order no longer decides.
 
 - [ ] **`more()` silently drops input.** `scan()` advances by `this.text.length`,
   but after `more()` `this.text` also holds the *previous* match, so the index
@@ -35,8 +45,9 @@ reproduced against the current code unless marked otherwise.
 
   Fix is `this.index += matchedValue.length`. The existing `#more()` test
   passes only by luck: its `more()` lands at end of input, where the overshoot
-  runs off the end instead of eating a real character. Add a regression test
-  with trailing input.
+  runs off the end instead of eating a real character. A regression test with
+  trailing input is already written and skipped in `src/api.spec.js`
+  ("more() keeps scanning the text that follows") — unskip it with the fix.
 
 ## Bugs
 
@@ -115,6 +126,17 @@ dispatch that offers every rule for every character.
   Already flagged as a TODO in the README.
 - [ ] Trailing context beyond a primitive `$` (README TODO).
 - [ ] TypeScript declarations (`index.d.ts`), and a `types` field.
+
+## Test coverage
+
+- [x] `src/eof.spec.js` covers the `<<EOF>>` contract end to end.
+- [x] `src/api.spec.js` covers the state stack, inclusive/exclusive states,
+  `STATE_ANY`, bulk rule registration, every action, the lifecycle methods and
+  the rule validation errors — none of which had tests before.
+- [x] `src/firstCharCodes.spec.js` and `src/dispatch.spec.js` cover the
+  first-character analysis and its equivalence with an exhaustive scan.
+- [ ] No coverage for `more()` combined with `reject()`; verify the interaction
+  once `more()` is fixed.
 
 ## Project hygiene
 

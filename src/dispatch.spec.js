@@ -18,9 +18,11 @@ function buildExhaustiveDispatch(rules) {
     byCharCode[charCode] = [];
   }
 
+  var fallbackEof = [];
+
   for (var index = 0; index < rules.length; index++) {
     if (rules[index].isEOF) {
-      eof.push(index);
+      (rules[index].isFallbackEOF ? fallbackEof : eof).push(index);
       continue;
     }
     for (charCode = 0; charCode < ASCII_LIMIT; charCode++) {
@@ -29,7 +31,7 @@ function buildExhaustiveDispatch(rules) {
     nonAscii.push(index);
   }
 
-  return { byCharCode: byCharCode, nonAscii: nonAscii, eof: eof };
+  return { byCharCode: byCharCode, nonAscii: nonAscii, eof: eof.concat(fallbackEof) };
 }
 
 function lexWith(grammar, source, exhaustive) {
