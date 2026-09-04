@@ -2,8 +2,7 @@ var firstCharCodes = require('./firstCharCodes.js');
 
 var ASCII_LIMIT = 128;
 
-// flex reads "$" as the trailing context "/\n": a newline must follow, but it
-// is not consumed
+// flex reads "$" as the trailing context "/\n"
 var TRAILING_NEWLINE = '(?=\\n)';
 
 /**
@@ -73,8 +72,8 @@ Lexer.prototype.reset = function () {
  * @public
  */
 Lexer.prototype.clear = function () {
-  this.states = {};
-  // a bare map: names such as "__proto__" must behave like any other
+  // bare maps so an inherited name is never mistaken for a registered entry
+  this.states = Object.create(null);
   this.definitions = Object.create(null);
   this.rules = {};
   this.dispatches = {};
@@ -113,14 +112,21 @@ Lexer.prototype.setDebugEnabled = function (debugEnabled) {
 };
 
 /**
- * Add additional state
+ * Add additional state.
  *
- * @param {string}  name
+ * @param {string}  name        State name, case sensitive.
  * @param {boolean} [exclusive]
+ *
+ * @public
  */
 Lexer.prototype.addState = function (name, exclusive) {
+  // a state name also keys this.rules and this.dispatches, which are plain
+  if (typeof name !== 'string' || !this.idRegExp.test(name) || name in Object.prototype) {
+    throw new Error('Invalid state name "' + name + '"');
+  }
+
   this.states[name] = { name: name, exclusive: !!exclusive };
-}
+};
 
 /**
  * Add definition.

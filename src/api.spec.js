@@ -14,6 +14,45 @@ describe('states', function () {
     expect(new Lexer().state).to.equal(Lexer.STATE_INITIAL);
   });
 
+  ['quote', '_x', 'A9', 'a-b', 'a_b'].forEach(function (name) {
+    it('registers the state name ' + JSON.stringify(name), function () {
+      var lexer = new Lexer();
+
+      lexer.addState(name);
+      lexer.begin(name);
+
+      expect(lexer.state).to.equal(name);
+    });
+  });
+
+  [undefined, null, 42, '', '9foo', 'a b', 'a.b', '*',
+    'toString', 'constructor', 'hasOwnProperty', '__proto__'].forEach(function (name) {
+    it('rejects the state name ' + JSON.stringify(name), function () {
+      var lexer = new Lexer();
+
+      expect(function () { lexer.addState(name); }).to.throw('Invalid state name');
+    });
+  });
+
+  ['toString', 'constructor', 'hasOwnProperty'].forEach(function (name) {
+    it('does not accept ' + JSON.stringify(name) + ' as registered without addState()', function () {
+      var lexer = new Lexer();
+
+      expect(function () { lexer.begin(name); }).to.throw('is not registered');
+      expect(function () { lexer.pushState(name); }).to.throw('is not registered');
+      expect(function () { lexer.addStateRule(name, /a/); })
+        .to.throw('Unable to register rule within unregistered state(s)');
+    });
+  });
+
+  it('keeps the exclusive flag', function () {
+    var lexer = new Lexer();
+
+    lexer.addState('exclusive', true);
+
+    expect(lexer.states.exclusive.exclusive).to.equal(true);
+  });
+
   it('switches state with begin()', function () {
     var lexer = new Lexer();
     lexer.addState('other');

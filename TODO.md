@@ -85,7 +85,16 @@ reproduced against the current code unless marked otherwise.
   past, and only `0` reads as EOF.
 - [x] `reject()` subtracted `this.text.length`, which includes
   `more()`-accumulated text. Fixed and covered alongside `more()`.
-- [ ] `addState()` performs no name validation, unlike `addDefinition()`.
+- [x] `addState()` performs no name validation, unlike `addDefinition()`. It
+  now rejects a non-string, a name that does not match `idRegExp`, and a name
+  every object already carries, since state names also key `this.rules` and
+  `this.dispatches`. `this.states` is a bare map too, which fixes a worse
+  problem: `begin('toString')` used to find `Object.prototype.toString`, pass
+  the "is not registered" guard and switch to a state with no rules at all,
+  and `addStateRule('toString', ...)` failed with
+  `this.rules[state].push is not a function` instead of a clear error.
+  `this.rules` and `this.dispatches` stay plain objects; making them bare cost
+  about 15% of scan throughput, and the name check keeps them safe.
 - [ ] `echo()` writes straight to `process.stdout`, and `isNode` is decided by
   `typeof window === 'undefined'` in the constructor — wrong under bundlers,
   workers, and SSR. Make the output sink injectable (the tests already have to
