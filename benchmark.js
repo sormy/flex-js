@@ -18,6 +18,7 @@ var childProcess = require('child_process');
 var Lexer = require('./index.js');
 
 var REPEATS = 4000;
+var MEMORY_ROUNDS = 3;
 var WARMUP_ROUNDS = 20;
 var TIMED_ROUNDS = 30;
 var BUDGET_MS = 1500;
@@ -165,14 +166,14 @@ function mooRunner(workload) {
   var lexer = workload.moo();
   return function () {
     lexer.reset(workload.source);
-    var count = 0;
+    var tokens = [];
     var next;
     while ((next = lexer.next())) {
       if (next.type !== 'ws' && next.type !== 'comment') {
-        count++;
+        tokens.push(next);
       }
     }
-    return count;
+    return tokens.length;
   };
 }
 
@@ -229,7 +230,7 @@ function measure(runners) {
   });
 }
 
-function report(workload) {
+function buildRunners(workload) {
   var runners = [{ name: 'flex-js', run: flexRunner(workload) }];
   if (moo) {
     runners.push({ name: 'moo', run: mooRunner(workload) });
@@ -240,24 +241,55 @@ function report(workload) {
   if (Lex && process.env.BENCH_ALL) {
     runners.push({ name: 'lex', run: lexRunner(workload) });
   }
+  return runners;
+}
+
+/**
+ * Peak resident memory, reported by a process running this engine and nothing
+ * else, so that the figure covers loading the library as well as scanning.
+ */
+function reportMemory(workload, name) {
+  var runner = buildRunners(workload).filter(function (candidate) {
+    return candidate.name === name;
+  })[0];
+
+  if (!runner) {
+    return;
+  }
+
+  for (var round = 0; round < MEMORY_ROUNDS; round++) {
+    runner.run();
+  }
+
+  console.log('  ' + name.padEnd(12) +
+    (process.resourceUsage().maxRSS / 1024).toFixed(1).padStart(7) + ' MB peak');
+}
+
+function report(workload) {
+  var runners = buildRunners(workload);
 
   measure(runners);
 
+  var reference = runners[0];
   var megabytes = workload.source.length / 1048576;
   console.log('\n' + workload.name + ' - ' + Math.round(workload.source.length / 1024) +
-    ' KB, ' + runners[0].count + ' tokens, best of ' + runners[0].rounds);
+    ' KB, ' + reference.count + ' tokens, best of ' + reference.rounds);
 
-  runners.forEach(function (runner) {
+  var ranked = runners.slice().sort(function (left, right) {
+    return left.samples[0] - right.samples[0];
+  });
+
+  ranked.forEach(function (runner, position) {
     var best = runner.samples[0];
-    var relative = best / runners[0].samples[0];
-    console.log('  ' + runner.name.padEnd(12) +
+    var relative = best / reference.samples[0];
+    console.log('  ' + String(position + 1) + '. ' + runner.name.padEnd(12) +
       best.toFixed(2).padStart(7) + ' ms  ' +
       (megabytes / (best / 1000)).toFixed(1).padStart(7) + ' MB/s  ' +
       (runner.count / best / 1000).toFixed(1).padStart(6) + ' Mtokens/s  ' +
-      (relative === 1 ? '' : relative.toFixed(2) + 'x flex-js'));
-    if (runner.count !== runners[0].count) {
-      console.log('    token count differs from flex-js (' + runner.count +
-        ' against ' + runners[0].count + '), timings are not comparable');
+      (runner === reference ? '' : relative.toFixed(2) + 'x flex-js'));
+    if (runner.count !== reference.count) {
+      console.log('     token count differs from flex-js (' + runner.count +
+        ' against ' + reference.count + '), timings are not comparable');
     }
   });
 }
@@ -272,6 +304,10 @@ function selected() {
 function runEachSeparately() {
   WORKLOADS.forEach(function (workload) {
     childProcess.spawnSync(process.execPath, [__filename, workload.name], { stdio: 'inherit' });
+    console.log('');
+    buildRunners(workload).forEach(function (runner) {
+      childProcess.spawnSync(process.execPath, [__filename, workload.name, runner.name], { stdio: 'inherit' });
+    });
   });
 }
 
@@ -279,7 +315,9 @@ if (!moo || !chevrotain) {
   console.log('note: install moo and chevrotain for the full comparison');
 }
 
-if (process.argv[2]) {
+if (process.argv[3]) {
+  reportMemory(selected(), process.argv[3]);
+} else if (process.argv[2]) {
   report(selected());
 } else {
   runEachSeparately();

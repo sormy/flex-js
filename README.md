@@ -39,25 +39,31 @@ Not implemented yet:
 
 ## Performance
 
-Measured with `npm run bench`, best of 30 rounds, each grammar in its own
-process. The two grammars differ in token density, so read down a table rather
-than across the two. Numbers move with hardware and Node version.
+Measured with `npm run bench`, best of 30 rounds, ordered fastest first. Each
+grammar runs in its own process, and peak memory is taken from a process running
+one lexer and nothing else, so it counts loading the library as well as scanning
+and includes the 39 MB a bare Node process already costs. Every lexer collects
+its tokens into an array. The two grammars differ in token density, so read down
+a table rather than across the two. Numbers move with hardware and Node version.
 
 Rules written as regular expressions, 266 KB and 52,000 tokens:
 
-| lexer             | time    | throughput | tokens/s |
-| ----------------- | ------- | ---------- | -------- |
-| flex-js           | 5.1 ms  | 51.3 MB/s  | 10.3 M   |
-| moo 0.5.3         | 7.0 ms  | 37.2 MB/s  | 7.5 M    |
-| chevrotain 13.2.0 | 3.2 ms  | 81.8 MB/s  | 16.4 M   |
+| lexer             | time    | throughput | tokens/s | peak memory |
+| ----------------- | ------- | ---------- | -------- | ----------- |
+| chevrotain 13.2.0 | 3.2 ms  | 82.2 MB/s  | 16.5 M   | 69 MB       |
+| flex-js           | 5.0 ms  | 51.9 MB/s  | 10.4 M   | 62 MB       |
+| moo 0.5.3         | 7.2 ms  | 36.0 MB/s  | 7.2 M    | 97 MB       |
 
 Keywords and punctuation written as plain strings, 273 KB and 88,000 tokens:
 
-| lexer             | time    | throughput | tokens/s |
-| ----------------- | ------- | ---------- | -------- |
-| flex-js           | 6.8 ms  | 39.3 MB/s  | 12.9 M   |
-| moo 0.5.3         | 10.0 ms | 26.6 MB/s  | 8.8 M    |
-| chevrotain 13.2.0 | 4.3 ms  | 62.2 MB/s  | 20.5 M   |
+| lexer             | time    | throughput | tokens/s | peak memory |
+| ----------------- | ------- | ---------- | -------- | ----------- |
+| chevrotain 13.2.0 | 4.6 ms  | 58.1 MB/s  | 19.2 M   | 86 MB       |
+| flex-js           | 6.9 ms  | 38.8 MB/s  | 12.8 M   | 81 MB       |
+| moo 0.5.3         | 10.5 ms | 25.4 MB/s  | 8.4 M    | 120 MB      |
+
+chevrotain is the fastest of the three on both grammars and flex-js uses the
+least memory.
 
 ## Simple example
 
