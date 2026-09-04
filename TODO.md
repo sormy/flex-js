@@ -109,7 +109,7 @@ reproduced against the current code unless marked otherwise.
 ## Performance
 
 - [x] **One regex exec per rule per token.** Replaced with a first-character
-  dispatch table (`src/firstCharCodes.js`): every rule is analysed once for the
+  dispatch table: `getFirstCharCodes()` analyses every rule once for the
   characters it can start with, and a scan only tries the rules reachable from
   the current character. Longest-match semantics and rule declaration order are
   preserved — ties still resolve to the earliest rule.
@@ -185,6 +185,7 @@ dispatch that offers every rule for every character.
   the rule validation errors — none of which had tests before.
 - [x] `src/firstCharCodes.spec.js` and `src/dispatch.spec.js` cover the
   first-character analysis and its equivalence with an exhaustive scan.
+- [x] `src/literal.spec.js` covers string rules and their case folding.
 - [x] `src/definitions.spec.js` covers name validation, reference expansion,
   case sensitivity and definitions built from other definitions.
 - [x] `src/matching.spec.js` covers longest match, tie-breaking by declaration

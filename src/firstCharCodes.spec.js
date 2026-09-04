@@ -1,12 +1,18 @@
 var expect = require('chai').expect;
 
-var firstCharCodes = require('./firstCharCodes.js');
+var Lexer = require('./Lexer.js');
+
+var lexer = new Lexer();
+
+function firstCharCodes(expression) {
+  return lexer.getFirstCharCodes(expression);
+}
 
 function codesOf(text) {
   return text.split('').map(function (character) { return character.charCodeAt(0); });
 }
 
-describe('firstCharCodes', function () {
+describe('getFirstCharCodes', function () {
   var narrowed = [
     { expression: /abc/, expected: codesOf('a') },
     { expression: /let/, expected: codesOf('l') },
