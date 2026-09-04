@@ -21,13 +21,15 @@ This lexer is inspired by well-known FLEX lexer generator for C. See more: http:
 - FLEX could work with streams/buffers but FLEX.JS works with fixed-size strings.
 - REJECT action is not a branch, code after REJECT will be executed, but action return value will be ignored.
 - Trailing context besides primitive $ is not supported. Lookahead assertion could be used instead but lookahead value is not used to increase weight for expression. (TODO: should be fixable)
-- support for buffer
-- support buffer switch
-- custom input handler
-- yywrap()
 - An `<<EOF>>` action may only return a token if it refilled the buffer with `restart()` or `unput()`; otherwise the scan terminates and the return value is dropped.
-- custom output buffer
-- Track line number (TODO: fix)
+
+Not supported:
+
+- multiple input buffers, and switching between them
+- a custom input handler, the FLEX `YY_INPUT`
+- `yywrap()`
+- a custom output stream, the FLEX `yyout`, although `echo()` may be replaced
+- line and column tracking (TODO: fix)
 
 ## Performance
 
@@ -233,15 +235,17 @@ Here is a program which compresses multiple blanks and tabs down to a single bla
 
 ```javascript
 var lexer = new Lexer();
+lexer.addRule(/\s+$/); // ignore
 lexer.addRule(/\s+/, function () {
   process.stdout.write(' ');
 });
-lexer.addRule(/\s+$/); // ignore
-lexer.setSource('bla  bla   bla    ');
+lexer.setSource('bla  bla   \nbla    \n');
 lexer.lex();
 ```
 
-It will output "bla bla bla" on stdout.
+It will output "bla bla bla " on stdout. The discarding rule is added first so
+that it wins the tie against the compressing one, and `$` needs a newline to
+follow, so the newline itself is compressed rather than discarded.
 
 You could assign the same action function for multiple patterns.
 
