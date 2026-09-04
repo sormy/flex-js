@@ -95,10 +95,12 @@ reproduced against the current code unless marked otherwise.
   `this.rules[state].push is not a function` instead of a clear error.
   `this.rules` and `this.dispatches` stay plain objects; making them bare cost
   about 15% of scan throughput, and the name check keeps them safe.
-- [ ] `echo()` writes straight to `process.stdout`, and `isNode` is decided by
-  `typeof window === 'undefined'` in the constructor — wrong under bundlers,
-  workers, and SSR. Make the output sink injectable (the tests already have to
-  monkey-patch `echo` to observe it).
+- [x] `isNode` was decided by `typeof window === 'undefined'`, so a Web Worker,
+  which has `self` but no `window`, was taken for Node and `echo()` reached for a
+  `process.stdout` that is not there. It asks whether a writable `process.stdout`
+  exists now, and falls back to the console.
+- [ ] `echo()` still writes to whichever of those it finds. Make the output sink
+  injectable, since the tests have to monkey-patch `echo` to observe it.
 - [x] `.eslintrc.json` disables `no-redeclare` to accommodate two `var index`
   declarations in one scope in `addStateRule()`. The two loops that turned
   `this.states` into a list of names were doing the same work as

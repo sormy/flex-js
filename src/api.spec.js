@@ -399,6 +399,24 @@ describe('actions', function () {
     expect(lexer.echoed.join('')).to.equal('!!');
   });
 
+  it('falls back to the console where there is no standard output', function () {
+    var lexer = new Lexer();
+    lexer.hasStandardOutput = false;
+    lexer.addRule(/[a-z]+/, function (current) { return current.text; });
+    lexer.setSource('a!');
+
+    var logged = [];
+    var original = console.log;
+    console.log = function (line) { logged.push(line); };
+    try {
+      lexer.lexAll();
+    } finally {
+      console.log = original;
+    }
+
+    expect(logged).to.deep.equal(['!']);
+  });
+
   it('writes to stdout from the default echo action', function () {
     var lexer = new Lexer();
     lexer.addRule(/[a-z]+/, function (current) { return current.text; });

@@ -6,9 +6,38 @@ FLEX.JS - Fast lexer (tokenizer, scanner) for JavaScript inspired by FLEX lexer 
 
 This is a library for creating scanners: programs which recognize lexical patterns in text. It analyzes its input for occurrences of the regular expressions. Whenever it finds one, it executes the corresponding JavaScript code.
 
-It loads with `require()`, with `import`, or straight from a `<script>` tag, where it puts `Lexer` on the page. There are no dependencies and nothing to build.
-
 This lexer is inspired by well-known FLEX lexer generator for C. See more: http://westes.github.io/flex/manual/ and https://github.com/westes/flex
+
+## Usage
+
+```
+npm install flex-js
+```
+
+Node, or anything with a bundler:
+
+```javascript
+var Lexer = require('flex-js');
+```
+
+As a module:
+
+```javascript
+import Lexer from 'flex-js';
+```
+
+In a browser with no bundler, load the file directly and it defines `Lexer` on
+the page. It is one file with no dependencies, so nothing has to be built first:
+
+```html
+<script src="node_modules/flex-js/src/Lexer.js"></script>
+<script>
+  var lexer = new Lexer();
+  lexer.addRule(/[a-z]+/, function (lexer) { return lexer.text; });
+  lexer.setSource('hello world');
+  console.log(lexer.lexAll());
+</script>
+```
 
 ## What is common between FLEX and FLEX.JS
 

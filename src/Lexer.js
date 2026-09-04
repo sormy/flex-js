@@ -31,7 +31,8 @@ var TRAILING_NEWLINE = '(?=\\n)';
  * @class Lexer
  */
 function Lexer() {
-  this.isNode = typeof window === 'undefined';
+  this.hasStandardOutput = typeof process !== 'undefined' &&
+    !!process.stdout && typeof process.stdout.write === 'function';
   this.idRegExp = /^[a-z_][a-z0-9_-]*$/i;
 
   Object.defineProperty(this, 'line', {
@@ -440,7 +441,7 @@ Lexer.prototype.discard = function () {
  * @public
  */
 Lexer.prototype.echo = function () {
-  if (this.isNode) {
+  if (this.hasStandardOutput) {
     process.stdout.write(this.text);
   } else {
     console.log(this.text);
