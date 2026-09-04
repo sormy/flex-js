@@ -1,3 +1,4 @@
+(function (root) {
 var ASCII_LIMIT = 128;
 var NEWLINE = 10;
 
@@ -1290,4 +1291,9 @@ Lexer.prototype.getFirstCharCodes = function (expression) {
   return uniqueCodes(expression.ignoreCase ? withBothCases(codes) : codes);
 };
 
-module.exports = Lexer;
+if (typeof module === 'object' && typeof module.exports === 'object') {
+  module.exports = Lexer;
+} else {
+  root.Lexer = Lexer;
+}
+}(typeof self === 'undefined' ? this : self));

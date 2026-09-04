@@ -5,11 +5,15 @@
     "sourceType": "module"
   },
   "env": {
+    "browser": true,
     "mocha": true,
     "node": true
   },
   "rules": {
     "no-console": 0,
-    "quotes": ["error", "single"]
+    "quotes": [
+      "error",
+      "single"
+    ]
   }
 }

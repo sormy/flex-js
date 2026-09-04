@@ -216,4 +216,14 @@ dispatch that offers every rule for every character.
 ## Project hygiene
 
 - [ ] Dev dependencies are from 2018 (eslint 5, mocha 5); no CI workflow.
-- [ ] No `files` field in `package.json`, so the whole repo is published.
+- [x] No `files` field in `package.json`, so the whole repo is published. It
+  now ships `index.js`, `src/Lexer.js`, the README and the licence, five files
+  and 21 kB, leaving the specs, the benchmark and this list behind.
+- [x] `src/Lexer.js` is wrapped so a `<script>` tag can load it: it exports
+  through `module.exports` where there is one and puts `Lexer` on the page
+  otherwise, with none of its 35 helpers reaching the global scope. No bundler
+  is involved, since the source is already ES5 and a bundler would only be
+  rewrapping it.
+- [ ] Once the source moves past ES5 it will need a build step, at which point
+  the hand-written wrapper becomes whatever the bundler emits and `main`,
+  `module` and `exports` should be set accordingly.
