@@ -33,7 +33,7 @@ reproduced against the current code unless marked otherwise.
   actions"). Unqualified EOF rules are now sorted after qualified ones when the
   dispatch is built, so declaration order no longer decides.
 
-- [ ] **`more()` silently drops input.** `scan()` advances by `this.text.length`,
+- [x] **`more()` silently drops input.** `scan()` advances by `this.text.length`,
   but after `more()` `this.text` also holds the *previous* match, so the index
   over-advances and skips characters.
 
@@ -43,11 +43,13 @@ reproduced against the current code unless marked otherwise.
   lexer.lexAll(); // ["ab"] — the "Z" is gone
   ```
 
-  Fix is `this.index += matchedValue.length`. The existing `#more()` test
-  passes only by luck: its `more()` lands at end of input, where the overshoot
-  runs off the end instead of eating a real character. A regression test with
-  trailing input is already written and skipped in `src/api.spec.js`
-  ("more() keeps scanning the text that follows") — unskip it with the fix.
+  Fixed by advancing the index with the newly matched text instead of the
+  accumulated text. `reject()` needed the same treatment: it rewound by the
+  accumulated length, which after `more()` restarted the scan before the
+  continued rule and looped forever. The rewind now lives in `scan()`, where
+  the match length is known, and restores the carried text so a rejected rule
+  retries the same position with the `more()` prefix intact, as flex does.
+  Covered by `src/more.spec.js`.
 
 ## Bugs
 
@@ -72,8 +74,8 @@ reproduced against the current code unless marked otherwise.
 
 - [ ] `lex()` loops on `result === undefined && result !== Lexer.EOF`; the
   second test can never be false. Dead condition.
-- [ ] `reject()` subtracts `this.text.length`, which includes `more()`-accumulated
-  text. The `more()` + `reject()` interaction is untested — verify and cover.
+- [x] `reject()` subtracted `this.text.length`, which includes
+  `more()`-accumulated text. Fixed and covered alongside `more()`.
 - [ ] `addState()` performs no name validation, unlike `addDefinition()`.
 - [ ] `echo()` writes straight to `process.stdout`, and `isNode` is decided by
   `typeof window === 'undefined'` in the constructor — wrong under bundlers,
@@ -135,8 +137,8 @@ dispatch that offers every rule for every character.
   the rule validation errors — none of which had tests before.
 - [x] `src/firstCharCodes.spec.js` and `src/dispatch.spec.js` cover the
   first-character analysis and its equivalence with an exhaustive scan.
-- [ ] No coverage for `more()` combined with `reject()`; verify the interaction
-  once `more()` is fixed.
+- [x] `src/more.spec.js` covers `more()`, its interaction with `less()`,
+  `reject()` and `unput()`, and `reject()` on its own.
 
 ## Project hygiene
 

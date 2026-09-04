@@ -164,8 +164,6 @@ describe('<<EOF>> rules', function () {
     expect(errors).to.deep.equal([]);
   });
 
-  // An unqualified <<EOF>> rule is a fallback: it applies only to states that
-  // do not carry an EOF rule of their own, no matter which was declared first.
   ['specific first', 'unqualified first'].forEach(function (order) {
     it('prefers a state-specific EOF rule over an unqualified one, declared ' + order, function () {
       var lexer = new Lexer();

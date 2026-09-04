@@ -398,7 +398,6 @@ Lexer.prototype.begin = function (newState) {
  * @public
  */
 Lexer.prototype.reject = function () {
-  this.index -= this.text.length;
   this.rejectedRules.push(this.ruleIndex);
 };
 
@@ -592,8 +591,10 @@ Lexer.prototype.scan = function () {
   }
 
   this.ruleIndex = matchedIndex;
-  this.text = this.readMore ? this.text : '';
-  this.readMore = false
+  var carriedText = this.readMore ? this.text : '';
+  var carriedMore = this.readMore;
+  this.text = carriedText;
+  this.readMore = false;
 
   if (!matchedRule) {
     if (!isEOF) {
@@ -606,8 +607,8 @@ Lexer.prototype.scan = function () {
     }
   }
 
-  this.text += matchedValue;
-  this.index += this.text.length;
+  this.text = carriedText + matchedValue;
+  this.index += matchedValue.length;
 
   var rejectedBefore = this.rejectedRules.length;
   var actionResult = matchedRule.action ? matchedRule.action(this) : this.discard();
@@ -615,6 +616,9 @@ Lexer.prototype.scan = function () {
 
   // reset reject state if there is no rejection in last action
   if (hasRejection) {
+    this.index -= matchedValue.length;
+    this.text = carriedText;
+    this.readMore = carriedMore;
     // ignore result if there is rejection in action
     return;
   }
@@ -723,7 +727,6 @@ Lexer.prototype.buildDispatch = function (rules) {
     var rule = rules[index];
 
     if (rule.isEOF) {
-      // a state's own EOF rule outranks an unqualified one, whatever the order
       (rule.isFallbackEOF ? fallbackEof : eof).push(index);
       continue;
     }

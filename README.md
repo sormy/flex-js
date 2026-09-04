@@ -588,7 +588,7 @@ The special rule `"<<EOF>>"` or `Lexer.RULE_EOF` indicates actions which are to 
 - do nothing, default `terminate()` will be called.
 - switch input string with `restart(newString)` and continue scan.
 - add some text to input with `unput()`.
-- use `reject()` to try another EOF rule (what???).
+- use `reject()` to fall through to the next `<<EOF>>` rule.
 - return something if buffer refilled with `restart()` or `unput()`.
 
 <<EOF>> rules may not be used with other patterns; they may only be qualified with a list of start conditions. An unqualified `<<EOF>>` rule is a fallback: it applies to every inclusive start condition that does not already carry an `<<EOF>>` rule of its own, whichever of the two was registered first.

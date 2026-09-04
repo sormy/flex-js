@@ -357,19 +357,6 @@ describe('actions', function () {
 
     expect(written).to.equal('!');
   });
-
-  // TODO.md: more() advances the index by the accumulated text, so input after
-  // the continued token is skipped. Unskip once that is fixed.
-  it.skip('more() keeps scanning the text that follows', function () {
-    var lexer = new Lexer();
-    lexer.addRule(/a/, function (current) { current.more(); });
-    lexer.addRule(/b/, function (current) { return current.text; });
-    lexer.addRule(/z/, function (current) { return 'Z' + current.text; });
-
-    lexer.setSource('abz');
-
-    expect(lexer.lexAll()).to.deep.equal(['ab', 'Zz']);
-  });
 });
 
 describe('lifecycle', function () {

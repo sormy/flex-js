@@ -1,10 +1,8 @@
 /**
- * Conservative first-character analysis for rule expressions.
+ * Character codes a rule expression can start with.
  *
- * Answers "which character codes could a match possibly start with?" so the
- * lexer can skip rules that cannot apply at the current position. The result
- * is always a superset of the true answer, and anything the analysis does not
- * fully understand yields UNKNOWN, meaning "this rule must always be tried".
+ * The result is always a superset of the true set; UNKNOWN means the caller
+ * must always try the rule.
  */
 
 var UNKNOWN = null;

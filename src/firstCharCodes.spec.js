@@ -58,8 +58,6 @@ describe('firstCharCodes', function () {
     });
   });
 
-  // The optimization is only safe while the reported set is a superset of the
-  // characters a match can actually start with.
   it('never omits a character an expression can really start with', function () {
     var corpus = [];
     var alphabet = 'abcxyzABCXYZ019 .+-_"\\\n\t{}()[]|?*$^éà';

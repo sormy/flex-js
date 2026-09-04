@@ -5,8 +5,7 @@ var Lexer = require('./Lexer.js');
 var ASCII_LIMIT = 128;
 
 /**
- * Reference dispatch: offers every rule for every character, which is what the
- * lexer did before rules were indexed by their possible first characters.
+ * Reference dispatch: offers every rule for every character.
  */
 function buildExhaustiveDispatch(rules) {
   var byCharCode = new Array(ASCII_LIMIT);
