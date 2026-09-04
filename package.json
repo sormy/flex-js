@@ -10,11 +10,14 @@
     "eslint": "eslint 'src/**/*.js'",
     "mocha": "mocha 'src/**.spec.js'",
     "test": "npm run eslint && npm run mocha",
-    "prepublishOnly": "npm run test"
+    "prepublishOnly": "npm run test",
+    "bench": "node benchmark.js"
   },
   "devDependencies": {
     "chai": "^4.2.0",
+    "chevrotain": "^13.2.0",
     "eslint": "^5.10.0",
-    "mocha": "^5.2.0"
+    "mocha": "^5.2.0",
+    "moo": "^0.5.3"
   }
 }

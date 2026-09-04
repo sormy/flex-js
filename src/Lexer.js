@@ -2,6 +2,26 @@ var firstCharCodes = require('./firstCharCodes.js');
 
 var ASCII_LIMIT = 128;
 
+function toCharCodes(text) {
+  var codes = [];
+
+  for (var index = 0; index < text.length; index++) {
+    codes.push(text.charCodeAt(index));
+  }
+
+  return codes;
+}
+
+function isAscii(text) {
+  for (var index = 0; index < text.length; index++) {
+    if (text.charCodeAt(index) >= ASCII_LIMIT) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 // flex reads "$" as the trailing context "/\n"
 var TRAILING_NEWLINE = '(?=\\n)';
 
@@ -222,6 +242,7 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
   var source;
   var flags;
   var fixedWidth;
+  var literal;
 
   if (expression === Lexer.RULE_EOF) {
     source = null;
@@ -232,6 +253,7 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
     source = this.escapeRegExp(expression);
     fixedWidth = expression.length;
     flags = '';
+    literal = expression;
   } else if (expression instanceof RegExp) {
     if (expression.source === '(?:)') {
       throw new Error('Empty expression for rule used in states "' + states.join(', ') + '"');
@@ -260,12 +282,18 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
   var expandedSource = isEOF ? '' : this.expandDefinitions(source);
   var compiledExpression = isEOF ? null : this.compileRuleExpression(expandedSource, flags);
 
+  // regard "i" as ASCII case folding, which it is for an ASCII literal
+  var foldsCase = compiledExpression !== null && compiledExpression.ignoreCase;
+  var comparable = literal !== undefined && (!foldsCase || isAscii(literal));
+
   var rule = {
     expression: compiledExpression,
     isEOF: isEOF,
     isFallbackEOF: isEOF && isUnqualified,
     trailingContextWidth: isEOF ? 0 : this.getTrailingContextWidth(expandedSource),
     firstCharCodes: isEOF ? null : firstCharCodes(compiledExpression),
+    literalLower: comparable ? toCharCodes(foldsCase ? literal.toLowerCase() : literal) : null,
+    literalUpper: comparable ? toCharCodes(foldsCase ? literal.toUpperCase() : literal) : null,
     action: action,
     fixedWidth: fixedWidth // used for weighted match optimization
   };
@@ -585,18 +613,28 @@ Lexer.prototype.scan = function () {
       continue;
     }
 
-    var expression = rule.expression;
-    expression.lastIndex = this.index;
-    // test() leaves the end in lastIndex without building a match array
-    if (!expression.test(this.source)) {
-      continue;
+    var matchEnd;
+
+    if (rule.literalLower !== null) {
+      if (!this.matchesLiteral(rule, this.index)) {
+        continue;
+      }
+      matchEnd = this.index + rule.literalLower.length;
+    } else {
+      var expression = rule.expression;
+      expression.lastIndex = this.index;
+      // test() leaves the end in lastIndex without building a match array
+      if (!expression.test(this.source)) {
+        continue;
+      }
+      matchEnd = expression.lastIndex;
     }
 
-    var curMatchLength = expression.lastIndex - this.index + rule.trailingContextWidth;
+    var curMatchLength = matchEnd - this.index + rule.trailingContextWidth;
     if (curMatchLength > matchedValueLength) {
       matchedRule = rule;
       matchedIndex = ruleIndex;
-      matchedEnd = expression.lastIndex;
+      matchedEnd = matchEnd;
       matchedValueLength = curMatchLength;
     }
   }
@@ -730,6 +768,24 @@ Lexer.prototype.getTrailingContextWidth = function (source) {
   }
 
   return backslashes % 2 === 0 ? 1 : 0;
+};
+
+/**
+ * @private
+ */
+Lexer.prototype.matchesLiteral = function (rule, index) {
+  var lower = rule.literalLower;
+  var upper = rule.literalUpper;
+  var source = this.source;
+
+  for (var offset = 0; offset < lower.length; offset++) {
+    var code = source.charCodeAt(index + offset);
+    if (code !== lower[offset] && code !== upper[offset]) {
+      return false;
+    }
+  }
+
+  return true;
 };
 
 /**

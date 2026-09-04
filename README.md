@@ -29,6 +29,39 @@ This lexer is inspired by well-known FLEX lexer generator for C. See more: http:
 - custom output buffer
 - Track line number (TODO: fix)
 
+## Performance
+
+Measured with `npm run bench` on a 266-273 KB source, best of 30 rounds, each
+grammar in its own process. Numbers move with hardware and Node version, so run
+it yourself rather than trusting these exactly.
+
+Rules written as regular expressions:
+
+| lexer             | time    | throughput |
+| ----------------- | ------- | ---------- |
+| flex-js           | 5.2 ms  | 49.7 MB/s  |
+| moo 0.5.3         | 7.0 ms  | 37.3 MB/s  |
+| chevrotain 13.2.0 | 3.2 ms  | 82.5 MB/s  |
+
+Keywords and punctuation written as plain strings, which is the common shape for
+a language scanner:
+
+| lexer             | time    | throughput |
+| ----------------- | ------- | ---------- |
+| flex-js           | 6.8 ms  | 39.2 MB/s  |
+| moo 0.5.3         | 10.0 ms | 26.7 MB/s  |
+| chevrotain 13.2.0 | 4.6 ms  | 57.9 MB/s  |
+
+Rules are indexed by the characters a match can start with, so a scan only tries
+the rules that can apply at the current position, and a rule given as a string is
+compared directly instead of being run through the expression engine.
+
+chevrotain stays ahead because it does not enter the expression engine for simple
+patterns at all, and because flex-js calls a rule action for every token, which is
+what the API is for. A hand-written scanner using the same strategy as flex-js
+costs about 2.9 ms on the first grammar, so that gap is a matter of how the rules
+are executed rather than of tuning.
+
 ## Simple example
 
 A simple example of float value scanner:

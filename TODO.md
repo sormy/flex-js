@@ -116,8 +116,14 @@ reproduced against the current code unless marked otherwise.
 - [x] `for...in` over rule arrays in the hot path, replaced with indexed loops.
 - [x] `rejectedRules.indexOf()` ran for every rule on every scan; now skipped
   entirely while no rule is rejected (the overwhelmingly common case).
-- [ ] Extend the `fixedWidth` early-exit beyond plain string rules by computing
-  a maximum match width for simple expressions.
+- [x] A rule given as a string is compared against the input directly rather
+  than run through the expression engine, which is sound because the comparison
+  checks the match itself instead of trusting the dispatch. `ignoreCase` is
+  covered by holding both case forms; a literal with non-ascii characters falls
+  back to the expression, since `i` is only plain ASCII folding for ASCII text.
+  10% on a grammar whose keywords and punctuation are strings, neutral
+  otherwise. Covered by `src/literal.spec.js`.
+- [ ] Extend the same early-exit to expressions with a known fixed width.
 - [x] Cut per-scan overhead: `scan()` replaced `exec()` with `test()`, which
   leaves the match end in `lastIndex` without building a match array, and the
   matched text is now cut once for the winning rule instead of once per rule
@@ -140,8 +146,7 @@ reproduced against the current code unless marked otherwise.
   `src/dispatch.spec.js` rejected the first attempt for exactly that reason. It
   needs a per-rule character set to re-check membership before it is safe.
 
-Measured on a 266 KB source producing 52,000 tokens, 40 interleaved rounds,
-median (`node` 24, 8 rules):
+Measured with `npm run bench`, best of 30 rounds (`node` 24):
 
 | lexer                | time    | throughput |
 | -------------------- | ------- | ---------- |
