@@ -253,6 +253,7 @@ function report(workload) {
     console.log('  ' + runner.name.padEnd(12) +
       best.toFixed(2).padStart(7) + ' ms  ' +
       (megabytes / (best / 1000)).toFixed(1).padStart(7) + ' MB/s  ' +
+      (runner.count / best / 1000).toFixed(1).padStart(6) + ' Mtokens/s  ' +
       (relative === 1 ? '' : relative.toFixed(2) + 'x flex-js'));
     if (runner.count !== runners[0].count) {
       console.log('    token count differs from flex-js (' + runner.count +

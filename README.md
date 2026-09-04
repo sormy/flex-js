@@ -31,26 +31,25 @@ This lexer is inspired by well-known FLEX lexer generator for C. See more: http:
 
 ## Performance
 
-Measured with `npm run bench` on a 266-273 KB source, best of 30 rounds, each
-grammar in its own process. Numbers move with hardware and Node version, so run
-it yourself rather than trusting these exactly.
+Measured with `npm run bench`, best of 30 rounds, each grammar in its own
+process. The two grammars differ in token density, so read down a table rather
+than across the two. Numbers move with hardware and Node version.
 
-Rules written as regular expressions:
+Rules written as regular expressions, 266 KB and 52,000 tokens:
 
-| lexer             | time    | throughput |
-| ----------------- | ------- | ---------- |
-| flex-js           | 5.2 ms  | 49.7 MB/s  |
-| moo 0.5.3         | 7.0 ms  | 37.3 MB/s  |
-| chevrotain 13.2.0 | 3.2 ms  | 82.5 MB/s  |
+| lexer             | time    | throughput | tokens/s |
+| ----------------- | ------- | ---------- | -------- |
+| flex-js           | 5.1 ms  | 51.3 MB/s  | 10.3 M   |
+| moo 0.5.3         | 7.0 ms  | 37.2 MB/s  | 7.5 M    |
+| chevrotain 13.2.0 | 3.2 ms  | 81.8 MB/s  | 16.4 M   |
 
-Keywords and punctuation written as plain strings, which is the common shape for
-a language scanner:
+Keywords and punctuation written as plain strings, 273 KB and 88,000 tokens:
 
-| lexer             | time    | throughput |
-| ----------------- | ------- | ---------- |
-| flex-js           | 6.8 ms  | 39.2 MB/s  |
-| moo 0.5.3         | 10.0 ms | 26.7 MB/s  |
-| chevrotain 13.2.0 | 4.6 ms  | 57.9 MB/s  |
+| lexer             | time    | throughput | tokens/s |
+| ----------------- | ------- | ---------- | -------- |
+| flex-js           | 6.8 ms  | 39.3 MB/s  | 12.9 M   |
+| moo 0.5.3         | 10.0 ms | 26.6 MB/s  | 8.8 M    |
+| chevrotain 13.2.0 | 4.3 ms  | 62.2 MB/s  | 20.5 M   |
 
 ## Simple example
 
