@@ -1,0 +1,11 @@
+{
+  "name": "flex-js-benchmark",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lexers that flex-js is measured against",
+  "dependencies": {
+    "chevrotain": "^13.2.0",
+    "lex": "^1.7.9",
+    "moo": "^0.5.3"
+  }
+}

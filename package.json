@@ -11,17 +11,14 @@
   "author": "Artem Butusov <art.sormy@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "eslint": "eslint src test benchmark.js eslint.config.js",
+    "eslint": "eslint src test benchmark eslint.config.js",
     "test": "npm run eslint && node --test 'test/*.test.js'",
-    "bench": "node benchmark.js",
+    "bench": "npm --prefix benchmark install --silent --no-audit --no-fund && node benchmark/index.js",
     "prepublishOnly": "npm run test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "chevrotain": "^13.2.0",
     "eslint": "^10.10.0",
-    "globals": "^17.12.0",
-    "lex": "^1.7.9",
-    "moo": "^0.5.3"
+    "globals": "^17.12.0"
   }
 }

@@ -1,9 +1,10 @@
 /**
  * Throughput comparison against other JavaScript lexers.
  *
- * Run with `npm run bench`. moo and chevrotain are optional: whichever is
- * installed takes part, and the rest of the table is still produced without
- * them. Every engine is fed the same source and must return the same number of
+ * Run with `npm run bench`, which installs the lexers compared against into
+ * this directory. They are kept out of the root package so that testing and
+ * linting flex-js does not mean downloading three other lexers. Whichever is
+ * present takes part, and the table is still produced without them. Every engine is fed the same source and must return the same number of
  * tokens, so a change in that count means the grammars have drifted apart and
  * the timings are not comparable.
  *
@@ -15,7 +16,7 @@
 
 var childProcess = require('child_process');
 
-var Lexer = require('./index.js');
+var Lexer = require('..');
 
 var REPEATS = 4000;
 var MEMORY_ROUNDS = 3;

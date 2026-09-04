@@ -223,8 +223,11 @@ dispatch that offers every rule for every character.
   file that is published, with `test/assertThrows.js` covering chai's substring
   matching of a thrown message.
 - [ ] eslint is from 2018, and there is no CI workflow.
-- [ ] `.eslintignore` skipped `*.spec.js` and now skips `*.test.js`, so the
-  tests have never been linted. Turning it on reports 21 problems, all of them
+- [ ] Indenting the body of the script-tag wrapper in `src/Lexer.js` would let
+  the editor format JavaScript on save. It is left flat so that wrapping the
+  file did not rewrite the blame of all 1300 lines; a formatter changes 2226
+  lines while it stays that way and only 100 once the wrapper is discounted.
+- [ ] eslint ignores `*.test.js`, so the tests have never been linted. Turning it on reports 21 problems, all of them
   harmless: unread echo collectors, callback parameters nobody uses and one
   needless escape. Fix them and drop the ignore.
 - [x] No `files` field in `package.json`, so the whole repo is published. It

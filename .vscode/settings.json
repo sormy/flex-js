@@ -2,7 +2,10 @@
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
   },
-  "editor.formatOnSave": false,
+  "editor.formatOnSave": true,
+  "[javascript]": {
+    "editor.formatOnSave": false
+  },
   "files.insertFinalNewline": true,
   "files.trimTrailingWhitespace": true
 }
