@@ -4,7 +4,7 @@ FLEX.JS - Fast lexer (tokenizer, scanner) for JavaScript inspired by FLEX lexer 
 
 ## Description
 
-This is a library for creating scanners: programs which recognized lexical patterns in text. It analyzes its input for occurrences of the regular expressions. Whenever it finds one, it executes the corresponding JavaScript code.
+This is a library for creating scanners: programs which recognize lexical patterns in text. It analyzes its input for occurrences of the regular expressions. Whenever it finds one, it executes the corresponding JavaScript code.
 
 This lexer is inspired by well-known FLEX lexer generator for C. See more: http://westes.github.io/flex/manual/ and https://github.com/westes/flex
 
@@ -17,7 +17,7 @@ This lexer is inspired by well-known FLEX lexer generator for C. See more: http:
 ## Differences between FLEX and FLEX.JS
 
 - FLEX is lexer generator but FLEX.JS is configurable lexer class.
-- FLEX.JS uses JavaScript regular expression, this fact effect on syntax and some limitations.
+- FLEX.JS uses JavaScript regular expression, this fact affects syntax and brings some limitations.
 - FLEX could work with streams/buffers but FLEX.JS works with fixed-size strings.
 - REJECT action is not a branch, code after REJECT will be executed, but action return value will be ignored.
 - An `<<EOF>>` action may only return a token if it refilled the buffer with `restart()` or `unput()`; otherwise the scan terminates and the return value is dropped.
@@ -111,7 +111,7 @@ The lexer configuration consists of three sections:
 - rules
 - user code
 
-The **options** section contains configuration for lexer, like default case sensivity behavior.
+The **options** section contains configuration for lexer, like default case sensitivity behavior.
 
 The **definitions** section contains declarations of simple **name** definitions to simplify the scanner specification, and declarations of **start conditions**, which are explained in a later section. Name definitions have the form:
 
@@ -137,7 +137,7 @@ lexer.addDefinition('NUMBER', /{DIGIT}+/);
 
 Names are matched case sensitively, so `{digit}` does not refer to "DIGIT". A reference to a name that is not defined is left as is, which is what keeps counted quantifiers such as `/{DIGIT}{2}/` working.
 
-There is no way to set case sensivity flag per definition, only per pattern or globally for whole lexer instance.
+There is no way to set case sensitivity flag per definition, only per pattern or globally for whole lexer instance.
 
 The **rules** section of the lexer configuration contains a series of rules of the form:
 
@@ -152,15 +152,12 @@ Lexer defaults and definitions should be added before adding new rules.
 
 ## Options
 
-- Ignore Case - case sensivity could be set via `setIgnoreCase(false)` or `setIgnoreCase(true)`. By defalt lexer is case sensitive.
-- Debug Mode - debug mode could be enabled with `setDebugEnabled(true)`. In debug mode lexer will output on console state, expression and matched value for each accepted value.
-- track line number (TODO)
-- read from stdin or custom file handler without boilerplate (TODO)
-- echo to stdout, stderr or custom file handler (TODO)
+- Ignore Case - case sensitivity could be set via `setIgnoreCase(false)` or `setIgnoreCase(true)`. By default lexer is case sensitive.
+- Debug Mode - debug mode could be enabled with `setDebugEnabled(true)`. In debug mode lexer will output on console the state, the expression and the matched value for each accepted rule.
 
 ## States
 
-- `addStateRule('s', 'r', action);` - an `r`, but only in start condition `s `(see below for discussion of start conditions)
+- `addStateRule('s', 'r', action);` - an `r`, but only in start condition `s` (see below for discussion of start conditions)
 - `addStateRule(['s1', 's2', 's3'], 'r', action);` - same, but in any of start conditions `s1`, `s2`, or `s3`
 - `addStateRule('*', 'r', action);` or `addStateRule(Lexer.STATE_ANY, 'r', action);` - an `r` in any start condition, even an exclusive one.
 - `addStateRule(['s1', 's2'], '<<EOF>>', action);` or `addStateRule(['s1', 's2'], Lexer.RULE_EOF, action);` - an end-of-file when in start condition `s1` or `s2`
@@ -169,7 +166,7 @@ Lexer defaults and definitions should be added before adding new rules.
 
 Read more here: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions
 
-The patterns are written using an standard syntax for JavaScript regular expressions + string values are also supported. These are:
+The patterns are written using the standard syntax for JavaScript regular expressions + string values are also supported. These are:
 
 - `"[xyz]\"foo"` - the literal string: `[xyz]"foo`
 - `/x/` - match the character `x`
@@ -177,7 +174,7 @@ The patterns are written using an standard syntax for JavaScript regular express
 - `/[xyz]/` - a "character class"; in this case, the pattern matches either an `x`, a `y`, or a `z`
 - `/[abj-oZ]/` - a "character class" with a range in it; matches an `a`, a `b`, any letter from `j` through `o`, or a `Z`
 - `/[^A-Z]/` - a "negated character class", i.e., any character but those in the class. In this case, any character EXCEPT an uppercase letter.
-- `/[^A-Z\n]/` any character EXCEPT an uppercase letter or a newline
+- `/[^A-Z\n]/` - any character EXCEPT an uppercase letter or a newline
 - `/r*/` - zero or more r's, where r is any regular expression
 - `/r+/` - one or more r's
 - `/r?/` - zero or one r's (that is, "an optional r")
@@ -235,15 +232,15 @@ If no match is found, then the default rule is executed: the next character in t
 
 ```javascript
 var lexer = new Lexer();
-lexer.setSource(text)
+lexer.setSource('some input');
 lexer.lex();
 ```
 
-which run a scanner that simply copies its input (one character at a time) to its output.
+which runs a scanner that simply copies its input (one character at a time) to its output.
 
 ## Actions
 
-Each pattern in a rule has a corresponding action, which can be any arbitrary JavaScript function. If the action is empty, then when the pattern is matched the input token is simply discarded. For example, here is the a program which deletes all occurrences of "zap me" from its input:
+Each pattern in a rule has a corresponding action, which can be any arbitrary JavaScript function. If the action is empty, then when the pattern is matched the input token is simply discarded. For example, here is a program which deletes all occurrences of "zap me" from its input:
 
 ```javascript
 var lexer = new Lexer();
@@ -417,13 +414,13 @@ lexer.lex();
 
 Whenever `lex()` is called, it scans tokens from the input source string. It continues until it either reaches an end-of-file (at which point it returns the value 0) or one of its actions executes a return statement with token.
 
-If the scanner reaches an end-of-file, subsequent calls are undefined unless new source input string is set or `restart()` is called. `restart()` takes one argument, a new string input source (which can be null, if you want to rescan the same input string). Essentially there is no difference between just assigning a new input source string with `setSource()` or using `restart()` to do so; the latter is available for compatibility with previous versions of flex, and because it can be used to switch input strings in the middle of scanning. It can also be used to throw away the current input buffer, by calling it with an `''`; but better is to use `reset()`, which keeps the rules where `clear()` would drop them. Note that `restart()` does not reset the start condition to `INITIAL` (see Start Conditions, below).
+If the scanner reaches an end-of-file it clears the input, so subsequent calls keep answering `Lexer.EOF` until a new source input string is set with `setSource()` or `restart(newSource)`. `restart()` takes one argument, a new string input source, which may be omitted if you want to rescan the same input string. Essentially there is no difference between just assigning a new input source string with `setSource()` or using `restart()` to do so; the latter is available for compatibility with previous versions of flex, and because it can be used to switch input strings in the middle of scanning. It can also be used to throw away the current input buffer, by calling it with an `''`; but better is to use `reset()`, which keeps the rules where `clear()` would drop them. Note that `restart()` does not reset the start condition to `INITIAL` (see Start Conditions, below).
 
 If `lex()` stops scanning due to executing a return statement in one of the actions, the scanner may then be called again and it will resume scanning where it left off.
 
 Note that in either case, the start condition remains unchanged; it does not revert to `INITIAL`.
 
-By default (and for purposes of efficiency), the scanner uses native RegExp objects to read characters from input string and match them.
+The scanner matches with native sticky RegExp objects, except for a rule given as a string, which is compared against the input directly.
 
 ## Start conditions
 
@@ -480,6 +477,7 @@ lexer.addStateRule('*', /.|\n/, function (lexer) { lexer.echo(); });
 To illustrate the uses of start conditions, here is a scanner which provides two different interpretations of a string like "123.456". By default it will treat it as as three tokens, the integer "123", a dot ('.'), and the integer "456". But if the string is preceded earlier in the line by the string "expect-floats" it will treat it as a single token, the floating-point number 123.456:
 
 ```javascript
+var output = '';
 var lexer = new Lexer();
 lexer.addState('expect');
 lexer.addRule('expect floats', function (lexer) {
@@ -695,8 +693,8 @@ This section summarizes the various values available to the user in the rule act
 
 - `text` holds the text of the current token. It may be modified.
 - `state` holds string name of current start condition.
-- `restart(newSource)` may be called to point lexer at the new input string. The switch-over to the new file is immediate. Note that calling `restart()` without an argument thus throws away the current input buffer and continues scanning the same input string again. Once scanning terminates because an end-of-file has been seen, you can call `restart(newSource)` to continue scanning.
-- `source` is the string which by default lexer reads from. It may be redefined but doing so only makes sense before scanning begins or after an EOF has been encountered. Changing it in the midst of scanning with use
+- `restart(newSource)` may be called to point lexer at the new input string. The switch-over is immediate. Calling `restart()` without an argument leaves the input alone and rewinds to the start of it, so the same string is scanned again. Once scanning terminates because an end-of-file has been seen, you can call `restart(newSource)` to continue scanning.
+- `source` is the string which by default lexer reads from. It may be redefined but doing so only makes sense before scanning begins or after an EOF has been encountered. Changing it in the midst of scanning leaves `index` pointing into the string that is gone, so use `restart()` instead.
 - `index` holds current position in source string.
 
 ## Interfacing with parser
@@ -708,7 +706,7 @@ Here is example how can you use this lexer together with parser produced by Lemo
 ```javascript
 var parser = new Parser();
 var lexer = new Lexer();
-// confgure lexer here
+// configure lexer here
 var token;
 while ((token = lexer.lex()) !== Lexer.EOF) {
   parser.parse(token);
