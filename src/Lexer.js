@@ -1,3 +1,7 @@
+var firstCharCodes = require('./firstCharCodes.js');
+
+var ASCII_LIMIT = 128;
+
 /**
  * FLEX.JS - FLEX-like lexer.
  *
@@ -68,6 +72,7 @@ Lexer.prototype.clear = function () {
   this.states = {};
   this.definitions = [];
   this.rules = {};
+  this.dispatches = {};
   this.ignoreCase = false;
   this.debugEnabled = false;
 
@@ -236,27 +241,27 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
     throw new Error('Invalid rule action: should be function or empty');
   }
 
-  var compiledExpression = source === null ? null : this.compileRuleExpression(source, flags);
-  var hasBOL = compiledExpression === null ? null : this.isRegExpMatchBOL(compiledExpression);
-  var hasEOL = compiledExpression === null ? null : this.isRegExpMatchEOL(compiledExpression);
   var isEOF = source === null;
+  var compiledExpression = isEOF ? null : this.compileRuleExpression(source, flags);
 
   var rule = {
     expression: compiledExpression,
-    hasBOL: hasBOL,
-    hasEOL: hasEOL,
     isEOF: isEOF,
+    anchorWeight: isEOF ? 0 : this.getAnchorWeight(compiledExpression),
+    firstCharCodes: isEOF ? null : firstCharCodes(compiledExpression),
     action: action,
-    fixedWidth: fixedWidth // used for weighted match optmization
+    fixedWidth: fixedWidth // used for weighted match optimization
   };
 
-  for (var index in states) {
-    var state = states[index];
+  for (var stateIndex in states) {
+    var state = states[stateIndex];
     if (!this.rules[state]) {
       this.rules[state] = [];
     }
     this.rules[state].push(rule);
   }
+
+  this.dispatches = {};
 };
 
 /**
@@ -533,45 +538,49 @@ Lexer.prototype.scan = function () {
   var matchedValueLength = 0; // could be 1 char more than matchedValue for expressions with $ at end
 
   var rules = this.rules[this.state] || [];
-  for (var index in rules) {
-    if (this.rejectedRules.indexOf(index) !== -1) {
+  var dispatch = this.getDispatch(this.state);
+  var rejectedRules = this.rejectedRules;
+
+  var candidates;
+  if (isEOF) {
+    candidates = dispatch.eof;
+  } else {
+    var charCode = this.source.charCodeAt(this.index);
+    candidates = charCode < ASCII_LIMIT ? dispatch.byCharCode[charCode] : dispatch.nonAscii;
+  }
+
+  for (var candidate = 0; candidate < candidates.length; candidate++) {
+    var ruleIndex = candidates[candidate];
+    if (rejectedRules.length && rejectedRules.indexOf(ruleIndex) !== -1) {
       continue;
     }
 
-    var rule = rules[index];
+    var rule = rules[ruleIndex];
 
     if (isEOF) {
-      // skip non EOF rules
-      if (rule.isEOF) {
-        matchedRule = rule;
-        matchedIndex = index;
-        matchedValue = '';
-        // no need to search for other EOF rules
-        break;
-      }
-    } else {
-      if (rule.fixedWidth === undefined
-        || rule.fixedWidth > matchedValueLength
-      ) {
-        var curMatch = this.execRegExp(rule.expression);
-        if (curMatch !== undefined) {
-          var curMatchLength = curMatch.length;
+      matchedRule = rule;
+      matchedIndex = ruleIndex;
+      // no need to search for other EOF rules
+      break;
+    }
 
-          if (rule.hasBOL) {
-            curMatchLength++;
-          }
-          if (rule.hasEOL) {
-            curMatchLength++;
-          }
+    if (rule.fixedWidth !== undefined && rule.fixedWidth <= matchedValueLength) {
+      continue;
+    }
 
-          if (curMatchLength > matchedValueLength) {
-            matchedRule = rule;
-            matchedIndex = index;
-            matchedValue = curMatch;
-            matchedValueLength = curMatchLength;
-          }
-        }
-      }
+    var expression = rule.expression;
+    expression.lastIndex = this.index;
+    var curMatch = expression.exec(this.source);
+    if (curMatch === null) {
+      continue;
+    }
+
+    var curMatchLength = curMatch[0].length + rule.anchorWeight;
+    if (curMatchLength > matchedValueLength) {
+      matchedRule = rule;
+      matchedIndex = ruleIndex;
+      matchedValue = curMatch[0];
+      matchedValueLength = curMatchLength;
     }
   }
 
@@ -643,15 +652,6 @@ Lexer.prototype.encodeString = function (s) {
 /**
  * @private
  */
-Lexer.prototype.execRegExp = function (re) {
-  re.lastIndex = this.index;
-  var result = re.exec(this.source);
-  return result ? result[0] : undefined;
-}
-
-/**
- * @private
- */
 Lexer.prototype.compileRuleExpression = function (source, flags) {
   for (var defName in this.definitions) {
     var defExpression = this.definitions[defName];
@@ -676,19 +676,77 @@ Lexer.prototype.escapeRegExp = function (s) {
 };
 
 /**
+ * Anchors match zero characters, so they are given weight of their own to keep
+ * anchored rules competitive with longer unanchored ones.
+ *
  * @private
  */
-Lexer.prototype.isRegExpMatchBOL = function(re) {
+Lexer.prototype.getAnchorWeight = function (expression) {
   // primitive detection but in most cases it is more than enough
-  return re.source.substr(0, 1) === '^';
-}
+  return (expression.source.substr(0, 1) === '^' ? 1 : 0)
+    + (expression.source.substr(-1) === '$' ? 1 : 0);
+};
 
 /**
  * @private
  */
-Lexer.prototype.isRegExpMatchEOL = function(re) {
-  // primitive detection but in most cases it is more than enough
-  return re.source.substr(-1) === '$';
-}
+Lexer.prototype.getDispatch = function (state) {
+  var dispatch = this.dispatches[state];
+  if (!dispatch) {
+    dispatch = this.dispatches[state] = this.buildDispatch(this.rules[state] || []);
+  }
+  return dispatch;
+};
+
+/**
+ * Index rules by the characters a match can start with, so that a scan only
+ * tries the rules that can possibly apply. Declaration order is preserved
+ * within every bucket, keeping longest-match ties on the earliest rule.
+ *
+ * @private
+ */
+Lexer.prototype.buildDispatch = function (rules) {
+  var byCharCode = new Array(ASCII_LIMIT);
+  var nonAscii = [];
+  var eof = [];
+  var charCode;
+
+  for (charCode = 0; charCode < ASCII_LIMIT; charCode++) {
+    byCharCode[charCode] = [];
+  }
+
+  for (var index = 0; index < rules.length; index++) {
+    var rule = rules[index];
+
+    if (rule.isEOF) {
+      eof.push(index);
+      continue;
+    }
+
+    if (rule.firstCharCodes === null) {
+      for (charCode = 0; charCode < ASCII_LIMIT; charCode++) {
+        byCharCode[charCode].push(index);
+      }
+      nonAscii.push(index);
+      continue;
+    }
+
+    // case folding can cross the ASCII boundary (K and U+212A), so widen
+    var reachesNonAscii = rule.expression.ignoreCase;
+    for (var codeIndex = 0; codeIndex < rule.firstCharCodes.length; codeIndex++) {
+      charCode = rule.firstCharCodes[codeIndex];
+      if (charCode < ASCII_LIMIT) {
+        byCharCode[charCode].push(index);
+      } else {
+        reachesNonAscii = true;
+      }
+    }
+    if (reachesNonAscii) {
+      nonAscii.push(index);
+    }
+  }
+
+  return { byCharCode: byCharCode, nonAscii: nonAscii, eof: eof };
+};
 
 module.exports = Lexer;
