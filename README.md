@@ -391,7 +391,7 @@ lexer.lex();
 
 Whenever `lex()` is called, it scans tokens from the input source string. It continues until it either reaches an end-of-file (at which point it returns the value 0) or one of its actions executes a return statement with token.
 
-If the scanner reaches an end-of-file, subsequent calls are undefined unless new source input string is set or `restart()` is called. `restart()` takes one argument, a new string input source (which can be null, if you want to rescan the same input string). Essentially there is no difference between just assigning a new input source string with `setSource()` or using `restart()` to do so; the latter is available for compatibility with previous versions of flex, and because it can be used to switch input strings in the middle of scanning. It can also be used to throw away the current input buffer, by calling it with an `''`; but better is to use `clear()`. Note that `restart()` does not reset the start condition to `INITIAL` (see Start Conditions, below).
+If the scanner reaches an end-of-file, subsequent calls are undefined unless new source input string is set or `restart()` is called. `restart()` takes one argument, a new string input source (which can be null, if you want to rescan the same input string). Essentially there is no difference between just assigning a new input source string with `setSource()` or using `restart()` to do so; the latter is available for compatibility with previous versions of flex, and because it can be used to switch input strings in the middle of scanning. It can also be used to throw away the current input buffer, by calling it with an `''`; but better is to use `reset()`, which keeps the rules where `clear()` would drop them. Note that `restart()` does not reset the start condition to `INITIAL` (see Start Conditions, below).
 
 If `lex()` stops scanning due to executing a return statement in one of the actions, the scanner may then be called again and it will resume scanning where it left off.
 
@@ -657,8 +657,9 @@ lexer.addRule(Lexer.RULE_EOF, function (lexer) {
 
 ## Miscellaneous methods
 
-...
-
+- `reset()` drops the scanning state: the input string, the position, the accumulated token text, the start condition and the start condition stack. Rules, definitions and options are kept, so the same lexer can be pointed at another input.
+- `clear()` drops the configuration as well. Rules, definitions and added start conditions are gone and only `INITIAL` remains, leaving the lexer as it was when constructed.
+- `lexAll()` scans to the end of the input and returns everything the actions returned, as an array. Equivalent to calling `lex()` until it answers `Lexer.EOF`.
 
 ## Values available to the user
 
