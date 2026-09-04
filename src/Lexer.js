@@ -1,4 +1,5 @@
 var ASCII_LIMIT = 128;
+var NEWLINE = 10;
 
 function toCharCodes(text) {
   var codes = [];
@@ -31,6 +32,17 @@ var TRAILING_NEWLINE = '(?=\\n)';
 function Lexer() {
   this.isNode = typeof window === 'undefined';
   this.idRegExp = /^[a-z_][a-z0-9_-]*$/i;
+
+  Object.defineProperty(this, 'line', {
+    get: function () { return this.getLineAt(this.tokenStart) + 1; }
+  });
+
+  Object.defineProperty(this, 'column', {
+    get: function () {
+      var line = this.getLineAt(this.tokenStart);
+      return this.tokenStart - this.getLineOffsets()[line] + 1;
+    }
+  });
 
   this.clear();
 }
@@ -78,6 +90,8 @@ Lexer.prototype.reset = function () {
   this.text = undefined;
   this.state = Lexer.STATE_INITIAL;
 
+  this.tokenStart = 0;
+  this.lineOffsets = null;
   this.ruleIndex = undefined;
   this.readMore = false;
   this.stateStack = [];
@@ -97,6 +111,7 @@ Lexer.prototype.clear = function () {
   this.dispatches = {};
   this.ignoreCase = false;
   this.debugEnabled = false;
+  this.defaultRuleEnabled = true;
 
   this.addState(Lexer.STATE_INITIAL);
 
@@ -127,6 +142,20 @@ Lexer.prototype.setIgnoreCase = function (ignoreCase) {
  */
 Lexer.prototype.setDebugEnabled = function (debugEnabled) {
   this.debugEnabled = debugEnabled;
+};
+
+/**
+ * Set whether input matching no rule is echoed, as FLEX does by default.
+ *
+ * With the default rule off, such input raises an error instead, which is
+ * FLEX's "%option nodefault".
+ *
+ * @param {boolean} defaultRuleEnabled
+ *
+ * @public
+ */
+Lexer.prototype.setDefaultRuleEnabled = function (defaultRuleEnabled) {
+  this.defaultRuleEnabled = defaultRuleEnabled;
 };
 
 /**
@@ -358,6 +387,8 @@ Lexer.prototype.addRules = function (rules) {
 Lexer.prototype.setSource = function (source) {
   this.source = source;
   this.index = 0;
+  this.tokenStart = 0;
+  this.lineOffsets = null;
 };
 
 /**
@@ -474,6 +505,7 @@ Lexer.prototype.less = function (n) {
  */
 Lexer.prototype.unput = function (s) {
   this.source = this.source.substr(0, this.index) + s + this.source.substr(this.index);
+  this.lineOffsets = null;
 };
 
 /**
@@ -509,8 +541,10 @@ Lexer.prototype.terminate = function () {
 Lexer.prototype.restart = function (newSource) {
   if (newSource !== undefined) {
     this.source = newSource;
+    this.lineOffsets = null;
   }
   this.index = 0;
+  this.tokenStart = 0;
 };
 
 /**
@@ -648,12 +682,18 @@ Lexer.prototype.scan = function () {
   this.ruleIndex = matchedIndex;
   var carriedText = this.readMore ? this.text : '';
   var carriedMore = this.readMore;
+  if (!carriedMore) {
+    this.tokenStart = this.index;
+  }
   this.text = carriedText;
   this.readMore = false;
 
   if (!matchedRule) {
     if (!isEOF) {
       this.text += this.source.charAt(this.index);
+      if (!this.defaultRuleEnabled) {
+        this.error('scanner jammed');
+      }
       this.index++;
       return this.echo();
     } else {
@@ -689,6 +729,67 @@ Lexer.prototype.scan = function () {
   }
 
   return isEOF ? this.terminate() : actionResult;
+};
+
+/**
+ * Report a message against the position the current token starts at, in the
+ * shape a compiler front end would print.
+ *
+ * @param {string} message
+ *
+ * @public
+ */
+Lexer.prototype.error = function (message) {
+  var error = new Error(message + ' at line ' + this.line + ', column ' + this.column);
+
+  error.line = this.line;
+  error.column = this.column;
+  error.text = this.text;
+
+  throw error;
+};
+
+/**
+ * Offset at which every line of the source begins, built once per source.
+ *
+ * @private
+ */
+Lexer.prototype.getLineOffsets = function () {
+  if (this.lineOffsets === null) {
+    var offsets = [0];
+
+    for (var index = 0; index < this.source.length; index++) {
+      if (this.source.charCodeAt(index) === NEWLINE) {
+        offsets.push(index + 1);
+      }
+    }
+
+    this.lineOffsets = offsets;
+  }
+
+  return this.lineOffsets;
+};
+
+/**
+ * Zero based line holding the given position.
+ *
+ * @private
+ */
+Lexer.prototype.getLineAt = function (position) {
+  var offsets = this.getLineOffsets();
+  var low = 0;
+  var high = offsets.length - 1;
+
+  while (low < high) {
+    var middle = Math.ceil((low + high) / 2);
+    if (offsets[middle] <= position) {
+      low = middle;
+    } else {
+      high = middle - 1;
+    }
+  }
+
+  return low;
 };
 
 /**

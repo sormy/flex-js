@@ -32,7 +32,6 @@ Not planned, because the design rules it out or JavaScript already answers it:
 
 Not implemented yet:
 
-- line and column tracking
 - trailing context beyond a primitive `$`. A lookahead assertion can be used
   instead, but its width is not counted toward the longest match.
 - multiple input buffers, and switching between them
@@ -153,6 +152,7 @@ Lexer defaults and definitions should be added before adding new rules.
 ## Options
 
 - Ignore Case - case sensitivity could be set via `setIgnoreCase(false)` or `setIgnoreCase(true)`. By default lexer is case sensitive.
+- Default Rule - input matching no rule is echoed, as in FLEX. `setDefaultRuleEnabled(false)` makes it an error instead, which is FLEX's `%option nodefault`.
 - Debug Mode - debug mode could be enabled with `setDebugEnabled(true)`. In debug mode lexer will output on console the state, the expression and the matched value for each accepted rule.
 
 ## States
@@ -688,12 +688,14 @@ lexer.addRule(Lexer.RULE_EOF, function (lexer) {
 - `reset()` drops the scanning state: the input string, the position, the accumulated token text, the start condition and the start condition stack. Rules, definitions and options are kept, so the same lexer can be pointed at another input.
 - `clear()` drops the configuration as well. Rules, definitions and added start conditions are gone and only `INITIAL` remains, leaving the lexer as it was when constructed.
 - `lexAll()` scans to the end of the input and returns everything the actions returned, as an array. Equivalent to calling `lex()` until it answers `Lexer.EOF`.
+- `error(message)` throws an `Error` reading `message` followed by ` at line L, column C`, taken from the start of the current token. The error also carries `line`, `column` and `text`, so a caller that catches it does not have to read the message back.
 
 ## Values available to the user
 
 This section summarizes the various values available to the user in the rule actions.
 
 - `text` holds the text of the current token. It may be modified.
+- `line` and `column` hold the 1-based position of the first character of the current token. A token running over several lines therefore reports where it began, and so does one built up with `more()`.
 - `state` holds string name of current start condition.
 - `restart(newSource)` may be called to point lexer at the new input string. The switch-over is immediate. Calling `restart()` without an argument leaves the input alone and rewinds to the start of it, so the same string is scanned again. Once scanning terminates because an end-of-file has been seen, you can call `restart(newSource)` to continue scanning.
 - `source` is the string which by default lexer reads from. It may be redefined but doing so only makes sense before scanning begins or after an EOF has been encountered. Changing it in the midst of scanning leaves `index` pointing into the string that is gone, so use `restart()` instead.
@@ -702,6 +704,8 @@ This section summarizes the various values available to the user in the rule act
 ## Interfacing with parser
 
 One of the main uses of lexer is as a companion to the parser.
+
+Looking for a parser generator to go with it? [Lemon.JS](https://github.com/sormy/lemon-js).
 
 Here is example how can you use this lexer together with parser produced by Lemon.JS parser generator.
 

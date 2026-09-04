@@ -168,9 +168,14 @@ dispatch that offers every rule for every character.
 
 ## Missing features
 
-- [ ] **Line and column tracking.** The biggest functional gap — it is what
-  callers need to report errors, and every comparable library provides it.
-  Already flagged as a TODO in the README.
+- [x] **Line and column tracking.** `line` and `column` give the 1-based
+  position of the first character of the current token. The offset of every line
+  is indexed once per source and searched for, so a grammar that never asks pays
+  one assignment per scan and nothing else: the benchmark did not move.
+  `error(message)` reports against that position, and
+  `setDefaultRuleEnabled(false)` turns unmatched input into an error rather than
+  an echo, which is FLEX's `%option nodefault`. Covered by
+  `src/position.spec.js`.
 - [ ] Trailing context beyond a primitive `$` (README TODO).
 - [ ] `$` means two different things depending on where it sits. At the end of a
   pattern it compiles to `(?=\n)` and carries a trailing width of one, as flex
