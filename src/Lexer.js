@@ -9,7 +9,7 @@ var ASCII_LIMIT = 128;
  */
 function Lexer() {
   this.isNode = typeof window === 'undefined';
-  this.idRegExp = /[a-z_][a-z0-9_-]*/i;
+  this.idRegExp = /^[a-z_][a-z0-9_-]*$/i;
 
   this.clear();
 }
@@ -70,7 +70,8 @@ Lexer.prototype.reset = function () {
  */
 Lexer.prototype.clear = function () {
   this.states = {};
-  this.definitions = [];
+  // a bare map: names such as "__proto__" must behave like any other
+  this.definitions = Object.create(null);
   this.rules = {};
   this.dispatches = {};
   this.ignoreCase = false;
@@ -147,7 +148,7 @@ Lexer.prototype.addDefinition = function (name, expression) {
     throw new Error('Invalid expression for definition "' + name + '"');
   }
 
-  this.definitions[name] = expression;
+  this.definitions[name] = this.expandDefinitions(expression);
 };
 
 /**
@@ -659,12 +660,19 @@ Lexer.prototype.encodeString = function (s) {
 /**
  * @private
  */
-Lexer.prototype.compileRuleExpression = function (source, flags) {
-  for (var defName in this.definitions) {
-    var defExpression = this.definitions[defName];
-    var defNameRe = new RegExp('{' + defName + '}', 'ig');
-    source = source.replace(defNameRe, '(?:' + defExpression + ')');
+Lexer.prototype.expandDefinitions = function (source) {
+  for (var name in this.definitions) {
+    var body = '(?:' + this.definitions[name] + ')';
+    source = source.replace(new RegExp('{' + name + '}', 'g'), function () { return body; });
   }
+  return source;
+};
+
+/**
+ * @private
+ */
+Lexer.prototype.compileRuleExpression = function (source, flags) {
+  source = this.expandDefinitions(source);
 
   if (this.ignoreCase && flags.indexOf('i') === -1) {
     flags += 'i';

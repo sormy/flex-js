@@ -81,6 +81,15 @@ lexer.addDefinition('ID', /[a-z][a-z0-9]*/);
 
 defines "DIGIT" to be a regular expression which matches a single digit, and "ID" to be a regular expression which matches a letter followed by zero-or-more letters-or-digits. A subsequent reference to `{DIGIT}+"."{DIGIT}*` is identical to `([0-9])+"."([0-9])*` and matches one-or-more digits followed by a '.' followed by zero-or-more digits.
 
+A definition may itself refer to other definitions:
+
+```javascript
+lexer.addDefinition('DIGIT', /[0-9]/);
+lexer.addDefinition('NUMBER', /{DIGIT}+/);
+```
+
+Names are matched case sensitively, so `{digit}` does not refer to "DIGIT". A reference to a name that is not defined is left as is, which is what keeps counted quantifiers such as `/{DIGIT}{2}/` working.
+
 There is no way to set case sensivity flag per definition, only per pattern or globally for whole lexer instance.
 
 The **rules** section of the lexer configuration contains a series of rules of the form:

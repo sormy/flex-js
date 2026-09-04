@@ -53,18 +53,20 @@ reproduced against the current code unless marked otherwise.
 
 ## Bugs
 
-- [ ] **`definitions` is an array used as a map** (`clear()`). A definition
-  named `length` throws `RangeError: Invalid array length`. Should be `{}`.
-- [ ] **Definition substitution ignores case**, contradicting the documented
-  "case sensitive" contract on `addDefinition()`. `compileRuleExpression()`
-  builds the placeholder regex with the `ig` flags, so `{digit}` expands a
-  definition registered as `DIGIT`. Drop the `i`.
-- [ ] **Definitions referencing definitions only resolve in one direction.**
-  Substitution loops over definitions in insertion order, so a definition whose
-  body cites an *earlier* definition is left unexpanded: declaring `D` then
-  `NUM = {D}+` compiles the rule to the literal `(?:{D}+)`; the reverse order
-  works. Substitute repeatedly until stable, or expand definition bodies at
-  registration time.
+- [x] **`definitions` is an array used as a map** (`clear()`). A definition
+  named `length` threw `RangeError: Invalid array length`. Now a bare map
+  (`Object.create(null)`), so `length`, `constructor` and `__proto__` behave
+  like any other name — a plain `{}` would still have swallowed `__proto__`.
+- [x] **Definition substitution ignores case**, contradicting the documented
+  "case sensitive" contract on `addDefinition()`. The `i` flag is gone from the
+  placeholder regex. Name validation is also anchored now: `idRegExp` was
+  unanchored, so `9foo` and `a.b` were accepted and the latter went on to be
+  used as a pattern when substituting.
+- [x] **Definitions referencing definitions only resolve in one direction.**
+  Bodies are now expanded at registration time, as flex does, so a definition
+  builds on the ones already registered; the existing rule-time pass still
+  covers the reverse order. Both orders work, and a self reference or a cycle
+  is left unexpanded rather than looping. Covered by `src/definitions.spec.js`.
 - [ ] **The BOL/EOL `+1` weight breaks longest-match.** Anchored rules get an
   artificial extra character of weight, so `/^ab/` beats `/abc/` on input
   `"abc"` where flex would pick `abc`. Either document this as a deliberate
@@ -137,6 +139,8 @@ dispatch that offers every rule for every character.
   the rule validation errors — none of which had tests before.
 - [x] `src/firstCharCodes.spec.js` and `src/dispatch.spec.js` cover the
   first-character analysis and its equivalence with an exhaustive scan.
+- [x] `src/definitions.spec.js` covers name validation, reference expansion,
+  case sensitivity and definitions built from other definitions.
 - [x] `src/more.spec.js` covers `more()`, its interaction with `less()`,
   `reject()` and `unput()`, and `reject()` on its own.
 
