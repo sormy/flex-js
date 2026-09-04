@@ -172,6 +172,9 @@ dispatch that offers every rule for every character.
   callers need to report errors, and every comparable library provides it.
   Already flagged as a TODO in the README.
 - [ ] Trailing context beyond a primitive `$` (README TODO).
+- [ ] Multiple input buffers with a stack to push and pop, the FLEX
+  `yypush_buffer_state`. `restart()` already swaps the whole input, so this is
+  a matter of keeping the source and index of the buffer being suspended.
 - [x] `$` also matched at the end of the input, where flex requires a real
   newline (`r$` is `r/\n`). A trailing `$` is now compiled to `(?=\n)`, so it
   needs a newline to follow and still does not consume it.

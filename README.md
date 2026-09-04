@@ -20,16 +20,22 @@ This lexer is inspired by well-known FLEX lexer generator for C. See more: http:
 - FLEX.JS uses JavaScript regular expression, this fact effect on syntax and some limitations.
 - FLEX could work with streams/buffers but FLEX.JS works with fixed-size strings.
 - REJECT action is not a branch, code after REJECT will be executed, but action return value will be ignored.
-- Trailing context besides primitive $ is not supported. Lookahead assertion could be used instead but lookahead value is not used to increase weight for expression. (TODO: should be fixable)
 - An `<<EOF>>` action may only return a token if it refilled the buffer with `restart()` or `unput()`; otherwise the scan terminates and the return value is dropped.
 
-Not supported:
+Not planned, because the design rules it out or JavaScript already answers it:
 
+- a custom input handler, the FLEX `YY_INPUT` - a rule is matched against a
+  complete string, so input cannot be handed over a piece at a time. An
+  `<<EOF>>` rule that calls `restart()` refills the input instead.
+- `yywrap()` - the same `<<EOF>>` rule does this job.
+- a custom output stream, the FLEX `yyout` - assign your own `echo()`.
+
+Not implemented yet:
+
+- line and column tracking
+- trailing context beyond a primitive `$`. A lookahead assertion can be used
+  instead, but its width is not counted toward the longest match.
 - multiple input buffers, and switching between them
-- a custom input handler, the FLEX `YY_INPUT`
-- `yywrap()`
-- a custom output stream, the FLEX `yyout`, although `echo()` may be replaced
-- line and column tracking (TODO: fix)
 
 ## Performance
 
@@ -614,7 +620,9 @@ The start condition stack grows dynamically and so has no built-in size limitati
 
 ## Multiple input buffers
 
-Not supported :-)
+Not implemented yet. `restart(newSource)` replaces the input string, and an
+`<<EOF>>` rule can call it to carry on with the next one, but there is no stack
+of buffers to push and pop.
 
 ## End-of-file rules
 
