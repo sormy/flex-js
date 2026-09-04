@@ -99,8 +99,12 @@ reproduced against the current code unless marked otherwise.
   `typeof window === 'undefined'` in the constructor — wrong under bundlers,
   workers, and SSR. Make the output sink injectable (the tests already have to
   monkey-patch `echo` to observe it).
-- [ ] `.eslintrc.json` disables `no-redeclare` to accommodate two `var index`
-  declarations in one scope in `addStateRule()`. Rename and re-enable the rule.
+- [x] `.eslintrc.json` disables `no-redeclare` to accommodate two `var index`
+  declarations in one scope in `addStateRule()`. The two loops that turned
+  `this.states` into a list of names were doing the same work as
+  `Object.keys()`, so they are gone rather than renamed: `STATE_ANY` reads the
+  keys directly and the default case has its own `getInclusiveStateNames()`.
+  The rule is on, and it was hiding a third duplicate, `var state`.
 
 ## Performance
 

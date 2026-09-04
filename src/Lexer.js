@@ -129,6 +129,21 @@ Lexer.prototype.addState = function (name, exclusive) {
 };
 
 /**
+ * @private
+ */
+Lexer.prototype.getInclusiveStateNames = function () {
+  var names = [];
+
+  for (var name in this.states) {
+    if (!this.states[name].exclusive) {
+      names.push(name);
+    }
+  }
+
+  return names;
+};
+
+/**
  * Add definition.
  *
  * @param {string}        name        Definition name, case sensitive.
@@ -178,23 +193,10 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
   var isUnqualified = states === undefined || states === null;
 
   if (isUnqualified) {
-    // convert default state into list of target states
-    states = [];
-    for (var index in this.states) {
-      var state = this.states[index];
-      if (!state.exclusive) {
-        states.push(state.name);
-      }
-    }
+    states = this.getInclusiveStateNames();
   } else if (states === Lexer.STATE_ANY) {
-    // convert any state into list of target states
-    states = [];
-    for (var index in this.states) {
-      var state = this.states[index];
-      states.push(state.name);
-    }
+    states = Object.keys(this.states);
   } else if (typeof states === 'string') {
-    // convert single state into list of target states
     states = [states];
   }
 
@@ -268,8 +270,8 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
     fixedWidth: fixedWidth // used for weighted match optimization
   };
 
-  for (var stateIndex in states) {
-    var state = states[stateIndex];
+  for (var index = 0; index < states.length; index++) {
+    var state = states[index];
     if (!this.rules[state]) {
       this.rules[state] = [];
     }

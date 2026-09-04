@@ -122,6 +122,25 @@ describe('states', function () {
     expect(lexer.lexAll()).to.deep.equal(['word']);
   });
 
+  it('ignores an empty name among the target states', function () {
+    var lexer = new Lexer();
+    lexer.addState('other', true);
+    lexer.addStateRule(['other', ''], /[a-z]+/, function (current) { return current.text; });
+
+    lexer.setSource('word');
+    lexer.begin('other');
+
+    expect(lexer.lexAll()).to.deep.equal(['word']);
+  });
+
+  it('rejects an unqualified rule when every state is exclusive', function () {
+    var lexer = new Lexer();
+    lexer.addState(Lexer.STATE_INITIAL, true);
+
+    expect(function () { lexer.addRule(/[a-z]+/); })
+      .to.throw('Unable to add rule to empty list of states');
+  });
+
   it('adds a rule to several named states at once', function () {
     var lexer = new Lexer();
     lexer.addState('first', true);
