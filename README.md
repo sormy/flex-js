@@ -220,7 +220,9 @@ Some notes on patterns:
 
 - A negated character class such as the example "[^A-Z]" above will match a newline unless "\n" (or an equivalent escape sequence) is one of the characters explicitly present in the negated character class (e.g., "[^A-Z\n]"). This is unlike how many other regular expression tools treat negated character classes, but unfortunately the inconsistency is historically entrenched. Matching newlines means that a pattern like [^"]* can match the entire input unless there's another quote in the input.
 
-- A rule can have at most one instance of trailing context (the '$' operator). '^' pattern can only occur at the beginning of a pattern, and, as well as with '$', cannot be grouped inside parentheses.
+- POSIX character classes, `[[:alpha:]]` and the rest, are a FLEX and POSIX spelling that JavaScript expressions do not have. Write `[a-zA-Z]` or `\w` instead.
+
+- Only a `$` at the very end of a pattern is read as trailing context. It then requires a newline to follow, and that newline counts toward the longest match without being consumed. A `$` anywhere else, `/(a$)/` for instance, keeps its JavaScript meaning and so also matches at the end of the input. `^` is a position wherever it appears and never adds to the length of a match.
 
 ## How the input is matched
 
@@ -387,7 +389,7 @@ Note that you cannot put back EOF to attempt to mark the input stream with an en
 
 ### INPUT
 
-`input()` reads the next character or `input(n)` reads `n` next characters from the input stream. For example, the following is one way to eat up C comments:
+`input()` reads the next character or `input(n)` reads `n` next characters from the input stream. Once the input is exhausted it answers `''`, where FLEX answers EOF, so a loop that reads its way forward has to test for it. For example, the following is one way to eat up C comments:
 
 ```javascript
 var lexer = new Lexer();

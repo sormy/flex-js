@@ -172,12 +172,24 @@ dispatch that offers every rule for every character.
   callers need to report errors, and every comparable library provides it.
   Already flagged as a TODO in the README.
 - [ ] Trailing context beyond a primitive `$` (README TODO).
+- [ ] `$` means two different things depending on where it sits. At the end of a
+  pattern it compiles to `(?=\n)` and carries a trailing width of one, as flex
+  reads it; anywhere else, `/(a$)/` for one, it stays a plain JavaScript anchor
+  that also matches at the end of the input and adds no width. Documented for
+  now, since rewriting every `$` would have to tell a real anchor from one
+  inside a character class or behind a backslash.
 - [ ] Multiple input buffers with a stack to push and pop, the FLEX
   `yypush_buffer_state`. `restart()` already swaps the whole input, so this is
   a matter of keeping the source and index of the buffer being suspended.
 - [x] `$` also matched at the end of the input, where flex requires a real
   newline (`r$` is `r/\n`). A trailing `$` is now compiled to `(?=\n)`, so it
   needs a newline to follow and still does not consume it.
+- [ ] Warn about a rule that can never match, which FLEX reports as "rule cannot
+  be matched" and chevrotain refuses to build over. Two rules with the same
+  expression are accepted here and the second is silently dead.
+- [ ] Translate POSIX character classes, `[[:alpha:]]` and friends, into their
+  JavaScript equivalents while compiling, so a FLEX grammar carries over without
+  hand-editing its classes.
 - [ ] TypeScript declarations (`index.d.ts`), and a `types` field.
 
 ## Test coverage
