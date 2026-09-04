@@ -21,6 +21,7 @@ This lexer is inspired by well-known FLEX lexer generator for C. See more: http:
 - FLEX could work with streams/buffers but FLEX.JS works with fixed-size strings.
 - REJECT action is not a branch, code after REJECT will be executed, but action return value will be ignored.
 - Trailing context besides primitive $ is not supported. Lookahead assertion could be used instead but lookahead value is not used to increase weight for expression. (TODO: should be fixable)
+- `$` follows the JavaScript meaning and also matches at the end of the input, where FLEX requires an actual newline. It still contributes one character to the match length there. (TODO: fix?)
 - support for buffer
 - support buffer switch
 - custom input handler

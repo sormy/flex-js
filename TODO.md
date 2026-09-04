@@ -67,10 +67,14 @@ reproduced against the current code unless marked otherwise.
   builds on the ones already registered; the existing rule-time pass still
   covers the reverse order. Both orders work, and a self reference or a cycle
   is left unexpanded rather than looping. Covered by `src/definitions.spec.js`.
-- [ ] **The BOL/EOL `+1` weight breaks longest-match.** Anchored rules get an
-  artificial extra character of weight, so `/^ab/` beats `/abc/` on input
-  `"abc"` where flex would pick `abc`. Either document this as a deliberate
-  deviation or weigh anchors only to break exact ties.
+- [x] **The BOL/EOL `+1` weight breaks longest-match.** `^` and `$` both added
+  a character of weight. flex only counts trailing context: "for trailing
+  context rules, this includes the length of the trailing part, even though it
+  will then be returned to the input" — `$` is trailing context (one newline),
+  `^` is a position and adds nothing. `^` now adds 0 and `$` still adds 1, so
+  `/^ab/` no longer beats `/abc/` on `"abc"`. Detection of `$` also counts the
+  backslashes before it, so a literal `\$` no longer earns the extra width.
+  Covered by `src/matching.spec.js`.
 
 ## Robustness
 
@@ -129,6 +133,10 @@ dispatch that offers every rule for every character.
   callers need to report errors, and every comparable library provides it.
   Already flagged as a TODO in the README.
 - [ ] Trailing context beyond a primitive `$` (README TODO).
+- [ ] `$` also matches at the end of the input, where flex requires a real
+  newline (`r$` is `r/\n`), and still counts one character of trailing width
+  there. Lexing `"ab"` with `/ab$/` and `/ab/` picks the anchored rule; flex
+  would pick the plain one. Needs the trailing `$` compiled as `(?=\n)`.
 - [ ] TypeScript declarations (`index.d.ts`), and a `types` field.
 
 ## Test coverage
@@ -141,6 +149,8 @@ dispatch that offers every rule for every character.
   first-character analysis and its equivalence with an exhaustive scan.
 - [x] `src/definitions.spec.js` covers name validation, reference expansion,
   case sensitivity and definitions built from other definitions.
+- [x] `src/matching.spec.js` covers longest match, tie-breaking by declaration
+  order, `^`, and `$` as trailing context.
 - [x] `src/more.spec.js` covers `more()`, its interaction with `less()`,
   `reject()` and `unput()`, and `reject()` on its own.
 

@@ -251,7 +251,7 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
     expression: compiledExpression,
     isEOF: isEOF,
     isFallbackEOF: isEOF && isUnqualified,
-    anchorWeight: isEOF ? 0 : this.getAnchorWeight(compiledExpression),
+    trailingContextWidth: isEOF ? 0 : this.getTrailingContextWidth(compiledExpression),
     firstCharCodes: isEOF ? null : firstCharCodes(compiledExpression),
     action: action,
     fixedWidth: fixedWidth // used for weighted match optimization
@@ -578,7 +578,7 @@ Lexer.prototype.scan = function () {
       continue;
     }
 
-    var curMatchLength = curMatch[0].length + rule.anchorWeight;
+    var curMatchLength = curMatch[0].length + rule.trailingContextWidth;
     if (curMatchLength > matchedValueLength) {
       matchedRule = rule;
       matchedIndex = ruleIndex;
@@ -691,15 +691,25 @@ Lexer.prototype.escapeRegExp = function (s) {
 };
 
 /**
- * Anchors match zero characters, so they are given weight of their own to keep
- * anchored rules competitive with longer unanchored ones.
+ * Width of a rule's trailing context, which counts toward the longest match
+ * even though it is not consumed. Only "$" is supported, standing for one
+ * newline. "^" is a position, not trailing context, and adds nothing.
  *
  * @private
  */
-Lexer.prototype.getAnchorWeight = function (expression) {
-  // primitive detection but in most cases it is more than enough
-  return (expression.source.substr(0, 1) === '^' ? 1 : 0)
-    + (expression.source.substr(-1) === '$' ? 1 : 0);
+Lexer.prototype.getTrailingContextWidth = function (expression) {
+  var source = expression.source;
+
+  if (source.charAt(source.length - 1) !== '$') {
+    return 0;
+  }
+
+  var backslashes = 0;
+  for (var index = source.length - 2; index >= 0 && source.charAt(index) === '\\'; index--) {
+    backslashes++;
+  }
+
+  return backslashes % 2 === 0 ? 1 : 0;
 };
 
 /**
