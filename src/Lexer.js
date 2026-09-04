@@ -338,7 +338,7 @@ Lexer.prototype.lex = function () {
 
   do {
     result = this.scan();
-  } while (result === undefined && result !== Lexer.EOF);
+  } while (result === undefined);
 
   return result;
 };

@@ -78,8 +78,11 @@ reproduced against the current code unless marked otherwise.
 
 ## Robustness
 
-- [ ] `lex()` loops on `result === undefined && result !== Lexer.EOF`; the
-  second test can never be false. Dead condition.
+- [x] `lex()` looped on `result === undefined && result !== Lexer.EOF`. Since
+  `Lexer.EOF` is `0`, the second test could never be false once the first held.
+  Removed, and the loop's real contract is covered: discarded matches are
+  skipped, a falsy token such as `null` or `''` is returned rather than scanned
+  past, and only `0` reads as EOF.
 - [x] `reject()` subtracted `this.text.length`, which includes
   `more()`-accumulated text. Fixed and covered alongside `more()`.
 - [ ] `addState()` performs no name validation, unlike `addDefinition()`.

@@ -379,6 +379,46 @@ describe('lifecycle', function () {
     expect(lexer.lexAll()).to.deep.equal(['a', 'b', 'c']);
   });
 
+  it('lex() skips discarded matches and returns the next token', function () {
+    var lexer = new Lexer();
+    var scans = 0;
+    lexer.addRule(/\s+/, function () { scans++; });
+    lexer.addRule(/[a-z]+/, function (current) { scans++; return current.text; });
+
+    lexer.setSource('   word');
+
+    expect(lexer.lex()).to.equal('word');
+    expect(scans).to.equal(2);
+  });
+
+  var falsyTokens = [
+    { label: 'null', token: null },
+    { label: 'false', token: false },
+    { label: 'an empty string', token: '' },
+    { label: 'NaN', token: NaN },
+  ];
+
+  falsyTokens.forEach(function (testCase) {
+    it('lex() returns ' + testCase.label + ' rather than scanning on', function () {
+      var lexer = new Lexer();
+      lexer.addRule(/[a-z]+/, function () { return testCase.token; });
+      lexer.addRule(/[0-9]+/, function () { return 'NUMBER'; });
+
+      lexer.setSource('word1');
+
+      expect(lexer.lex()).to.deep.equal(testCase.token);
+    });
+  });
+
+  it('lex() treats a token of 0 as EOF, which is reserved', function () {
+    var lexer = new Lexer();
+    lexer.addRule(/[a-z]+/, function () { return 0; });
+
+    lexer.setSource('word');
+
+    expect(lexer.lex()).to.equal(Lexer.EOF);
+  });
+
   it('reset() clears scanning state but keeps the rules', function () {
     var lexer = new Lexer();
     lexer.addState('other');
