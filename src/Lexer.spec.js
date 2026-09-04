@@ -191,13 +191,13 @@ describe('Lexer', function() {
     lexer.echo = function () {  // redirect echo to variable
       output += this.text;
     };
+    lexer.addRule(/\s+$/); // ignore this token
     lexer.addRule(/\s+/, function () {
       output += ' ';
     });
-    lexer.addRule(/\s+$/); // ignore this token
-    lexer.setSource('bla  bla   bla    ');
+    lexer.setSource('bla  bla   \nbla    \n');
     lexer.lex();
-    expect(output).to.equal('bla bla bla');
+    expect(output).to.equal('bla bla bla ');
   });
 
   it('#reject() - with reject', function() {

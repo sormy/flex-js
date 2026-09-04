@@ -155,6 +155,53 @@ describe('end of line as trailing context', function () {
     expect(indexes).to.deep.equal([2]);
   });
 
+  it('does not match at the end of the input without a newline', function () {
+    var lexer = lexerWith([
+      { name: 'eol', expression: /ab$/ },
+      { name: 'plain', expression: /ab/ },
+    ]);
+
+    lexer.setSource('ab');
+
+    expect(lexer.lexAll()).to.deep.equal(['plain:ab']);
+  });
+
+  it('matches the same text once a newline follows', function () {
+    var lexer = lexerWith([
+      { name: 'eol', expression: /ab$/ },
+      { name: 'plain', expression: /ab/ },
+      { name: 'nl', expression: /\n/ },
+    ]);
+
+    lexer.setSource('ab\n');
+
+    expect(lexer.lexAll()).to.deep.equal(['eol:ab', 'nl:\n']);
+  });
+
+  it('does not match in the middle of a line', function () {
+    var lexer = lexerWith([
+      { name: 'eol', expression: /ab$/ },
+      { name: 'plain', expression: /ab/ },
+      { name: 'c', expression: /c/ },
+    ]);
+
+    lexer.setSource('abc');
+
+    expect(lexer.lexAll()).to.deep.equal(['plain:ab', 'c:c']);
+  });
+
+  it('anchors every line but the unterminated last one', function () {
+    var lexer = lexerWith([
+      { name: 'eol', expression: /[a-z]+$/ },
+      { name: 'plain', expression: /[a-z]+/ },
+      { name: 'nl', expression: /\n/ },
+    ]);
+
+    lexer.setSource('aa\nbb\ncc');
+
+    expect(lexer.lexAll()).to.deep.equal(['eol:aa', 'nl:\n', 'eol:bb', 'nl:\n', 'plain:cc']);
+  });
+
   it('gives an escaped dollar no trailing width', function () {
     var lexer = lexerWith([
       { name: 'literal', expression: /ab\$/ },

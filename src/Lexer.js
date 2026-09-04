@@ -2,6 +2,10 @@ var firstCharCodes = require('./firstCharCodes.js');
 
 var ASCII_LIMIT = 128;
 
+// flex reads "$" as the trailing context "/\n": a newline must follow, but it
+// is not consumed
+var TRAILING_NEWLINE = '(?=\\n)';
+
 /**
  * FLEX.JS - FLEX-like lexer.
  *
@@ -245,13 +249,14 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
   }
 
   var isEOF = source === null;
-  var compiledExpression = isEOF ? null : this.compileRuleExpression(source, flags);
+  var expandedSource = isEOF ? '' : this.expandDefinitions(source);
+  var compiledExpression = isEOF ? null : this.compileRuleExpression(expandedSource, flags);
 
   var rule = {
     expression: compiledExpression,
     isEOF: isEOF,
     isFallbackEOF: isEOF && isUnqualified,
-    trailingContextWidth: isEOF ? 0 : this.getTrailingContextWidth(compiledExpression),
+    trailingContextWidth: isEOF ? 0 : this.getTrailingContextWidth(expandedSource),
     firstCharCodes: isEOF ? null : firstCharCodes(compiledExpression),
     action: action,
     fixedWidth: fixedWidth // used for weighted match optimization
@@ -672,7 +677,9 @@ Lexer.prototype.expandDefinitions = function (source) {
  * @private
  */
 Lexer.prototype.compileRuleExpression = function (source, flags) {
-  source = this.expandDefinitions(source);
+  if (this.getTrailingContextWidth(source)) {
+    source = source.slice(0, -1) + TRAILING_NEWLINE;
+  }
 
   if (this.ignoreCase && flags.indexOf('i') === -1) {
     flags += 'i';
@@ -692,14 +699,12 @@ Lexer.prototype.escapeRegExp = function (s) {
 
 /**
  * Width of a rule's trailing context, which counts toward the longest match
- * even though it is not consumed. Only "$" is supported, standing for one
- * newline. "^" is a position, not trailing context, and adds nothing.
+ * even though it is not consumed. Only a trailing "$" is supported, standing
+ * for one newline. "^" is a position, not trailing context, and adds nothing.
  *
  * @private
  */
-Lexer.prototype.getTrailingContextWidth = function (expression) {
-  var source = expression.source;
-
+Lexer.prototype.getTrailingContextWidth = function (source) {
   if (source.charAt(source.length - 1) !== '$') {
     return 0;
   }

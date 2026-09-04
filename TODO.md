@@ -133,10 +133,9 @@ dispatch that offers every rule for every character.
   callers need to report errors, and every comparable library provides it.
   Already flagged as a TODO in the README.
 - [ ] Trailing context beyond a primitive `$` (README TODO).
-- [ ] `$` also matches at the end of the input, where flex requires a real
-  newline (`r$` is `r/\n`), and still counts one character of trailing width
-  there. Lexing `"ab"` with `/ab$/` and `/ab/` picks the anchored rule; flex
-  would pick the plain one. Needs the trailing `$` compiled as `(?=\n)`.
+- [x] `$` also matched at the end of the input, where flex requires a real
+  newline (`r$` is `r/\n`). A trailing `$` is now compiled to `(?=\n)`, so it
+  needs a newline to follow and still does not consume it.
 - [ ] TypeScript declarations (`index.d.ts`), and a `types` field.
 
 ## Test coverage
