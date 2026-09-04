@@ -11,18 +11,15 @@
   "author": "Artem Butusov <art.sormy@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "eslint": "eslint 'src/**/*.js'",
-    "mocha": "mocha 'src/**.spec.js'",
-    "test": "npm run eslint && npm run mocha",
-    "prepublishOnly": "npm run test",
-    "bench": "node benchmark.js"
+    "eslint": "eslint 'src/**/*.js' 'test/**/*.js'",
+    "test": "npm run eslint && node --test 'test/*.test.js'",
+    "bench": "node benchmark.js",
+    "prepublishOnly": "npm run test"
   },
   "devDependencies": {
-    "chai": "^4.2.0",
     "chevrotain": "^13.2.0",
     "eslint": "^5.10.0",
     "lex": "^1.7.9",
-    "mocha": "^5.2.0",
     "moo": "^0.5.3"
   }
 }

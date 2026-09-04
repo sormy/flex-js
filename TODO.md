@@ -24,7 +24,7 @@ reproduced against the current code unless marked otherwise.
   are never entered on the non-EOF path. The whole documented contract — plain
   termination, `restart()`/`unput()` refill, returning a token after a refill,
   `reject()` fall-through, and state-qualified rules — is covered by
-  `src/eof.spec.js`.*
+  `test/eof.test.js`.*
 
 - [x] **An unqualified `<<EOF>>` rule outranked a state's own one.** Registering
   `addRule(Lexer.RULE_EOF, ...)` before `addStateRule('quote', Lexer.RULE_EOF, ...)`
@@ -49,7 +49,7 @@ reproduced against the current code unless marked otherwise.
   continued rule and looped forever. The rewind now lives in `scan()`, where
   the match length is known, and restores the carried text so a rejected rule
   retries the same position with the `more()` prefix intact, as flex does.
-  Covered by `src/more.spec.js`.
+  Covered by `test/more.test.js`.
 
 ## Bugs
 
@@ -66,7 +66,7 @@ reproduced against the current code unless marked otherwise.
   Bodies are now expanded at registration time, as flex does, so a definition
   builds on the ones already registered; the existing rule-time pass still
   covers the reverse order. Both orders work, and a self reference or a cycle
-  is left unexpanded rather than looping. Covered by `src/definitions.spec.js`.
+  is left unexpanded rather than looping. Covered by `test/definitions.test.js`.
 - [x] **The BOL/EOL `+1` weight breaks longest-match.** `^` and `$` both added
   a character of weight. flex only counts trailing context: "for trailing
   context rules, this includes the length of the trailing part, even though it
@@ -74,7 +74,7 @@ reproduced against the current code unless marked otherwise.
   `^` is a position and adds nothing. `^` now adds 0 and `$` still adds 1, so
   `/^ab/` no longer beats `/abc/` on `"abc"`. Detection of `$` also counts the
   backslashes before it, so a literal `\$` no longer earns the extra width.
-  Covered by `src/matching.spec.js`.
+  Covered by `test/matching.test.js`.
 
 ## Robustness
 
@@ -124,7 +124,7 @@ reproduced against the current code unless marked otherwise.
   covered by holding both case forms; a literal with non-ascii characters falls
   back to the expression, since `i` is only plain ASCII folding for ASCII text.
   10% on a grammar whose keywords and punctuation are strings, neutral
-  otherwise. Covered by `src/literal.spec.js`.
+  otherwise. Covered by `test/literal.test.js`.
 - [ ] Extend the same early-exit to expressions with a known fixed width.
 - [x] Cut per-scan overhead: `scan()` replaced `exec()` with `test()`, which
   leaves the match end in `lastIndex` without building a match array, and the
@@ -145,7 +145,7 @@ reproduced against the current code unless marked otherwise.
   dispatch already narrowed by first character) measured 5.6ms -> 5.2ms. Left
   out: it is only sound when the candidate came from an ASCII `byCharCode`
   bucket, since the `nonAscii` bucket makes no membership promise, and
-  `src/dispatch.spec.js` rejected the first attempt for exactly that reason. It
+  `test/dispatch.test.js` rejected the first attempt for exactly that reason. It
   needs a per-rule character set to re-check membership before it is safe.
 
 Measured with `npm run bench`, best of 30 rounds (`node` 24):
@@ -164,7 +164,7 @@ from ~832,000 to ~120,000 for the same input (1.15 per scan, against a floor of
 The rewrite was checked against the previous implementation by differential
 fuzzing — 4,000 random grammar/input pairs per seed over six seeds, covering
 states, `ignoreCase`, anchors, unicode, and the `more()`/`less()`/`begin()`
-actions — with byte-identical output in every case. `src/dispatch.spec.js`
+actions — with byte-identical output in every case. `test/dispatch.test.js`
 keeps a permanent version of that check by comparing against a reference
 dispatch that offers every rule for every character.
 
@@ -177,7 +177,7 @@ dispatch that offers every rule for every character.
   `error(message)` reports against that position, and
   `setDefaultRuleEnabled(false)` turns unmatched input into an error rather than
   an echo, which is FLEX's `%option nodefault`. Covered by
-  `src/position.spec.js`.
+  `test/position.test.js`.
 - [ ] Trailing context beyond a primitive `$` (README TODO).
 - [ ] `$` means two different things depending on where it sits. At the end of a
   pattern it compiles to `(?=\n)` and carries a trailing width of one, as flex
@@ -201,23 +201,32 @@ dispatch that offers every rule for every character.
 
 ## Test coverage
 
-- [x] `src/eof.spec.js` covers the `<<EOF>>` contract end to end.
-- [x] `src/api.spec.js` covers the state stack, inclusive/exclusive states,
+- [x] `test/eof.test.js` covers the `<<EOF>>` contract end to end.
+- [x] `test/api.test.js` covers the state stack, inclusive/exclusive states,
   `STATE_ANY`, bulk rule registration, every action, the lifecycle methods and
   the rule validation errors — none of which had tests before.
-- [x] `src/firstCharCodes.spec.js` and `src/dispatch.spec.js` cover the
+- [x] `test/firstCharCodes.test.js` and `test/dispatch.test.js` cover the
   first-character analysis and its equivalence with an exhaustive scan.
-- [x] `src/literal.spec.js` covers string rules and their case folding.
-- [x] `src/definitions.spec.js` covers name validation, reference expansion,
+- [x] `test/literal.test.js` covers string rules and their case folding.
+- [x] `test/definitions.test.js` covers name validation, reference expansion,
   case sensitivity and definitions built from other definitions.
-- [x] `src/matching.spec.js` covers longest match, tie-breaking by declaration
+- [x] `test/matching.test.js` covers longest match, tie-breaking by declaration
   order, `^`, and `$` as trailing context.
-- [x] `src/more.spec.js` covers `more()`, its interaction with `less()`,
+- [x] `test/more.test.js` covers `more()`, its interaction with `less()`,
   `reject()` and `unput()`, and `reject()` on its own.
 
 ## Project hygiene
 
-- [ ] Dev dependencies are from 2018 (eslint 5, mocha 5); no CI workflow.
+- [x] mocha and chai are gone. The suite runs on `node:test` and `node:assert`,
+  which ship with the runtime, so testing costs no dependencies at all and the
+  whole run takes 0.17s. Tests moved to `test/`, leaving `src/` holding only the
+  file that is published, with `test/assertThrows.js` covering chai's substring
+  matching of a thrown message.
+- [ ] eslint is from 2018, and there is no CI workflow.
+- [ ] `.eslintignore` skipped `*.spec.js` and now skips `*.test.js`, so the
+  tests have never been linted. Turning it on reports 21 problems, all of them
+  harmless: unread echo collectors, callback parameters nobody uses and one
+  needless escape. Fix them and drop the ignore.
 - [x] No `files` field in `package.json`, so the whole repo is published. It
   now ships `index.js`, `src/Lexer.js`, the README and the licence, five files
   and 21 kB, leaving the specs, the benchmark and this list behind.

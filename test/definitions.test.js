@@ -1,6 +1,12 @@
-var expect = require('chai').expect;
+var nodeTest = require('node:test');
+var assert = require('node:assert');
 
-var Lexer = require('./Lexer.js');
+var assertThrows = require('./assertThrows.js');
+
+var describe = nodeTest.describe;
+var it = nodeTest.it;
+
+var Lexer = require('../src/Lexer.js');
 
 function sourceOf(lexer) {
   return lexer.rules[Lexer.STATE_INITIAL][0].expression.source;
@@ -13,7 +19,7 @@ describe('definition names', function () {
 
       lexer.addDefinition(name, /[0-9]/);
 
-      expect(lexer.definitions[name]).to.equal('[0-9]');
+      assert.strictEqual(lexer.definitions[name], '[0-9]');
     });
   });
 
@@ -21,8 +27,7 @@ describe('definition names', function () {
     it('rejects ' + JSON.stringify(name), function () {
       var lexer = new Lexer();
 
-      expect(function () { lexer.addDefinition(name, /[0-9]/); })
-        .to.throw('Invalid definition name');
+      assertThrows(function () { lexer.addDefinition(name, /[0-9]/); }, 'Invalid definition name');
     });
   });
 
@@ -34,7 +39,7 @@ describe('definition names', function () {
 
       lexer.setSource('7');
 
-      expect(lexer.lexAll()).to.deep.equal(['7']);
+      assert.deepStrictEqual(lexer.lexAll(), ['7']);
     });
   });
 });
@@ -46,7 +51,7 @@ describe('definition references', function () {
 
     lexer.addRule(/{DIGIT}\.{DIGIT}/);
 
-    expect(sourceOf(lexer)).to.equal('(?:[0-9])\\.(?:[0-9])');
+    assert.strictEqual(sourceOf(lexer), '(?:[0-9])\\.(?:[0-9])');
   });
 
   it('matches the name case sensitively', function () {
@@ -55,7 +60,7 @@ describe('definition references', function () {
 
     lexer.addRule(/{digit}/);
 
-    expect(sourceOf(lexer)).to.equal('{digit}');
+    assert.strictEqual(sourceOf(lexer), '{digit}');
   });
 
   it('leaves an unknown reference alone', function () {
@@ -63,7 +68,7 @@ describe('definition references', function () {
 
     lexer.addRule(/{MISSING}/);
 
-    expect(sourceOf(lexer)).to.equal('{MISSING}');
+    assert.strictEqual(sourceOf(lexer), '{MISSING}');
   });
 
   it('leaves a counted quantifier alone', function () {
@@ -73,7 +78,7 @@ describe('definition references', function () {
 
     lexer.setSource('42');
 
-    expect(lexer.lexAll()).to.deep.equal(['42']);
+    assert.deepStrictEqual(lexer.lexAll(), ['42']);
   });
 
   it('does not expand references inside a string rule', function () {
@@ -83,7 +88,7 @@ describe('definition references', function () {
 
     lexer.setSource('{D}');
 
-    expect(lexer.lexAll()).to.deep.equal(['{D}']);
+    assert.deepStrictEqual(lexer.lexAll(), ['{D}']);
   });
 
   it('does not reinterpret a body containing a replacement pattern', function () {
@@ -92,7 +97,7 @@ describe('definition references', function () {
 
     lexer.addRule(/{A}/);
 
-    expect(sourceOf(lexer)).to.equal('(?:a$)');
+    assert.strictEqual(sourceOf(lexer), '(?:a$)');
   });
 
   it('is dropped by clear()', function () {
@@ -102,7 +107,7 @@ describe('definition references', function () {
     lexer.clear();
     lexer.addRule(/{D}/);
 
-    expect(sourceOf(lexer)).to.equal('{D}');
+    assert.strictEqual(sourceOf(lexer), '{D}');
   });
 });
 
@@ -114,7 +119,7 @@ describe('definitions built from other definitions', function () {
 
     lexer.addRule(/{NUM}/);
 
-    expect(sourceOf(lexer)).to.equal('(?:(?:[0-9])+)');
+    assert.strictEqual(sourceOf(lexer), '(?:(?:[0-9])+)');
   });
 
   it('resolves a reference to a later definition', function () {
@@ -124,7 +129,7 @@ describe('definitions built from other definitions', function () {
 
     lexer.addRule(/{NUM}/);
 
-    expect(sourceOf(lexer)).to.equal('(?:(?:[0-9])+)');
+    assert.strictEqual(sourceOf(lexer), '(?:(?:[0-9])+)');
   });
 
   it('resolves through several levels', function () {
@@ -136,7 +141,7 @@ describe('definitions built from other definitions', function () {
 
     lexer.setSource('3.14');
 
-    expect(lexer.lexAll()).to.deep.equal(['3.14']);
+    assert.deepStrictEqual(lexer.lexAll(), ['3.14']);
   });
 
   it('keeps the body a definition had when it was registered', function () {
@@ -146,7 +151,7 @@ describe('definitions built from other definitions', function () {
 
     lexer.addDefinition('D', /[a-z]/);
 
-    expect(lexer.definitions.NUM).to.equal('(?:[0-9])+');
+    assert.strictEqual(lexer.definitions.NUM, '(?:[0-9])+');
   });
 
   it('does not loop on a self reference', function () {
@@ -155,7 +160,7 @@ describe('definitions built from other definitions', function () {
 
     lexer.addRule(/{A}/);
 
-    expect(sourceOf(lexer)).to.equal('(?:{A}x)');
+    assert.strictEqual(sourceOf(lexer), '(?:{A}x)');
   });
 
   it('does not loop on a cycle between two definitions', function () {
@@ -165,6 +170,6 @@ describe('definitions built from other definitions', function () {
 
     lexer.addRule(/{A}/);
 
-    expect(sourceOf(lexer)).to.be.a('string');
+    assert.strictEqual(typeof sourceOf(lexer), 'string');
   });
 });

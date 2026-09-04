@@ -1,6 +1,12 @@
-var expect = require('chai').expect;
+var nodeTest = require('node:test');
+var assert = require('node:assert');
 
-var Lexer = require('./Lexer.js');
+var assertThrows = require('./assertThrows.js');
+
+var describe = nodeTest.describe;
+var it = nodeTest.it;
+
+var Lexer = require('../src/Lexer.js');
 
 function collectingLexer() {
   var lexer = new Lexer();
@@ -11,7 +17,7 @@ function collectingLexer() {
 
 describe('states', function () {
   it('starts in the initial state', function () {
-    expect(new Lexer().state).to.equal(Lexer.STATE_INITIAL);
+    assert.strictEqual(new Lexer().state, Lexer.STATE_INITIAL);
   });
 
   ['quote', '_x', 'A9', 'a-b', 'a_b'].forEach(function (name) {
@@ -21,7 +27,7 @@ describe('states', function () {
       lexer.addState(name);
       lexer.begin(name);
 
-      expect(lexer.state).to.equal(name);
+      assert.strictEqual(lexer.state, name);
     });
   });
 
@@ -30,7 +36,7 @@ describe('states', function () {
     it('rejects the state name ' + JSON.stringify(name), function () {
       var lexer = new Lexer();
 
-      expect(function () { lexer.addState(name); }).to.throw('Invalid state name');
+      assertThrows(function () { lexer.addState(name); }, 'Invalid state name');
     });
   });
 
@@ -38,10 +44,9 @@ describe('states', function () {
     it('does not accept ' + JSON.stringify(name) + ' as registered without addState()', function () {
       var lexer = new Lexer();
 
-      expect(function () { lexer.begin(name); }).to.throw('is not registered');
-      expect(function () { lexer.pushState(name); }).to.throw('is not registered');
-      expect(function () { lexer.addStateRule(name, /a/); })
-        .to.throw('Unable to register rule within unregistered state(s)');
+      assertThrows(function () { lexer.begin(name); }, 'is not registered');
+      assertThrows(function () { lexer.pushState(name); }, 'is not registered');
+      assertThrows(function () { lexer.addStateRule(name, /a/); }, 'Unable to register rule within unregistered state(s)');
     });
   });
 
@@ -50,7 +55,7 @@ describe('states', function () {
 
     lexer.addState('exclusive', true);
 
-    expect(lexer.states.exclusive.exclusive).to.equal(true);
+    assert.strictEqual(lexer.states.exclusive.exclusive, true);
   });
 
   it('switches state with begin()', function () {
@@ -59,7 +64,7 @@ describe('states', function () {
 
     lexer.begin('other');
 
-    expect(lexer.state).to.equal('other');
+    assert.strictEqual(lexer.state, 'other');
   });
 
   it('returns to the initial state when begin() is called without a state', function () {
@@ -69,7 +74,7 @@ describe('states', function () {
 
     lexer.begin();
 
-    expect(lexer.state).to.equal(Lexer.STATE_INITIAL);
+    assert.strictEqual(lexer.state, Lexer.STATE_INITIAL);
   });
 
   it('switches state with switchState()', function () {
@@ -78,14 +83,13 @@ describe('states', function () {
 
     lexer.switchState('other');
 
-    expect(lexer.state).to.equal('other');
+    assert.strictEqual(lexer.state, 'other');
   });
 
   it('rejects an unregistered state', function () {
     var lexer = new Lexer();
 
-    expect(function () { lexer.begin('missing'); })
-      .to.throw('State "missing" is not registered');
+    assertThrows(function () { lexer.begin('missing'); }, 'State "missing" is not registered');
   });
 
   it('offers inclusive states to unqualified rules', function () {
@@ -96,7 +100,7 @@ describe('states', function () {
     lexer.setSource('word');
     lexer.begin('inclusive');
 
-    expect(lexer.lexAll()).to.deep.equal(['word']);
+    assert.deepStrictEqual(lexer.lexAll(), ['word']);
   });
 
   it('withholds unqualified rules from exclusive states', function () {
@@ -107,8 +111,8 @@ describe('states', function () {
     lexer.setSource('word');
     lexer.begin('exclusive');
 
-    expect(lexer.lexAll()).to.deep.equal([]);
-    expect(lexer.echoed.join('')).to.equal('word');
+    assert.deepStrictEqual(lexer.lexAll(), []);
+    assert.strictEqual(lexer.echoed.join(''), 'word');
   });
 
   it('reaches every state through STATE_ANY', function () {
@@ -119,7 +123,7 @@ describe('states', function () {
     lexer.setSource('word');
     lexer.begin('exclusive');
 
-    expect(lexer.lexAll()).to.deep.equal(['word']);
+    assert.deepStrictEqual(lexer.lexAll(), ['word']);
   });
 
   it('ignores an empty name among the target states', function () {
@@ -130,15 +134,14 @@ describe('states', function () {
     lexer.setSource('word');
     lexer.begin('other');
 
-    expect(lexer.lexAll()).to.deep.equal(['word']);
+    assert.deepStrictEqual(lexer.lexAll(), ['word']);
   });
 
   it('rejects an unqualified rule when every state is exclusive', function () {
     var lexer = new Lexer();
     lexer.addState(Lexer.STATE_INITIAL, true);
 
-    expect(function () { lexer.addRule(/[a-z]+/); })
-      .to.throw('Unable to add rule to empty list of states');
+    assertThrows(function () { lexer.addRule(/[a-z]+/); }, 'Unable to add rule to empty list of states');
   });
 
   it('adds a rule to several named states at once', function () {
@@ -151,14 +154,14 @@ describe('states', function () {
       lexer.reset();
       lexer.setSource('word');
       lexer.begin(state);
-      expect(lexer.lexAll(), state).to.deep.equal(['word']);
+      assert.deepStrictEqual(lexer.lexAll(), ['word'], state);
     });
   });
 });
 
 describe('state stack', function () {
   it('has no top state initially', function () {
-    expect(new Lexer().topState()).to.equal(undefined);
+    assert.strictEqual(new Lexer().topState(), undefined);
   });
 
   it('remembers the previous state on pushState()', function () {
@@ -167,8 +170,8 @@ describe('state stack', function () {
 
     lexer.pushState('other');
 
-    expect(lexer.state).to.equal('other');
-    expect(lexer.topState()).to.equal(Lexer.STATE_INITIAL);
+    assert.strictEqual(lexer.state, 'other');
+    assert.strictEqual(lexer.topState(), Lexer.STATE_INITIAL);
   });
 
   it('restores the previous state on popState()', function () {
@@ -178,8 +181,8 @@ describe('state stack', function () {
 
     lexer.popState();
 
-    expect(lexer.state).to.equal(Lexer.STATE_INITIAL);
-    expect(lexer.topState()).to.equal(undefined);
+    assert.strictEqual(lexer.state, Lexer.STATE_INITIAL);
+    assert.strictEqual(lexer.topState(), undefined);
   });
 
   it('nests pushes and pops', function () {
@@ -190,27 +193,26 @@ describe('state stack', function () {
     lexer.pushState('first');
     lexer.pushState('second');
 
-    expect(lexer.state).to.equal('second');
-    expect(lexer.topState()).to.equal('first');
+    assert.strictEqual(lexer.state, 'second');
+    assert.strictEqual(lexer.topState(), 'first');
 
     lexer.popState();
-    expect(lexer.state).to.equal('first');
+    assert.strictEqual(lexer.state, 'first');
 
     lexer.popState();
-    expect(lexer.state).to.equal(Lexer.STATE_INITIAL);
+    assert.strictEqual(lexer.state, Lexer.STATE_INITIAL);
   });
 
   it('rejects pushing an unregistered state', function () {
     var lexer = new Lexer();
 
-    expect(function () { lexer.pushState('missing'); })
-      .to.throw('State "missing" is not registered');
+    assertThrows(function () { lexer.pushState('missing'); }, 'State "missing" is not registered');
   });
 
   it('rejects popping an empty stack', function () {
     var lexer = new Lexer();
 
-    expect(function () { lexer.popState(); }).to.throw('Unable to pop state');
+    assertThrows(function () { lexer.popState(); }, 'Unable to pop state');
   });
 });
 
@@ -256,14 +258,14 @@ describe('rule registration', function () {
   invalid.forEach(function (testCase) {
     it('rejects ' + testCase.name, function () {
       var lexer = new Lexer();
-      expect(function () { testCase.call(lexer); }).to.throw(testCase.message);
+      assertThrows(function () { testCase.call(lexer); }, testCase.message);
     });
   });
 
   it('accepts the supported i and u flags', function () {
     var lexer = new Lexer();
 
-    expect(function () { lexer.addRule(/a/iu); }).to.not.throw();
+    assert.doesNotThrow(function () { lexer.addRule(/a/iu); });
   });
 
   it('adds several unqualified rules at once', function () {
@@ -276,7 +278,7 @@ describe('rule registration', function () {
 
     lexer.setSource('ab 12');
 
-    expect(lexer.lexAll()).to.deep.equal(['Wab', 'N12']);
+    assert.deepStrictEqual(lexer.lexAll(), ['Wab', 'N12']);
   });
 
   it('adds several state rules at once', function () {
@@ -290,7 +292,7 @@ describe('rule registration', function () {
     lexer.setSource('ab cd');
     lexer.begin('other');
 
-    expect(lexer.lexAll()).to.deep.equal(['ab', 'cd']);
+    assert.deepStrictEqual(lexer.lexAll(), ['ab', 'cd']);
   });
 
   it('discards a match when no action is given', function () {
@@ -299,7 +301,7 @@ describe('rule registration', function () {
 
     lexer.setSource('word');
 
-    expect(lexer.lexAll()).to.deep.equal([]);
+    assert.deepStrictEqual(lexer.lexAll(), []);
   });
 });
 
@@ -311,7 +313,7 @@ describe('actions', function () {
 
     lexer.setSource('abcd');
 
-    expect(lexer.lexAll()).to.deep.equal(['ab', 'cd']);
+    assert.deepStrictEqual(lexer.lexAll(), ['ab', 'cd']);
   });
 
   it('less() ignores a length beyond the match', function () {
@@ -320,7 +322,7 @@ describe('actions', function () {
 
     lexer.setSource('ab');
 
-    expect(lexer.lexAll()).to.deep.equal(['ab']);
+    assert.deepStrictEqual(lexer.lexAll(), ['ab']);
   });
 
   it('input() consumes one character by default', function () {
@@ -331,7 +333,7 @@ describe('actions', function () {
     lexer.setSource('axb');
     lexer.lex();
 
-    expect(taken).to.deep.equal(['x']);
+    assert.deepStrictEqual(taken, ['x']);
   });
 
   it('input() consumes at most the requested number of characters', function () {
@@ -342,7 +344,7 @@ describe('actions', function () {
     lexer.setSource('abc');
     lexer.lex();
 
-    expect(taken).to.deep.equal(['bc']);
+    assert.deepStrictEqual(taken, ['bc']);
   });
 
   it('unput() inserts text at the current position', function () {
@@ -359,7 +361,7 @@ describe('actions', function () {
 
     lexer.setSource('a');
 
-    expect(lexer.lexAll()).to.deep.equal(['a', 'bb']);
+    assert.deepStrictEqual(lexer.lexAll(), ['a', 'bb']);
   });
 
   it('terminate() ends the scan early', function () {
@@ -370,7 +372,7 @@ describe('actions', function () {
 
     lexer.setSource('go stop never');
 
-    expect(lexer.lexAll()).to.deep.equal(['go']);
+    assert.deepStrictEqual(lexer.lexAll(), ['go']);
   });
 
   it('restart() rescans the current source from the beginning', function () {
@@ -386,7 +388,7 @@ describe('actions', function () {
 
     lexer.setSource('a');
 
-    expect(lexer.lexAll()).to.deep.equal(['a1', 'a2']);
+    assert.deepStrictEqual(lexer.lexAll(), ['a1', 'a2']);
   });
 
   it('echoes input that matches no rule', function () {
@@ -395,8 +397,8 @@ describe('actions', function () {
 
     lexer.setSource('ab!!cd');
 
-    expect(lexer.lexAll()).to.deep.equal(['ab', 'cd']);
-    expect(lexer.echoed.join('')).to.equal('!!');
+    assert.deepStrictEqual(lexer.lexAll(), ['ab', 'cd']);
+    assert.strictEqual(lexer.echoed.join(''), '!!');
   });
 
   it('falls back to the console where there is no standard output', function () {
@@ -414,7 +416,7 @@ describe('actions', function () {
       console.log = original;
     }
 
-    expect(logged).to.deep.equal(['!']);
+    assert.deepStrictEqual(logged, ['!']);
   });
 
   it('writes to stdout from the default echo action', function () {
@@ -431,7 +433,7 @@ describe('actions', function () {
       process.stdout.write = original;
     }
 
-    expect(written).to.equal('!');
+    assert.strictEqual(written, '!');
   });
 });
 
@@ -442,7 +444,7 @@ describe('lifecycle', function () {
 
     lexer.setSource('');
 
-    expect(lexer.lex()).to.equal(Lexer.EOF);
+    assert.strictEqual(lexer.lex(), Lexer.EOF);
   });
 
   it('lexAll() collects every token', function () {
@@ -452,7 +454,7 @@ describe('lifecycle', function () {
 
     lexer.setSource('a b c');
 
-    expect(lexer.lexAll()).to.deep.equal(['a', 'b', 'c']);
+    assert.deepStrictEqual(lexer.lexAll(), ['a', 'b', 'c']);
   });
 
   it('lex() skips discarded matches and returns the next token', function () {
@@ -463,8 +465,8 @@ describe('lifecycle', function () {
 
     lexer.setSource('   word');
 
-    expect(lexer.lex()).to.equal('word');
-    expect(scans).to.equal(2);
+    assert.strictEqual(lexer.lex(), 'word');
+    assert.strictEqual(scans, 2);
   });
 
   var falsyTokens = [
@@ -482,7 +484,7 @@ describe('lifecycle', function () {
 
       lexer.setSource('word1');
 
-      expect(lexer.lex()).to.deep.equal(testCase.token);
+      assert.deepStrictEqual(lexer.lex(), testCase.token);
     });
   });
 
@@ -492,7 +494,7 @@ describe('lifecycle', function () {
 
     lexer.setSource('word');
 
-    expect(lexer.lex()).to.equal(Lexer.EOF);
+    assert.strictEqual(lexer.lex(), Lexer.EOF);
   });
 
   it('reset() clears scanning state but keeps the rules', function () {
@@ -505,12 +507,12 @@ describe('lifecycle', function () {
 
     lexer.reset();
 
-    expect(lexer.state).to.equal(Lexer.STATE_INITIAL);
-    expect(lexer.index).to.equal(0);
-    expect(lexer.source).to.equal('');
+    assert.strictEqual(lexer.state, Lexer.STATE_INITIAL);
+    assert.strictEqual(lexer.index, 0);
+    assert.strictEqual(lexer.source, '');
 
     lexer.setSource('again');
-    expect(lexer.lexAll()).to.deep.equal(['again']);
+    assert.deepStrictEqual(lexer.lexAll(), ['again']);
   });
 
   it('clear() drops the rules as well', function () {
@@ -520,8 +522,8 @@ describe('lifecycle', function () {
     lexer.clear();
     lexer.setSource('word');
 
-    expect(lexer.lexAll()).to.deep.equal([]);
-    expect(lexer.echoed.join('')).to.equal('word');
+    assert.deepStrictEqual(lexer.lexAll(), []);
+    assert.strictEqual(lexer.echoed.join(''), 'word');
   });
 
   it('clear() drops added states', function () {
@@ -530,8 +532,7 @@ describe('lifecycle', function () {
 
     lexer.clear();
 
-    expect(function () { lexer.begin('other'); })
-      .to.throw('State "other" is not registered');
+    assertThrows(function () { lexer.begin('other'); }, 'State "other" is not registered');
   });
 
   it('setSource() rewinds to the start of the new source', function () {
@@ -542,8 +543,8 @@ describe('lifecycle', function () {
 
     lexer.setSource('second');
 
-    expect(lexer.index).to.equal(0);
-    expect(lexer.lexAll()).to.deep.equal(['second']);
+    assert.strictEqual(lexer.index, 0);
+    assert.deepStrictEqual(lexer.lexAll(), ['second']);
   });
 });
 
@@ -571,12 +572,12 @@ describe('debug output', function () {
   it('reports accepted rules when enabled', function () {
     var lines = capture(debugLexer(true));
 
-    expect(lines).to.have.length(1);
-    expect(lines[0]).to.contain('[INITIAL]');
-    expect(lines[0]).to.contain('word');
+    assert.strictEqual(lines.length, 1);
+    assert.ok(lines[0].indexOf('[INITIAL]') !== -1);
+    assert.ok(lines[0].indexOf('word') !== -1);
   });
 
   it('stays quiet when disabled', function () {
-    expect(capture(debugLexer(false))).to.deep.equal([]);
+    assert.deepStrictEqual(capture(debugLexer(false)), []);
   });
 });

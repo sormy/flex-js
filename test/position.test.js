@@ -1,6 +1,12 @@
-var expect = require('chai').expect;
+var nodeTest = require('node:test');
+var assert = require('node:assert');
 
-var Lexer = require('./Lexer.js');
+var assertThrows = require('./assertThrows.js');
+
+var describe = nodeTest.describe;
+var it = nodeTest.it;
+
+var Lexer = require('../src/Lexer.js');
 
 function positionsOf(source, rules) {
   var lexer = new Lexer();
@@ -21,20 +27,20 @@ describe('line and column', function () {
   it('starts at the first line and column', function () {
     var lexer = new Lexer();
 
-    expect(lexer.line).to.equal(1);
-    expect(lexer.column).to.equal(1);
+    assert.strictEqual(lexer.line, 1);
+    assert.strictEqual(lexer.column, 1);
   });
 
   it('counts columns along a line', function () {
-    expect(positionsOf('ab cd ef')).to.deep.equal(['ab@1:1', 'cd@1:4', 'ef@1:7']);
+    assert.deepStrictEqual(positionsOf('ab cd ef'), ['ab@1:1', 'cd@1:4', 'ef@1:7']);
   });
 
   it('counts lines across newlines', function () {
-    expect(positionsOf('ab\ncd\nef')).to.deep.equal(['ab@1:1', 'cd@2:1', 'ef@3:1']);
+    assert.deepStrictEqual(positionsOf('ab\ncd\nef'), ['ab@1:1', 'cd@2:1', 'ef@3:1']);
   });
 
   it('counts an empty line', function () {
-    expect(positionsOf('ab\n\n  cd')).to.deep.equal(['ab@1:1', 'cd@3:3']);
+    assert.deepStrictEqual(positionsOf('ab\n\n  cd'), ['ab@1:1', 'cd@3:3']);
   });
 
   it('reports where a token starts, not where it ends', function () {
@@ -51,7 +57,7 @@ describe('line and column', function () {
     lexer.setSource('a\n/* two\nlines */\nb');
     lexer.lexAll();
 
-    expect(seen).to.deep.equal(['a@1:1', 'comment@2:1', 'b@4:1']);
+    assert.deepStrictEqual(seen, ['a@1:1', 'comment@2:1', 'b@4:1']);
   });
 
   it('keeps the earlier start across more()', function () {
@@ -66,15 +72,15 @@ describe('line and column', function () {
     lexer.setSource('\n\nab');
     lexer.lexAll();
 
-    expect(seen).to.equal('ab@3:1');
+    assert.strictEqual(seen, 'ab@3:1');
   });
 
   it('counts a tab as one column', function () {
-    expect(positionsOf('\tab')).to.deep.equal(['ab@1:2']);
+    assert.deepStrictEqual(positionsOf('\tab'), ['ab@1:2']);
   });
 
   it('counts the carriage return of a CRLF pair as a column', function () {
-    expect(positionsOf('ab\r\ncd')).to.deep.equal(['ab@1:1', 'cd@2:1']);
+    assert.deepStrictEqual(positionsOf('ab\r\ncd'), ['ab@1:1', 'cd@2:1']);
   });
 
   it('follows text put back with unput()', function () {
@@ -93,7 +99,7 @@ describe('line and column', function () {
     lexer.setSource('ab');
     lexer.lexAll();
 
-    expect(seen).to.deep.equal(['ab@1:1', 'cd@2:1']);
+    assert.deepStrictEqual(seen, ['ab@1:1', 'cd@2:1']);
   });
 
   it('starts over for a new source', function () {
@@ -109,7 +115,7 @@ describe('line and column', function () {
     lexer.setSource('cd');
     lexer.lexAll();
 
-    expect(seen).to.deep.equal(['ab@3:1', 'cd@1:1']);
+    assert.deepStrictEqual(seen, ['ab@3:1', 'cd@1:1']);
   });
 
   it('starts over for a source given to restart()', function () {
@@ -130,7 +136,7 @@ describe('line and column', function () {
     lexer.setSource('\nab');
     lexer.lexAll();
 
-    expect(seen).to.deep.equal(['ab@2:1', 'cd@1:1']);
+    assert.deepStrictEqual(seen, ['ab@2:1', 'cd@1:1']);
   });
 });
 
@@ -142,8 +148,7 @@ describe('error()', function () {
 
     lexer.setSource('\n  bad');
 
-    expect(function () { lexer.lexAll(); })
-      .to.throw('unexpected word at line 2, column 3');
+    assertThrows(function () { lexer.lexAll(); }, 'unexpected word at line 2, column 3');
   });
 
   it('carries the position and the token on the error', function () {
@@ -155,9 +160,9 @@ describe('error()', function () {
       lexer.lexAll();
       throw new Error('should have thrown');
     } catch (error) {
-      expect(error.line).to.equal(1);
-      expect(error.column).to.equal(1);
-      expect(error.text).to.equal('word');
+      assert.strictEqual(error.line, 1);
+      assert.strictEqual(error.column, 1);
+      assert.strictEqual(error.text, 'word');
     }
   });
 });
@@ -171,8 +176,8 @@ describe('the default rule', function () {
 
     lexer.setSource('ok?');
 
-    expect(lexer.lexAll()).to.deep.equal(['ok']);
-    expect(echoed).to.equal('?');
+    assert.deepStrictEqual(lexer.lexAll(), ['ok']);
+    assert.strictEqual(echoed, '?');
   });
 
   it('jams on unmatched input once it is off', function () {
@@ -183,8 +188,7 @@ describe('the default rule', function () {
 
     lexer.setSource('ok\nok?');
 
-    expect(function () { lexer.lexAll(); })
-      .to.throw('scanner jammed at line 2, column 3');
+    assertThrows(function () { lexer.lexAll(); }, 'scanner jammed at line 2, column 3');
   });
 
   it('reports the character it jammed on', function () {
@@ -197,7 +201,7 @@ describe('the default rule', function () {
       lexer.lexAll();
       throw new Error('should have thrown');
     } catch (error) {
-      expect(error.text).to.equal('?');
+      assert.strictEqual(error.text, '?');
     }
   });
 
@@ -207,6 +211,6 @@ describe('the default rule', function () {
 
     lexer.clear();
 
-    expect(lexer.defaultRuleEnabled).to.equal(true);
+    assert.strictEqual(lexer.defaultRuleEnabled, true);
   });
 });

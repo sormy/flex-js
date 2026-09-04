@@ -1,6 +1,10 @@
-var expect = require('chai').expect;
+var nodeTest = require('node:test');
+var assert = require('node:assert');
 
-var Lexer = require('./Lexer.js');
+var describe = nodeTest.describe;
+var it = nodeTest.it;
+
+var Lexer = require('../src/Lexer.js');
 
 var ASCII_LIMIT = 128;
 
@@ -85,7 +89,7 @@ describe('rule dispatch', function () {
   grammars.forEach(function (grammar) {
     sources.forEach(function (source) {
       it('matches the exhaustive scan for ' + grammar.name + ' on ' + JSON.stringify(source), function () {
-        expect(lexWith(grammar, source, false)).to.deep.equal(lexWith(grammar, source, true));
+        assert.deepStrictEqual(lexWith(grammar, source, false), lexWith(grammar, source, true));
       });
     });
   });
@@ -94,7 +98,7 @@ describe('rule dispatch', function () {
     var lexer = new Lexer();
     lexer.addRule(/[a-z]+/);
     var first = lexer.getDispatch(Lexer.STATE_INITIAL);
-    expect(lexer.getDispatch(Lexer.STATE_INITIAL)).to.equal(first);
+    assert.strictEqual(lexer.getDispatch(Lexer.STATE_INITIAL), first);
   });
 
   it('rebuilds the dispatch after a rule is added', function () {
@@ -102,7 +106,7 @@ describe('rule dispatch', function () {
     lexer.addRule(/[a-z]+/);
     var before = lexer.getDispatch(Lexer.STATE_INITIAL);
     lexer.addRule(/[0-9]+/);
-    expect(lexer.getDispatch(Lexer.STATE_INITIAL)).to.not.equal(before);
+    assert.notStrictEqual(lexer.getDispatch(Lexer.STATE_INITIAL), before);
   });
 
   it('only offers rules that can start at the current character', function () {
@@ -111,8 +115,8 @@ describe('rule dispatch', function () {
     lexer.addRule(/[a-z]+/);
     lexer.addRule(/./);
     var dispatch = lexer.getDispatch(Lexer.STATE_INITIAL);
-    expect(dispatch.byCharCode['5'.charCodeAt(0)]).to.deep.equal([0, 2]);
-    expect(dispatch.byCharCode['x'.charCodeAt(0)]).to.deep.equal([1, 2]);
-    expect(dispatch.byCharCode['!'.charCodeAt(0)]).to.deep.equal([2]);
+    assert.deepStrictEqual(dispatch.byCharCode['5'.charCodeAt(0)], [0, 2]);
+    assert.deepStrictEqual(dispatch.byCharCode['x'.charCodeAt(0)], [1, 2]);
+    assert.deepStrictEqual(dispatch.byCharCode['!'.charCodeAt(0)], [2]);
   });
 });

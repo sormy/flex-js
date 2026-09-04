@@ -1,6 +1,10 @@
-var expect = require('chai').expect;
+var nodeTest = require('node:test');
+var assert = require('node:assert');
 
-var Lexer = require('./Lexer.js');
+var describe = nodeTest.describe;
+var it = nodeTest.it;
+
+var Lexer = require('../src/Lexer.js');
 
 function wordsAnd(rules, options) {
   var lexer = new Lexer();
@@ -21,7 +25,7 @@ describe('string rules', function () {
 
     lexer.setSource('let');
 
-    expect(lexer.lexAll()).to.deep.equal(['kw:let']);
+    assert.deepStrictEqual(lexer.lexAll(), ['kw:let']);
   });
 
   it('loses to a longer match', function () {
@@ -32,7 +36,7 @@ describe('string rules', function () {
 
     lexer.setSource('letter');
 
-    expect(lexer.lexAll()).to.deep.equal(['id:letter']);
+    assert.deepStrictEqual(lexer.lexAll(), ['id:letter']);
   });
 
   it('wins a tie against a rule added later', function () {
@@ -43,7 +47,7 @@ describe('string rules', function () {
 
     lexer.setSource('let');
 
-    expect(lexer.lexAll()).to.deep.equal(['kw:let']);
+    assert.deepStrictEqual(lexer.lexAll(), ['kw:let']);
   });
 
   it('does not match a prefix of itself at the end of the input', function () {
@@ -54,7 +58,7 @@ describe('string rules', function () {
 
     lexer.setSource('ab');
 
-    expect(lexer.lexAll()).to.deep.equal(['any:a', 'any:b']);
+    assert.deepStrictEqual(lexer.lexAll(), ['any:a', 'any:b']);
   });
 
   it('treats regular expression syntax in the literal as text', function () {
@@ -65,7 +69,7 @@ describe('string rules', function () {
 
     lexer.setSource('abc a.c');
 
-    expect(lexer.lexAll()).to.deep.equal(['any:a', 'any:b', 'any:c', 'any: ', 'lit:a.c']);
+    assert.deepStrictEqual(lexer.lexAll(), ['any:a', 'any:b', 'any:c', 'any: ', 'lit:a.c']);
   });
 
   it('matches a literal holding non-ascii characters', function () {
@@ -73,7 +77,7 @@ describe('string rules', function () {
 
     lexer.setSource('été');
 
-    expect(lexer.lexAll()).to.deep.equal(['word:été']);
+    assert.deepStrictEqual(lexer.lexAll(), ['word:été']);
   });
 
   it('keeps its case when the lexer is case sensitive', function () {
@@ -85,7 +89,7 @@ describe('string rules', function () {
 
     lexer.setSource('Let let LET');
 
-    expect(lexer.lexAll()).to.deep.equal(['kw:Let', 'space: ', 'id:let', 'space: ', 'id:LET']);
+    assert.deepStrictEqual(lexer.lexAll(), ['kw:Let', 'space: ', 'id:let', 'space: ', 'id:LET']);
   });
 });
 
@@ -96,7 +100,7 @@ describe('string rules with ignoreCase', function () {
 
       lexer.setSource(written);
 
-      expect(lexer.lexAll()).to.deep.equal(['kw:' + written]);
+      assert.deepStrictEqual(lexer.lexAll(), ['kw:' + written]);
     });
   });
 
@@ -105,7 +109,7 @@ describe('string rules with ignoreCase', function () {
 
     lexer.setSource('let');
 
-    expect(lexer.lexAll()).to.deep.equal(['kw:let']);
+    assert.deepStrictEqual(lexer.lexAll(), ['kw:let']);
   });
 
   it('does not fold a digit or a punctuation mark', function () {
@@ -117,7 +121,7 @@ describe('string rules with ignoreCase', function () {
 
     lexer.setSource('>= 10');
 
-    expect(lexer.lexAll()).to.deep.equal(['op:>=', 'space: ', 'num:10']);
+    assert.deepStrictEqual(lexer.lexAll(), ['op:>=', 'space: ', 'num:10']);
   });
 
   it('still loses to a longer match', function () {
@@ -128,7 +132,7 @@ describe('string rules with ignoreCase', function () {
 
     lexer.setSource('lets');
 
-    expect(lexer.lexAll()).to.deep.equal(['id:lets']);
+    assert.deepStrictEqual(lexer.lexAll(), ['id:lets']);
   });
 
   it('folds a non-ascii literal the way the expression engine does', function () {
@@ -136,7 +140,7 @@ describe('string rules with ignoreCase', function () {
 
     lexer.setSource('ÉTÉ');
 
-    expect(lexer.lexAll()).to.deep.equal(['word:ÉTÉ']);
+    assert.deepStrictEqual(lexer.lexAll(), ['word:ÉTÉ']);
   });
 
   it('applies only to rules added after setIgnoreCase()', function () {
@@ -148,6 +152,6 @@ describe('string rules with ignoreCase', function () {
 
     lexer.setSource('ONETWO');
 
-    expect(lexer.lexAll()).to.deep.equal(['after']);
+    assert.deepStrictEqual(lexer.lexAll(), ['after']);
   });
 });

@@ -1,87 +1,92 @@
-var chai = require('chai');
-var expect = chai.expect;
+var nodeTest = require('node:test');
+var assert = require('node:assert');
 
-var Lexer = require('./Lexer');
+var assertThrows = require('./assertThrows.js');
+
+var describe = nodeTest.describe;
+var it = nodeTest.it;
+
+var Lexer = require('../src/Lexer.js');
 
 describe('Lexer', function() {
   it('#addDefinition() should accept string name', function() {
     var lexer = new Lexer();
     lexer.addDefinition('test', 'test');
-    expect(lexer.definitions).to.have.property('test');
+    assert.ok('test' in lexer.definitions);
   });
 
   it('#addDefinition() should not accept invalid name', function() {
     var lexer = new Lexer();
-    expect(function () {
+    assertThrows(function () {
       lexer.addDefinition(null, 'test');
-    }).to.throw('Invalid definition name');
-    expect(function () {
+    }, 'Invalid definition name');
+    assertThrows(function () {
       lexer.addDefinition(undefined, 'test');
-    }).to.throw('Invalid definition name');
-    expect(function () {
+    }, 'Invalid definition name');
+    assertThrows(function () {
       lexer.addDefinition('', 'test');
-    }).to.throw('Invalid definition name');
-    expect(function () {
+    }, 'Invalid definition name');
+    assertThrows(function () {
       lexer.addDefinition('123', 'test');
-    }).to.throw('Invalid definition name');
+    }, 'Invalid definition name');
   });
 
   it('#addDefinition() should accept string expression', function() {
     var lexer = new Lexer();
     lexer.addDefinition('test', 'test');
-    expect(lexer.definitions['test']).to.equal('test');
+    assert.strictEqual(lexer.definitions['test'], 'test');
   });
 
   it('#addDefinition() should escape string expression', function() {
     var lexer = new Lexer();
     lexer.addDefinition('test', 'test*');
-    expect(lexer.definitions['test']).to.equal('test\\*');
+    assert.strictEqual(lexer.definitions['test'], 'test\\*');
   });
 
   it('#addDefinition() should accept regular expression', function() {
     var lexer = new Lexer();
     lexer.addDefinition('test', /test/);
-    expect(lexer.definitions['test']).to.equal('test');
+    assert.strictEqual(lexer.definitions['test'], 'test');
   });
 
   it('#addDefinition() should not escape regular expression', function() {
     var lexer = new Lexer();
     lexer.addDefinition('test', /.*/);
-    expect(lexer.definitions['test']).to.equal('.*');
+    assert.strictEqual(lexer.definitions['test'], '.*');
   });
 
   it('#addDefinition() should not allow flags for regular expression', function() {
     var lexer = new Lexer();
-    expect(function () {
+    assertThrows(function () {
       lexer.addDefinition('test', /.*/i);
-    }).to.throw('Expression flags are not supported')
+    }, 'Expression flags are not supported')
   });
 
   it('#addDefinition() should not accept null/undefined expression', function() {
     var lexer = new Lexer();
-    expect(function () {
+    assertThrows(function () {
       lexer.addDefinition('test');
-    }).to.throw('Invalid expression');
-    expect(function () {
+    }, 'Invalid expression');
+    assertThrows(function () {
       lexer.addDefinition('test', null);
-    }).to.throw('Invalid expression');
+    }, 'Invalid expression');
   });
 
   it('#addDefinition() should not accept empty expression', function() {
     var lexer = new Lexer();
-    expect(function () {
+    assertThrows(function () {
       lexer.addDefinition('test', '');
-    }).to.throw('Empty expression');
-    expect(function () {
+    }, 'Empty expression');
+    assertThrows(function () {
       lexer.addDefinition('test', new RegExp(''));
-    }).to.throw('Empty expression');
+    }, 'Empty expression');
   });
 
   it('#addStateRule() use definitions', function() {
     var lexer = new Lexer();
     lexer.addDefinition('DIGIT', /[0-9]/);
     lexer.addRule(/{DIGIT}\.{DIGIT}/);
-    expect(lexer).with.deep.nested.property('rules.INITIAL.0.expression.source').to.equal('(?:[0-9])\\.(?:[0-9])');
+    assert.strictEqual(lexer.rules.INITIAL[0].expression.source, '(?:[0-9])\\.(?:[0-9])');
   });
 
   it('#lex() - echo all', function() {
@@ -92,7 +97,7 @@ describe('Lexer', function() {
     };
     lexer.setSource('bla bla bla');
     lexer.lex();
-    expect(output).to.equal('bla bla bla');
+    assert.strictEqual(output, 'bla bla bla');
   });
 
   it('#lex() - zap me', function() {
@@ -104,7 +109,7 @@ describe('Lexer', function() {
     lexer.addRule('zap me');
     lexer.setSource('bla zap me bla zap me bla');
     lexer.lex();
-    expect(output).to.equal('bla  bla  bla');
+    assert.strictEqual(output, 'bla  bla  bla');
   });
 
   it('#lex() - echo match', function() {
@@ -118,7 +123,7 @@ describe('Lexer', function() {
     });
     lexer.setSource('bla bla bla username bla bla bla');
     lexer.lex();
-    expect(output).to.equal('bla bla bla ME bla bla bla');
+    assert.strictEqual(output, 'bla bla bla ME bla bla bla');
   });
 
   it('#lex() - count lines and characters', function() {
@@ -138,8 +143,8 @@ describe('Lexer', function() {
 
     lexer.lex();
 
-    expect(numLines).to.equal(3);
-    expect(numChars).to.equal(17);
+    assert.strictEqual(numLines, 3);
+    assert.strictEqual(numChars, 17);
   });
 
   it('#lex() - toy pascal-like language', function() {
@@ -174,15 +179,13 @@ describe('Lexer', function() {
 
     lexer.lex();
 
-    expect(output).to.equal(
-      'An integer: 123 (123)\n' +
+    assert.strictEqual(output, 'An integer: 123 (123)\n' +
       'A float: 1.23 (1.23)\n' +
       'An operator: +\n' +
       'An identifier: x\n' +
       'A keyword: function\n' +
       'An operator: *\n' +
-      'A keyword: end\n'
-    );
+      'A keyword: end\n');
   });
 
   it('#lex() - compress whitespace', function() {
@@ -197,7 +200,7 @@ describe('Lexer', function() {
     });
     lexer.setSource('bla  bla   \nbla    \n');
     lexer.lex();
-    expect(output).to.equal('bla bla bla ');
+    assert.strictEqual(output, 'bla bla bla ');
   });
 
   it('#reject() - with reject', function() {
@@ -215,7 +218,7 @@ describe('Lexer', function() {
     });
     lexer.setSource('frob frob frob');
     lexer.lex();
-    expect(wordCount).to.equal(3);
+    assert.strictEqual(wordCount, 3);
   });
 
   it('#reject() - without reject', function() {
@@ -231,7 +234,7 @@ describe('Lexer', function() {
     });
     lexer.setSource('frob frob frob');
     lexer.lex();
-    expect(wordCount).to.equal(0);
+    assert.strictEqual(wordCount, 0);
   });
 
   it('#reject() - multiple rejects', function() {
@@ -251,7 +254,7 @@ describe('Lexer', function() {
     lexer.addRule(/./);
     lexer.setSource('abcd');
     lexer.lex();
-    expect(output).to.equal('abcdabcaba');
+    assert.strictEqual(output, 'abcdabcaba');
   });
 
   it('#more()', function() {
@@ -269,7 +272,7 @@ describe('Lexer', function() {
     });
     lexer.setSource('mega-kludge');
     lexer.lex();
-    expect(output).to.equal('mega-mega-kludge');
+    assert.strictEqual(output, 'mega-mega-kludge');
   });
 
   it('#less()', function() {
@@ -287,7 +290,7 @@ describe('Lexer', function() {
     });
     lexer.setSource('foobar');
     lexer.lex();
-    expect(output).to.equal('foobarbar');
+    assert.strictEqual(output, 'foobarbar');
   });
 
   it('#unput()', function() {
@@ -304,7 +307,7 @@ describe('Lexer', function() {
     });
     lexer.setSource('foobar');
     lexer.lex();
-    expect(output).to.equal('(foobar)');
+    assert.strictEqual(output, '(foobar)');
   });
 
   it('#input()', function() {
@@ -326,7 +329,7 @@ describe('Lexer', function() {
     });
     lexer.setSource('test /* comment */ test');
     lexer.lex();
-    expect(output).to.equal('test  test');
+    assert.strictEqual(output, 'test  test');
   });
 
   it('#setIgnoreCase(false)', function() {
@@ -338,7 +341,7 @@ describe('Lexer', function() {
     lexer.addRule(/./);  // ignore
     lexer.setSource('BLA');
     lexer.lex();
-    expect(output).to.equal('');
+    assert.strictEqual(output, '');
   });
 
   it('#setIgnoreCase(true)', function() {
@@ -351,7 +354,7 @@ describe('Lexer', function() {
     lexer.addRule(/./);  // ignore
     lexer.setSource('BLA');
     lexer.lex();
-    expect(output).to.equal('BLA');
+    assert.strictEqual(output, 'BLA');
   });
 
   it('should expect floats', function() {
@@ -376,15 +379,13 @@ describe('Lexer', function() {
     });
     lexer.setSource('1.1\nexpect floats 2.2\n3.3\n');
     lexer.lex();
-    expect(output).to.equal(
-      'found an integer: 1\n' +
+    assert.strictEqual(output, 'found an integer: 1\n' +
       'found a dot\n' +
       'found an integer: 1\n' +
       'found a float: 2.2\n' +
       'found an integer: 3\n' +
       'found a dot\n' +
-      'found an integer: 3\n'
-    );
+      'found an integer: 3\n');
   });
 
   it('#addState() - discard C comments', function() {
@@ -412,8 +413,8 @@ describe('Lexer', function() {
     });
     lexer.setSource('test /* line 1\nline 2\nline 3 */ test');
     lexer.lex();
-    expect(output).to.equal('test  test');
-    expect(lineNumber).to.equal(3);
+    assert.strictEqual(output, 'test  test');
+    assert.strictEqual(lineNumber, 3);
   });
 
   it('should match C-style quoted strings', function () {
@@ -484,7 +485,7 @@ describe('Lexer', function() {
 
     var strings = lexer.lexAll();
 
-    expect(strings).to.eql([
+    assert.deepStrictEqual(strings, [
       'simple text',
       'text with octal ~ ~ value',
       'text with escaped ~\n~ new line',
@@ -498,22 +499,22 @@ describe('Lexer', function() {
 
     lexer.reset();
     lexer.setSource('bla "unterminated string constant \n str" bla')
-    expect(function () {
+    assertThrows(function () {
       lexer.lex();
-    }).to.throw('Unterminated string constant');
+    }, 'Unterminated string constant');
 
 
     lexer.reset();
     lexer.setSource('bla "out of bounds constant \\777 str" bla')
-    expect(function () {
+    assertThrows(function () {
       lexer.lex();
-    }).to.throw('Constant is out of bounds');
+    }, 'Constant is out of bounds');
 
 
     lexer.reset();
     lexer.setSource('bla "bad escape sequence \\9 str" bla')
-    expect(function () {
+    assertThrows(function () {
       lexer.lex();
-    }).to.throw('Bad escape sequence');
+    }, 'Bad escape sequence');
   });
 });

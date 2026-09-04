@@ -1,6 +1,10 @@
-var expect = require('chai').expect;
+var nodeTest = require('node:test');
+var assert = require('node:assert');
 
-var Lexer = require('./Lexer.js');
+var describe = nodeTest.describe;
+var it = nodeTest.it;
+
+var Lexer = require('../src/Lexer.js');
 
 var lexer = new Lexer();
 
@@ -42,7 +46,7 @@ describe('getFirstCharCodes', function () {
 
   narrowed.forEach(function (testCase) {
     it('narrows ' + testCase.expression + ' to its possible first characters', function () {
-      expect(firstCharCodes(testCase.expression)).to.have.members(testCase.expected);
+      assert.deepStrictEqual(firstCharCodes(testCase.expression).slice().sort(), testCase.expected.slice().sort());
     });
   });
 
@@ -60,7 +64,7 @@ describe('getFirstCharCodes', function () {
 
   unknown.forEach(function (expression) {
     it('gives up on ' + expression + ' so the rule is always tried', function () {
-      expect(firstCharCodes(expression)).to.equal(null);
+      assert.strictEqual(firstCharCodes(expression), null);
     });
   });
 
@@ -87,8 +91,7 @@ describe('getFirstCharCodes', function () {
           sticky.lastIndex = 0;
           var match = sticky.exec(text);
           if (match && match[0].length) {
-            expect(codes, 'expression ' + testCase.expression + ' matched ' + JSON.stringify(text))
-              .to.include(text.charCodeAt(0));
+            assert.ok(codes.indexOf(text.charCodeAt(0)) !== -1, 'expression ' + testCase.expression + ' matched ' + JSON.stringify(text));
           }
         });
       });

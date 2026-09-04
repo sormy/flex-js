@@ -1,6 +1,10 @@
-var expect = require('chai').expect;
+var nodeTest = require('node:test');
+var assert = require('node:assert');
 
-var Lexer = require('./Lexer.js');
+var describe = nodeTest.describe;
+var it = nodeTest.it;
+
+var Lexer = require('../src/Lexer.js');
 
 function collectingLexer() {
   var lexer = new Lexer();
@@ -17,7 +21,7 @@ describe('more()', function () {
 
     lexer.setSource('ab');
 
-    expect(lexer.lexAll()).to.deep.equal(['ab']);
+    assert.deepStrictEqual(lexer.lexAll(), ['ab']);
   });
 
   it('keeps scanning the text that follows', function () {
@@ -28,7 +32,7 @@ describe('more()', function () {
 
     lexer.setSource('abz');
 
-    expect(lexer.lexAll()).to.deep.equal(['ab', 'Zz']);
+    assert.deepStrictEqual(lexer.lexAll(), ['ab', 'Zz']);
   });
 
   it('advances the index by the new match only', function () {
@@ -40,7 +44,7 @@ describe('more()', function () {
     lexer.setSource('abc');
     lexer.lexAll();
 
-    expect(indexes).to.deep.equal([1, 3]);
+    assert.deepStrictEqual(indexes, [1, 3]);
   });
 
   it('accumulates across a chain of more() calls', function () {
@@ -52,7 +56,7 @@ describe('more()', function () {
 
     lexer.setSource('abcz');
 
-    expect(lexer.lexAll()).to.deep.equal(['abc', 'Zz']);
+    assert.deepStrictEqual(lexer.lexAll(), ['abc', 'Zz']);
   });
 
   it('shows the accumulated text to every action', function () {
@@ -65,7 +69,7 @@ describe('more()', function () {
     lexer.setSource('abc');
     lexer.lexAll();
 
-    expect(texts).to.deep.equal(['a', 'ab', 'abc']);
+    assert.deepStrictEqual(texts, ['a', 'ab', 'abc']);
   });
 
   it('still works when the continued match ends the input', function () {
@@ -76,7 +80,7 @@ describe('more()', function () {
     lexer.setSource('mega-kludge');
     lexer.lex();
 
-    expect(lexer.echoed.join('')).to.equal('mega-mega-kludge');
+    assert.strictEqual(lexer.echoed.join(''), 'mega-mega-kludge');
   });
 
   it('carries the accumulated text into an echoed character', function () {
@@ -85,8 +89,8 @@ describe('more()', function () {
 
     lexer.setSource('a!');
 
-    expect(lexer.lexAll()).to.deep.equal([]);
-    expect(lexer.echoed).to.deep.equal(['a!']);
+    assert.deepStrictEqual(lexer.lexAll(), []);
+    assert.deepStrictEqual(lexer.echoed, ['a!']);
   });
 
   it('leaves the index at the end of the input for an EOF rule', function () {
@@ -98,7 +102,7 @@ describe('more()', function () {
     lexer.setSource('a');
     lexer.lexAll();
 
-    expect(indexAtEOF).to.equal(1);
+    assert.strictEqual(indexAtEOF, 1);
   });
 
   it('is cleared by reset()', function () {
@@ -111,7 +115,7 @@ describe('more()', function () {
     lexer.reset();
 
     lexer.setSource('b');
-    expect(lexer.lexAll()).to.deep.equal(['b']);
+    assert.deepStrictEqual(lexer.lexAll(), ['b']);
   });
 });
 
@@ -124,7 +128,7 @@ describe('more() combined with other actions', function () {
 
     lexer.setSource('abcZ');
 
-    expect(lexer.lexAll()).to.deep.equal(['T:ab', 'O:c', 'O:Z']);
+    assert.deepStrictEqual(lexer.lexAll(), ['T:ab', 'O:c', 'O:Z']);
   });
 
   it('reject() retries the same position with the accumulated text intact', function () {
@@ -137,8 +141,8 @@ describe('more() combined with other actions', function () {
     lexer.setSource('abc');
     var tokens = lexer.lexAll();
 
-    expect(seen).to.deep.equal(['bc:abc', 'b:ab']);
-    expect(tokens).to.deep.equal(['ab']);
+    assert.deepStrictEqual(seen, ['bc:abc', 'b:ab']);
+    assert.deepStrictEqual(tokens, ['ab']);
   });
 
   it('reject() terminates instead of rescanning forever', function () {
@@ -151,7 +155,7 @@ describe('more() combined with other actions', function () {
     lexer.setSource('abc');
     lexer.lexAll();
 
-    expect(actions).to.equal(3);
+    assert.strictEqual(actions, 3);
   });
 
   it('unput() feeds text back after an accumulated match', function () {
@@ -168,7 +172,7 @@ describe('more() combined with other actions', function () {
 
     lexer.setSource('ab');
 
-    expect(lexer.lexAll()).to.deep.equal(['ab', 'b']);
+    assert.deepStrictEqual(lexer.lexAll(), ['ab', 'b']);
   });
 });
 
@@ -183,8 +187,8 @@ describe('reject() without more()', function () {
     lexer.setSource('abc');
     var tokens = lexer.lexAll();
 
-    expect(seen).to.deep.equal(['abc:abc', 'ab:ab']);
-    expect(tokens).to.deep.equal(['ab', 'c']);
+    assert.deepStrictEqual(seen, ['abc:abc', 'ab:ab']);
+    assert.deepStrictEqual(tokens, ['ab', 'c']);
   });
 
   it('leaves the index where the match started', function () {
@@ -196,6 +200,6 @@ describe('reject() without more()', function () {
     lexer.setSource('abc');
     lexer.lexAll();
 
-    expect(indexes).to.deep.equal([1]);
+    assert.deepStrictEqual(indexes, [1]);
   });
 });

@@ -1,6 +1,10 @@
-var expect = require('chai').expect;
+var nodeTest = require('node:test');
+var assert = require('node:assert');
 
-var Lexer = require('./Lexer.js');
+var describe = nodeTest.describe;
+var it = nodeTest.it;
+
+var Lexer = require('../src/Lexer.js');
 
 function lexerWith(rules) {
   var lexer = new Lexer();
@@ -21,7 +25,7 @@ describe('how the input is matched', function () {
 
     lexer.setSource('abc');
 
-    expect(lexer.lexAll()).to.deep.equal(['long:abc']);
+    assert.deepStrictEqual(lexer.lexAll(), ['long:abc']);
   });
 
   it('takes the most text whichever rule was added first', function () {
@@ -32,7 +36,7 @@ describe('how the input is matched', function () {
 
     lexer.setSource('abc');
 
-    expect(lexer.lexAll()).to.deep.equal(['long:abc']);
+    assert.deepStrictEqual(lexer.lexAll(), ['long:abc']);
   });
 
   it('breaks a tie with the rule added first', function () {
@@ -43,7 +47,7 @@ describe('how the input is matched', function () {
 
     lexer.setSource('abc');
 
-    expect(lexer.lexAll()).to.deep.equal(['first:abc']);
+    assert.deepStrictEqual(lexer.lexAll(), ['first:abc']);
   });
 });
 
@@ -56,7 +60,7 @@ describe('beginning of line', function () {
 
       lexer.setSource('abc');
 
-      expect(lexer.lexAll()).to.deep.equal(['plain:abc']);
+      assert.deepStrictEqual(lexer.lexAll(), ['plain:abc']);
     });
   });
 
@@ -68,7 +72,7 @@ describe('beginning of line', function () {
 
     lexer.setSource('abc');
 
-    expect(lexer.lexAll()).to.deep.equal(['bol:abc']);
+    assert.deepStrictEqual(lexer.lexAll(), ['bol:abc']);
   });
 
   it('loses a tie when it was added second', function () {
@@ -79,7 +83,7 @@ describe('beginning of line', function () {
 
     lexer.setSource('abc');
 
-    expect(lexer.lexAll()).to.deep.equal(['plain:abc']);
+    assert.deepStrictEqual(lexer.lexAll(), ['plain:abc']);
   });
 
   it('matches only where a line starts', function () {
@@ -90,7 +94,7 @@ describe('beginning of line', function () {
 
     lexer.setSource('aa');
 
-    expect(lexer.lexAll()).to.deep.equal(['bol:a', 'plain:a']);
+    assert.deepStrictEqual(lexer.lexAll(), ['bol:a', 'plain:a']);
   });
 
   it('matches again after a newline', function () {
@@ -102,7 +106,7 @@ describe('beginning of line', function () {
 
     lexer.setSource('a\na');
 
-    expect(lexer.lexAll()).to.deep.equal(['bol:a', 'nl:\n', 'bol:a']);
+    assert.deepStrictEqual(lexer.lexAll(), ['bol:a', 'nl:\n', 'bol:a']);
   });
 });
 
@@ -116,7 +120,7 @@ describe('end of line as trailing context', function () {
 
     lexer.setSource('abc\n');
 
-    expect(lexer.lexAll()).to.deep.equal(['eol:abc', 'nl:\n']);
+    assert.deepStrictEqual(lexer.lexAll(), ['eol:abc', 'nl:\n']);
   });
 
   it('leaves an unanchored match alone away from the line end', function () {
@@ -129,7 +133,7 @@ describe('end of line as trailing context', function () {
 
     lexer.setSource('abc d\n');
 
-    expect(lexer.lexAll()).to.deep.equal(['plain:abc', 'space: ', 'eol:d', 'nl:\n']);
+    assert.deepStrictEqual(lexer.lexAll(), ['plain:abc', 'space: ', 'eol:d', 'nl:\n']);
   });
 
   it('does not include the newline in the text', function () {
@@ -140,7 +144,7 @@ describe('end of line as trailing context', function () {
 
     lexer.setSource('ab\n');
 
-    expect(lexer.lexAll()).to.deep.equal(['eol:ab', 'nl:\n']);
+    assert.deepStrictEqual(lexer.lexAll(), ['eol:ab', 'nl:\n']);
   });
 
   it('leaves the index before the newline', function () {
@@ -152,7 +156,7 @@ describe('end of line as trailing context', function () {
     lexer.setSource('ab\n');
     lexer.lexAll();
 
-    expect(indexes).to.deep.equal([2]);
+    assert.deepStrictEqual(indexes, [2]);
   });
 
   it('does not match at the end of the input without a newline', function () {
@@ -163,7 +167,7 @@ describe('end of line as trailing context', function () {
 
     lexer.setSource('ab');
 
-    expect(lexer.lexAll()).to.deep.equal(['plain:ab']);
+    assert.deepStrictEqual(lexer.lexAll(), ['plain:ab']);
   });
 
   it('matches the same text once a newline follows', function () {
@@ -175,7 +179,7 @@ describe('end of line as trailing context', function () {
 
     lexer.setSource('ab\n');
 
-    expect(lexer.lexAll()).to.deep.equal(['eol:ab', 'nl:\n']);
+    assert.deepStrictEqual(lexer.lexAll(), ['eol:ab', 'nl:\n']);
   });
 
   it('does not match in the middle of a line', function () {
@@ -187,7 +191,7 @@ describe('end of line as trailing context', function () {
 
     lexer.setSource('abc');
 
-    expect(lexer.lexAll()).to.deep.equal(['plain:ab', 'c:c']);
+    assert.deepStrictEqual(lexer.lexAll(), ['plain:ab', 'c:c']);
   });
 
   it('anchors every line but the unterminated last one', function () {
@@ -199,7 +203,7 @@ describe('end of line as trailing context', function () {
 
     lexer.setSource('aa\nbb\ncc');
 
-    expect(lexer.lexAll()).to.deep.equal(['eol:aa', 'nl:\n', 'eol:bb', 'nl:\n', 'plain:cc']);
+    assert.deepStrictEqual(lexer.lexAll(), ['eol:aa', 'nl:\n', 'eol:bb', 'nl:\n', 'plain:cc']);
   });
 
   it('gives an escaped dollar no trailing width', function () {
@@ -210,7 +214,7 @@ describe('end of line as trailing context', function () {
 
     lexer.setSource('ab$c');
 
-    expect(lexer.lexAll()).to.deep.equal(['longer:ab$c']);
+    assert.deepStrictEqual(lexer.lexAll(), ['longer:ab$c']);
   });
 
   it('treats an escaped backslash before the dollar as a real anchor', function () {
@@ -221,6 +225,6 @@ describe('end of line as trailing context', function () {
 
     lexer.setSource('a\\\n');
 
-    expect(lexer.lexAll()).to.deep.equal(['anchored:a\\', 'nl:\n']);
+    assert.deepStrictEqual(lexer.lexAll(), ['anchored:a\\', 'nl:\n']);
   });
 });

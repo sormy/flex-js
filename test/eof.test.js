@@ -1,6 +1,10 @@
-var expect = require('chai').expect;
+var nodeTest = require('node:test');
+var assert = require('node:assert');
 
-var Lexer = require('./Lexer.js');
+var describe = nodeTest.describe;
+var it = nodeTest.it;
+
+var Lexer = require('../src/Lexer.js');
 
 function wordLexer() {
   var lexer = new Lexer();
@@ -17,8 +21,8 @@ describe('<<EOF>> rules', function () {
 
     lexer.setSource('one two');
 
-    expect(lexer.lexAll()).to.deep.equal(['one', 'two']);
-    expect(fired).to.equal(1);
+    assert.deepStrictEqual(lexer.lexAll(), ['one', 'two']);
+    assert.strictEqual(fired, 1);
   });
 
   it('runs the action for an empty source', function () {
@@ -28,8 +32,8 @@ describe('<<EOF>> rules', function () {
 
     lexer.setSource('');
 
-    expect(lexer.lexAll()).to.deep.equal([]);
-    expect(fired).to.equal(1);
+    assert.deepStrictEqual(lexer.lexAll(), []);
+    assert.strictEqual(fired, 1);
   });
 
   it('does not run the action while input remains', function () {
@@ -40,7 +44,7 @@ describe('<<EOF>> rules', function () {
     lexer.setSource('one');
     lexer.lex();
 
-    expect(fired).to.equal(0);
+    assert.strictEqual(fired, 0);
   });
 
   it('terminates when the action does nothing', function () {
@@ -49,8 +53,8 @@ describe('<<EOF>> rules', function () {
 
     lexer.setSource('one');
 
-    expect(lexer.lex()).to.equal('one');
-    expect(lexer.lex()).to.equal(Lexer.EOF);
+    assert.strictEqual(lexer.lex(), 'one');
+    assert.strictEqual(lexer.lex(), Lexer.EOF);
   });
 
   it('terminates when no EOF rule is registered', function () {
@@ -58,7 +62,7 @@ describe('<<EOF>> rules', function () {
 
     lexer.setSource('one');
 
-    expect(lexer.lexAll()).to.deep.equal(['one']);
+    assert.deepStrictEqual(lexer.lexAll(), ['one']);
   });
 
   it('continues scanning when the action refills with restart()', function () {
@@ -74,7 +78,7 @@ describe('<<EOF>> rules', function () {
 
     lexer.setSource('one two');
 
-    expect(lexer.lexAll()).to.deep.equal(['one', 'two', 'three', 'four']);
+    assert.deepStrictEqual(lexer.lexAll(), ['one', 'two', 'three', 'four']);
   });
 
   it('continues scanning when the action refills with unput()', function () {
@@ -90,7 +94,7 @@ describe('<<EOF>> rules', function () {
 
     lexer.setSource('one two');
 
-    expect(lexer.lexAll()).to.deep.equal(['one', 'two', 'three']);
+    assert.deepStrictEqual(lexer.lexAll(), ['one', 'two', 'three']);
   });
 
   it('returns a token from the action once the buffer is refilled', function () {
@@ -107,7 +111,7 @@ describe('<<EOF>> rules', function () {
 
     lexer.setSource('one');
 
-    expect(lexer.lexAll()).to.deep.equal(['one', 'REFILLED', 'two']);
+    assert.deepStrictEqual(lexer.lexAll(), ['one', 'REFILLED', 'two']);
   });
 
   it('discards a token from the action when the buffer is not refilled', function () {
@@ -116,7 +120,7 @@ describe('<<EOF>> rules', function () {
 
     lexer.setSource('one');
 
-    expect(lexer.lexAll()).to.deep.equal(['one']);
+    assert.deepStrictEqual(lexer.lexAll(), ['one']);
   });
 
   it('falls through to the next EOF rule after reject()', function () {
@@ -131,7 +135,7 @@ describe('<<EOF>> rules', function () {
     lexer.setSource('one');
     lexer.lexAll();
 
-    expect(fired).to.deep.equal(['first', 'second']);
+    assert.deepStrictEqual(fired, ['first', 'second']);
   });
 
   it('reports an unterminated construct from an exclusive state', function () {
@@ -145,8 +149,8 @@ describe('<<EOF>> rules', function () {
 
     lexer.setSource('"still open');
 
-    expect(lexer.lexAll()).to.deep.equal(['still open']);
-    expect(errors).to.deep.equal(['unterminated quote']);
+    assert.deepStrictEqual(lexer.lexAll(), ['still open']);
+    assert.deepStrictEqual(errors, ['unterminated quote']);
   });
 
   it('leaves a closed construct alone', function () {
@@ -160,8 +164,8 @@ describe('<<EOF>> rules', function () {
 
     lexer.setSource('"closed"');
 
-    expect(lexer.lexAll()).to.deep.equal(['closed']);
-    expect(errors).to.deep.equal([]);
+    assert.deepStrictEqual(lexer.lexAll(), ['closed']);
+    assert.deepStrictEqual(errors, []);
   });
 
   ['specific first', 'unqualified first'].forEach(function (order) {
@@ -188,7 +192,7 @@ describe('<<EOF>> rules', function () {
       lexer.begin('quote');
       lexer.lexAll();
 
-      expect(fired).to.deep.equal(['specific']);
+      assert.deepStrictEqual(fired, ['specific']);
     });
   });
 
@@ -202,7 +206,7 @@ describe('<<EOF>> rules', function () {
     lexer.begin('other');
     lexer.lexAll();
 
-    expect(fired).to.deep.equal(['unqualified']);
+    assert.deepStrictEqual(fired, ['unqualified']);
   });
 
   it('does not reach an exclusive state from an unqualified EOF rule', function () {
@@ -215,7 +219,7 @@ describe('<<EOF>> rules', function () {
     lexer.begin('exclusive');
     lexer.lexAll();
 
-    expect(fired).to.deep.equal([]);
+    assert.deepStrictEqual(fired, []);
   });
 
   it('registers an EOF rule in every state via STATE_ANY', function () {
@@ -230,7 +234,7 @@ describe('<<EOF>> rules', function () {
     lexer.begin('exclusive');
     lexer.lexAll();
 
-    expect(fired).to.deep.equal(['exclusive']);
+    assert.deepStrictEqual(fired, ['exclusive']);
   });
 
   it('keeps ordinary rules working alongside an EOF rule', function () {
@@ -242,7 +246,7 @@ describe('<<EOF>> rules', function () {
 
     lexer.setSource('ab 12 cd');
 
-    expect(lexer.lexAll()).to.deep.equal(['Wab', 'N12', 'Wcd']);
+    assert.deepStrictEqual(lexer.lexAll(), ['Wab', 'N12', 'Wcd']);
   });
 
   it('exposes an empty text to the EOF action', function () {
@@ -253,6 +257,6 @@ describe('<<EOF>> rules', function () {
     lexer.setSource('one');
     lexer.lexAll();
 
-    expect(textAtEOF).to.equal('');
+    assert.strictEqual(textAtEOF, '');
   });
 });
