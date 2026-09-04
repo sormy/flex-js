@@ -3,7 +3,6 @@
     "source.fixAll.eslint": "explicit"
   },
   "editor.formatOnSave": false,
-  "eslint.validate": ["javascript"],
   "files.insertFinalNewline": true,
   "files.trimTrailingWhitespace": true
 }

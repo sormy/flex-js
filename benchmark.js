@@ -58,7 +58,7 @@ var WORKLOADS = [
       lexer.addRule(/[0-9]+/, token('int'));
       lexer.addRule('let', token('kw'));
       lexer.addRule(/[a-zA-Z_][a-zA-Z0-9_]*/, token('id'));
-      lexer.addRule(/[-+*\/=();]/, token('op'));
+      lexer.addRule(/[-+*/=();]/, token('op'));
     },
     moo: function () {
       return moo.compile({
@@ -68,7 +68,7 @@ var WORKLOADS = [
         float: /[0-9]+\.[0-9]+/,
         int: /[0-9]+/,
         id: { match: /[a-zA-Z_][a-zA-Z0-9_]*/, type: moo.keywords({ kw: 'let' }) },
-        op: /[-+*\/=();]/
+        op: /[-+*/=();]/
       });
     },
     lex: function (lexer) {
@@ -79,7 +79,7 @@ var WORKLOADS = [
       lexer.addRule(/[0-9]+/, lexeme('int'));
       lexer.addRule(/let/, lexeme('kw'));
       lexer.addRule(/[a-zA-Z_][a-zA-Z0-9_]*/, lexeme('id'));
-      lexer.addRule(/[-+*\/=();]/, lexeme('op'));
+      lexer.addRule(/[-+*/=();]/, lexeme('op'));
     },
     chevrotain: function (create, skipped) {
       var id = create({ name: 'Id', pattern: /[a-zA-Z_][a-zA-Z0-9_]*/ });
@@ -91,7 +91,7 @@ var WORKLOADS = [
         create({ name: 'Int', pattern: /[0-9]+/ }),
         create({ name: 'Kw', pattern: /let/, longer_alt: id }),
         id,
-        create({ name: 'Op', pattern: /[-+*\/=();]/ })
+        create({ name: 'Op', pattern: /[-+*/=();]/ })
       ];
     }
   },
@@ -143,7 +143,7 @@ function token(type) {
 }
 
 function asExpression(text) {
-  return new RegExp(text.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&'));
+  return new RegExp(text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'));
 }
 
 function lexeme(type) {
