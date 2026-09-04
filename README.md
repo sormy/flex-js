@@ -63,7 +63,18 @@ Keywords and punctuation written as plain strings, 273 KB and 88,000 tokens:
 | moo 0.5.3         | 10.5 ms | 25.4 MB/s  | 8.4 M    | 120 MB      |
 
 chevrotain is the fastest of the three on both grammars and flex-js uses the
-least memory.
+least memory. What flex-js gives in exchange for the difference in speed:
+
+- Longest match whatever order the rules were added in. Add `>` before `>=` and
+  chevrotain refuses to build the lexer, because the shorter rule hides the
+  longer one, while moo stops at `invalid syntax` on the `=`. Each has an answer
+  for this, ordering and `longer_alt`; flex-js needs neither.
+- Actions that run while scanning, with FLEX's `reject()`, `more()`, `less()`,
+  `unput()`, `input()` and `echo()`. The other two hand back a token array or an
+  iterator and leave the rest to the caller.
+- One file of ES5 and no dependencies, 28 KB, against 1.5 MB and five packages
+  for chevrotain.
+- A FLEX grammar carries over without reordering rules or rewriting actions.
 
 ## Simple example
 
