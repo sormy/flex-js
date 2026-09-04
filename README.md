@@ -689,9 +689,22 @@ parser.parse();
 
 ## Alternative Lexers
 
-- https://github.com/tantaman/lexed.js
-- https://github.com/aaditmshah/lexer
-- https://github.com/YuhangGe/jslex
+Maintained:
+
+- [moo](https://github.com/no-context/moo) - all rules compiled into one sticky expression, first match wins
+- [chevrotain](https://chevrotain.io/) - lexer and parser toolkit, token modes, first match wins
+- [lezer](https://lezer.codemirror.net/) - incremental parser system behind CodeMirror
+- [tree-sitter](https://tree-sitter.github.io/tree-sitter/) - incremental parsing, grammars written in C, WASM build for browsers
+- [nearley](https://github.com/kach/nearley) - parser toolkit, scans with moo
+- [peggy](https://peggyjs.org/) - PEG parser generator, no separate scanner
+- [ohm-js](https://ohmjs.org/) - PEG toolkit, no separate scanner
+- [jison](https://github.com/zaach/jison) - parser generator, `jison-lex` accepts FLEX-style lex files
+
+Unmaintained:
+
+- [lex](https://github.com/aaditmshah/lexer) - same rule and action shape as this library, archived in 2018
+- [lexed.js](https://github.com/tantaman/lexed.js) - last change 2013
+- [jslex](https://github.com/YuhangGe/jslex) - last change 2014
 
 ## License
 
