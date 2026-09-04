@@ -118,9 +118,27 @@ reproduced against the current code unless marked otherwise.
   entirely while no rule is rejected (the overwhelmingly common case).
 - [ ] Extend the `fixedWidth` early-exit beyond plain string rules by computing
   a maximum match width for simple expressions.
-- [ ] Close the remaining gap to chevrotain, which is still ~2x faster. The
-  regex exec count is already near its floor, so the next win has to come from
-  per-scan overhead rather than from matching fewer rules.
+- [x] Cut per-scan overhead: `scan()` replaced `exec()` with `test()`, which
+  leaves the match end in `lastIndex` without building a match array, and the
+  matched text is now cut once for the winning rule instead of once per rule
+  that matched. `rejectedRules` is only replaced when a rule was actually
+  rejected, rather than allocating an array on every scan. Together 6.8ms ->
+  5.7ms, with GC falling from 9.4% of samples to 5.5%.
+- [ ] Beating chevrotain needs a different architecture, not more tuning. A
+  hand-written scanner using this very strategy — first-character dispatch,
+  one sticky `test()` per candidate, `substring()` for the token — costs 2.9ms
+  on the benchmark, against chevrotain's 3.3ms; replacing the regex for the
+  single-character operator rule with a character-code check takes it to 2.5ms.
+  So chevrotain runs at hand-written speed by not entering the regex engine for
+  simple patterns. flex-js sits at 5.7ms, and 1.25ms of that is calling the
+  rule action once per token, which is the whole point of the API and cannot be
+  removed. Closing the rest means compiling rules rather than interpreting them.
+- [ ] A fast path for rules matching exactly one character (skip the regex, the
+  dispatch already narrowed by first character) measured 5.6ms -> 5.2ms. Left
+  out: it is only sound when the candidate came from an ASCII `byCharCode`
+  bucket, since the `nonAscii` bucket makes no membership promise, and
+  `src/dispatch.spec.js` rejected the first attempt for exactly that reason. It
+  needs a per-rule character set to re-check membership before it is safe.
 
 Measured on a 266 KB source producing 52,000 tokens, 40 interleaved rounds,
 median (`node` 24, 8 rules):
@@ -128,11 +146,11 @@ median (`node` 24, 8 rules):
 | lexer                | time    | throughput |
 | -------------------- | ------- | ---------- |
 | flex-js (before)     | 42.2 ms |  6.2 MB/s  |
-| flex-js (after)      |  7.3 ms | 35.4 MB/s  |
-| moo 0.5.3            |  7.8 ms | 33.2 MB/s  |
-| chevrotain 13.2.0    |  3.5 ms | 75.0 MB/s  |
+| flex-js (after)      |  5.7 ms | 45.6 MB/s  |
+| moo 0.5.3            |  7.5 ms | 34.4 MB/s  |
+| chevrotain 13.2.0    |  3.3 ms | 79.5 MB/s  |
 
-5.8x faster than before, and slightly ahead of moo. Regex executions dropped
+7.4x faster than before, and a third faster than moo. Regex executions dropped
 from ~832,000 to ~120,000 for the same input (1.15 per scan, against a floor of
 1.0 for a single-regex lexer).
 

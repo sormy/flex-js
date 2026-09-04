@@ -551,6 +551,7 @@ Lexer.prototype.scan = function () {
   var matchedRule;
   var matchedIndex;
   var matchedValue = '';
+  var matchedEnd = 0;
   var matchedValueLength = 0; // could be 1 char more than matchedValue for expressions with $ at end
 
   var rules = this.rules[this.state] || [];
@@ -586,18 +587,22 @@ Lexer.prototype.scan = function () {
 
     var expression = rule.expression;
     expression.lastIndex = this.index;
-    var curMatch = expression.exec(this.source);
-    if (curMatch === null) {
+    // test() leaves the end in lastIndex without building a match array
+    if (!expression.test(this.source)) {
       continue;
     }
 
-    var curMatchLength = curMatch[0].length + rule.trailingContextWidth;
+    var curMatchLength = expression.lastIndex - this.index + rule.trailingContextWidth;
     if (curMatchLength > matchedValueLength) {
       matchedRule = rule;
       matchedIndex = ruleIndex;
-      matchedValue = curMatch[0];
+      matchedEnd = expression.lastIndex;
       matchedValueLength = curMatchLength;
     }
+  }
+
+  if (matchedRule && !isEOF) {
+    matchedValue = this.source.substring(this.index, matchedEnd);
   }
 
   if (matchedRule && this.debugEnabled) {
@@ -637,7 +642,9 @@ Lexer.prototype.scan = function () {
     return;
   }
 
-  this.rejectedRules = [];
+  if (rejectedRules.length) {
+    this.rejectedRules = [];
+  }
 
   // rule action could change buffer or position, so EOF state could be changed too
   // we need revalidate EOF only if EOF was identified before action were executed
