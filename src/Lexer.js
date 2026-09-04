@@ -1,4 +1,6 @@
 (function (root) {
+'use strict';
+
 var ASCII_LIMIT = 128;
 var NEWLINE = 10;
 
