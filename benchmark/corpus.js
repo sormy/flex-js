@@ -98,7 +98,7 @@ function sql(lines) {
     if (kind === 0) {
       return String(next() % 999 + 1);
     }
-    return kind === 1 ? "'" + pick(WORDS) + "'" : pick(NAMES);
+    return kind === 1 ? '\'' + pick(WORDS) + '\'' : pick(NAMES);
   }
 
   function comparison() {
