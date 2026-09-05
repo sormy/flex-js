@@ -135,6 +135,19 @@ describe('unicode definitions', function () {
     assert.deepStrictEqual(lexer.lexAll(), ['héllo', '日本語']);
   });
 
+  it('takes a body that cannot be written without the flag', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+    lexer.addDefinition('EMOJI', /[\u{1F600}-\u{1F64F}]/u);
+    lexer.addRule(/{EMOJI}+/, function (current) { return current.text; });
+    lexer.addRule(/[a-z]+/, function (current) { return current.text; });
+    lexer.addRule(/\s+/);
+
+    lexer.setSource('hi \u{1F600}\u{1F603}');
+
+    assert.deepStrictEqual(lexer.lexAll(), ['hi', '\u{1F600}\u{1F603}']);
+  });
+
   it('refuses one while unicode is off, rather than reading it as ASCII', function () {
     var lexer = new Lexer();
 
@@ -146,6 +159,35 @@ describe('unicode definitions', function () {
     lexer.setUnicode(true);
 
     assertThrows(function () { lexer.addDefinition('WORD', /a/i); }, 'Expression flags besides "u"');
+  });
+
+  it('will not let unicode be turned off underneath it', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+    lexer.addDefinition('WORD', /\p{L}+/u);
+
+    assertThrows(function () { lexer.setUnicode(false); }, 'Unicode cannot be turned off');
+  });
+
+  it('lets unicode be turned off while no definition carries it', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+    lexer.addDefinition('WORD', /[a-z]+/);
+
+    lexer.setUnicode(false);
+
+    assert.strictEqual(lexer.unicode, false);
+  });
+
+  it('lets unicode be turned off again after clear()', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+    lexer.addDefinition('WORD', /\p{L}+/u);
+
+    lexer.clear();
+    lexer.setUnicode(false);
+
+    assert.strictEqual(lexer.unicode, false);
   });
 
   it('keeps the body unchanged by the flag', function () {

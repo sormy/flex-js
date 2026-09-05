@@ -44,7 +44,7 @@ declare class Lexer<TToken = unknown> {
   /** Match without regard to case. Only affects rules added afterwards. */
   setIgnoreCase(ignoreCase: boolean): void;
 
-  /** Compile rules as unicode expressions. Off by default. */
+  /** Compile rules as unicode expressions. Off by default, and cannot be turned off once a definition carries `u`. */
   setUnicode(unicode: boolean): void;
 
   /** Log the start condition, expression and text of every accepted rule. */

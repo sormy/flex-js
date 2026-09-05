@@ -151,6 +151,7 @@ Lexer.prototype.clear = function () {
   this.output = defaultOutput();
   this.ignoreCase = false;
   this.unicode = false;
+  this.unicodeDefinition = false;
   this.debugEnabled = false;
   this.defaultRuleEnabled = true;
 
@@ -178,11 +179,18 @@ Lexer.prototype.setIgnoreCase = function (ignoreCase) {
  * A pattern unicode mode refuses, an escaped dash outside a character class
  * for instance, keeps its ordinary meaning rather than failing.
  *
+ * Turning it off is refused once a definition carrying "u" is declared, since
+ * that body would then be read as ASCII.
+ *
  * @param {boolean} unicode
  *
  * @public
  */
 Lexer.prototype.setUnicode = function (unicode) {
+  if (!unicode && this.unicodeDefinition) {
+    throw new Error('Unicode cannot be turned off while a definition carrying "u" is declared');
+  }
+
   this.unicode = unicode;
 };
 
@@ -291,8 +299,11 @@ Lexer.prototype.addDefinition = function (name, expression) {
     if (expression.flags !== '' && expression.flags !== 'u') {
       throw new Error('Expression flags besides "u" are not supported for definition expressions');
     }
-    if (expression.flags === 'u' && !this.unicode) {
-      throw new Error('Definition "' + name + '" carries "u", so setUnicode(true) must come first');
+    if (expression.flags === 'u') {
+      if (!this.unicode) {
+        throw new Error('Definition "' + name + '" carries "u", so setUnicode(true) must come first');
+      }
+      this.unicodeDefinition = true;
     }
     expression = expression.source;
   } else {
