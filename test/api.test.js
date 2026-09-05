@@ -11,7 +11,7 @@ var Lexer = require('../src/Lexer.js');
 function collectingLexer() {
   var lexer = new Lexer();
   lexer.echoed = [];
-  lexer.echo = function () { this.echoed.push(this.text); };
+  lexer.setOutput(function (text) { lexer.echoed.push(text); });
   return lexer;
 }
 
@@ -401,22 +401,39 @@ describe('actions', function () {
     assert.strictEqual(lexer.echoed.join(''), '!!');
   });
 
-  it('falls back to the console where there is no standard output', function () {
+  it('writes to a sink given as an object', function () {
+    var written = '';
     var lexer = new Lexer();
-    lexer.hasStandardOutput = false;
+    lexer.setOutput({ write: function (text) { written += text; } });
     lexer.addRule(/[a-z]+/, function (current) { return current.text; });
+
+    lexer.setSource('a!b?');
+    lexer.lexAll();
+
+    assert.strictEqual(written, '!?');
+  });
+
+  it('flushes a sink that offers it when the scan ends', function () {
+    var written = '';
+    var flushed = 0;
+    var lexer = new Lexer();
+    lexer.setOutput({
+      write: function (text) { written += text; },
+      flush: function () { flushed++; }
+    });
+    lexer.addRule(/[a-z]+/, function (current) { return current.text; });
+
     lexer.setSource('a!');
+    lexer.lexAll();
 
-    var logged = [];
-    var original = console.log;
-    console.log = function (line) { logged.push(line); };
-    try {
-      lexer.lexAll();
-    } finally {
-      console.log = original;
-    }
+    assert.strictEqual(written, '!');
+    assert.strictEqual(flushed, 1);
+  });
 
-    assert.deepStrictEqual(logged, ['!']);
+  it('refuses a sink it cannot write to', function () {
+    var lexer = new Lexer();
+
+    assertThrows(function () { lexer.setOutput(42); }, 'Invalid output');
   });
 
   it('writes to stdout from the default echo action', function () {
@@ -520,6 +537,7 @@ describe('lifecycle', function () {
     lexer.addRule(/[a-z]+/, function (current) { return current.text; });
 
     lexer.clear();
+    lexer.setOutput(function (text) { lexer.echoed.push(text); });
     lexer.setSource('word');
 
     assert.deepStrictEqual(lexer.lexAll(), []);

@@ -4,6 +4,40 @@
 var ASCII_LIMIT = 128;
 var NEWLINE = 10;
 
+/**
+ * console.log ends every call with a newline, so text is held back until one
+ * arrives and the scanner's own line breaks decide where lines fall.
+ */
+function consoleOutput() {
+  var pending = '';
+
+  return {
+    write: function (text) {
+      pending += text;
+      var lastBreak = pending.lastIndexOf('\n');
+      if (lastBreak !== -1) {
+        console.log(pending.slice(0, lastBreak));
+        pending = pending.slice(lastBreak + 1);
+      }
+    },
+    flush: function () {
+      if (pending) {
+        console.log(pending);
+        pending = '';
+      }
+    }
+  };
+}
+
+function defaultOutput() {
+  if (typeof process !== 'undefined' && process.stdout &&
+    typeof process.stdout.write === 'function') {
+    return process.stdout;
+  }
+
+  return consoleOutput();
+}
+
 function toCharCodes(text) {
   var codes = [];
 
@@ -33,8 +67,6 @@ var TRAILING_NEWLINE = '(?=\\n)';
  * @class Lexer
  */
 function Lexer() {
-  this.hasStandardOutput = typeof process !== 'undefined' &&
-    !!process.stdout && typeof process.stdout.write === 'function';
   this.idRegExp = /^[a-z_][a-z0-9_-]*$/i;
 
   Object.defineProperty(this, 'line', {
@@ -113,6 +145,7 @@ Lexer.prototype.clear = function () {
   this.definitions = Object.create(null);
   this.rules = {};
   this.dispatches = {};
+  this.output = defaultOutput();
   this.ignoreCase = false;
   this.debugEnabled = false;
   this.defaultRuleEnabled = true;
@@ -160,6 +193,27 @@ Lexer.prototype.setDebugEnabled = function (debugEnabled) {
  */
 Lexer.prototype.setDefaultRuleEnabled = function (defaultRuleEnabled) {
   this.defaultRuleEnabled = defaultRuleEnabled;
+};
+
+/**
+ * Set where echo() writes, FLEX's yyout.
+ *
+ * @param {object|function} output  Anything with a write method, a writable
+ *                                  stream for instance, or a function taking
+ *                                  the text.
+ *
+ * @public
+ */
+Lexer.prototype.setOutput = function (output) {
+  if (typeof output === 'function') {
+    output = { write: output };
+  }
+
+  if (!output || typeof output.write !== 'function') {
+    throw new Error('Invalid output: should be a function or have a write method');
+  }
+
+  this.output = output;
 };
 
 /**
@@ -443,11 +497,7 @@ Lexer.prototype.discard = function () {
  * @public
  */
 Lexer.prototype.echo = function () {
-  if (this.hasStandardOutput) {
-    process.stdout.write(this.text);
-  } else {
-    console.log(this.text);
-  }
+  this.output.write(this.text);
 };
 
 /**
@@ -533,6 +583,9 @@ Lexer.prototype.input = function (n) {
  * @public
  */
 Lexer.prototype.terminate = function () {
+  if (typeof this.output.flush === 'function') {
+    this.output.flush();
+  }
   this.reset();
   return Lexer.EOF;
 };

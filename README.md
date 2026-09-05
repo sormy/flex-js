@@ -59,7 +59,6 @@ Not planned, because the design rules it out or JavaScript already answers it:
   complete string, so input cannot be handed over a piece at a time. An
   `<<EOF>>` rule that calls `restart()` refills the input instead.
 - `yywrap()` - the same `<<EOF>>` rule does this job.
-- a custom output stream, the FLEX `yyout` - assign your own `echo()`.
 
 Not implemented yet:
 
@@ -183,6 +182,7 @@ Lexer defaults and definitions should be added before adding new rules.
 ## Options
 
 - Ignore Case - case sensitivity could be set via `setIgnoreCase(false)` or `setIgnoreCase(true)`. By default lexer is case sensitive.
+- Output - `setOutput()` says where `echo()` writes, FLEX's `yyout`. It takes anything with a `write` method, a writable stream for instance, or a function receiving the text. By default it writes to standard output where there is one and to the console otherwise.
 - Default Rule - input matching no rule is echoed, as in FLEX. `setDefaultRuleEnabled(false)` makes it an error instead, which is FLEX's `%option nodefault`.
 - Debug Mode - debug mode could be enabled with `setDebugEnabled(true)`. In debug mode lexer will output on console the state, the expression and the matched value for each accepted rule.
 
@@ -318,7 +318,7 @@ There are a number of special actions which can be called within an action:
 
 ### ECHO
 
-`echo()` copies `text` to the scanner's output.
+`echo()` copies `text` to the scanner's output, which `setOutput()` chooses. If that sink has a `flush` method it is called when the scan ends, so a sink that gathers whole lines can emit the last one.
 
 ### BEGIN
 

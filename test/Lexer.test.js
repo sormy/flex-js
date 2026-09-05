@@ -92,9 +92,7 @@ describe('Lexer', function() {
   it('#lex() - echo all', function() {
     var output = '';
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     lexer.setSource('bla bla bla');
     lexer.lex();
     assert.strictEqual(output, 'bla bla bla');
@@ -103,9 +101,7 @@ describe('Lexer', function() {
   it('#lex() - zap me', function() {
     var output = '';
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     lexer.addRule('zap me');
     lexer.setSource('bla zap me bla zap me bla');
     lexer.lex();
@@ -115,9 +111,7 @@ describe('Lexer', function() {
   it('#lex() - echo match', function() {
     var output = '';
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     lexer.addRule('username', function () {
       output += 'ME';
     });
@@ -191,9 +185,7 @@ describe('Lexer', function() {
   it('#lex() - compress whitespace', function() {
     var output = '';
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     lexer.addRule(/\s+$/); // ignore this token
     lexer.addRule(/\s+/, function () {
       output += ' ';
@@ -207,9 +199,7 @@ describe('Lexer', function() {
     var output = '';
     var wordCount = 0;
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     lexer.addRule('frob', function (lexer) {
       lexer.reject();
     });
@@ -225,9 +215,7 @@ describe('Lexer', function() {
     var output = '';
     var wordCount = 0;
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     lexer.addRule('frob');
     lexer.addRule(/[^\s]+/, function (lexer) {
       wordCount++;
@@ -240,9 +228,7 @@ describe('Lexer', function() {
   it('#reject() - multiple rejects', function() {
     var output = '';
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     var action = function (lexer) {
       lexer.echo();
       lexer.reject();
@@ -260,9 +246,7 @@ describe('Lexer', function() {
   it('#more()', function() {
     var output = '';
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     lexer.addRule('mega-', function (lexer) {
       lexer.echo();
       lexer.more();
@@ -278,9 +262,7 @@ describe('Lexer', function() {
   it('#less()', function() {
     var output = '';
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     lexer.addRule('foobar', function (lexer) {
       lexer.echo();
       lexer.less(3);
@@ -296,9 +278,7 @@ describe('Lexer', function() {
   it('#unput()', function() {
     var output = '';
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     lexer.addRule('foobar', function (lexer) {
       lexer.unput('(foobar)');
     });
@@ -313,9 +293,7 @@ describe('Lexer', function() {
   it('#input()', function() {
     var output = '';
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     lexer.addRule('/*', function (lexer) {
       do {
         var char = lexer.input();
@@ -360,7 +338,7 @@ describe('Lexer', function() {
   it('should expect floats', function() {
     var output = '';
     var lexer = new Lexer();
-    lexer.echo = function () { }; // redirect echo to null
+    lexer.setOutput(function () { }); // redirect echo to null
     lexer.addState('expect');
     lexer.addRule('expect floats', function (lexer) {
       lexer.begin('expect');
@@ -392,9 +370,7 @@ describe('Lexer', function() {
     var lineNumber = 1;
     var output = '';
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     lexer.addState('comment', true);
     lexer.addRule('/*', function (lexer) {
       lexer.begin('comment');
@@ -422,9 +398,7 @@ describe('Lexer', function() {
     var str = '';
 
     var lexer = new Lexer();
-    lexer.echo = function () {  // redirect echo to variable
-      output += this.text;
-    };
+    lexer.setOutput(function (text) { output += text; });
     lexer.addState('str', true);
     lexer.addRule('"', function (lexer) {
       lexer.begin('str');

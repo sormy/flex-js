@@ -99,8 +99,11 @@ reproduced against the current code unless marked otherwise.
   which has `self` but no `window`, was taken for Node and `echo()` reached for a
   `process.stdout` that is not there. It asks whether a writable `process.stdout`
   exists now, and falls back to the console.
-- [ ] `echo()` still writes to whichever of those it finds. Make the output sink
-  injectable, since the tests have to monkey-patch `echo` to observe it.
+- [x] `echo()` writes wherever `setOutput()` says, FLEX's `yyout`, which takes a
+  writable stream or a function and is checked when it is set rather than at the
+  first echo. The tests ask for a sink now instead of replacing `echo`, so the
+  action itself is under test. The console fallback used to call `console.log`
+  once per character, giving a line each, and gathers text until a newline now.
 - [x] `.eslintrc.json` disables `no-redeclare` to accommodate two `var index`
   declarations in one scope in `addStateRule()`. The two loops that turned
   `this.states` into a list of names were doing the same work as

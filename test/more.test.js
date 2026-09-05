@@ -9,7 +9,7 @@ var Lexer = require('../src/Lexer.js');
 function collectingLexer() {
   var lexer = new Lexer();
   lexer.echoed = [];
-  lexer.echo = function () { this.echoed.push(this.text); };
+  lexer.setOutput(function (text) { lexer.echoed.push(text); });
   return lexer;
 }
 

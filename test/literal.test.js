@@ -12,7 +12,7 @@ function wordsAnd(rules, options) {
     lexer.setIgnoreCase(true);
   }
   lexer.echoed = [];
-  lexer.echo = function () { this.echoed.push(this.text); };
+  lexer.setOutput(function (text) { lexer.echoed.push(text); });
   rules.forEach(function (rule) {
     lexer.addRule(rule.expression, function (current) { return rule.name + ':' + current.text; });
   });
@@ -145,7 +145,7 @@ describe('string rules with ignoreCase', function () {
 
   it('applies only to rules added after setIgnoreCase()', function () {
     var lexer = new Lexer();
-    lexer.echo = function () { };
+    lexer.setOutput(function () { });
     lexer.addRule('one', function () { return 'before'; });
     lexer.setIgnoreCase(true);
     lexer.addRule('two', function () { return 'after'; });

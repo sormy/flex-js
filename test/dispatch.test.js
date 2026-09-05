@@ -43,7 +43,7 @@ function lexWith(grammar, source, exhaustive) {
     lexer.buildDispatch = buildExhaustiveDispatch;
   }
   var echoed = [];
-  lexer.echo = function () { echoed.push(this.text); };
+  lexer.setOutput(function (text) { echoed.push(text); });
 
   if (grammar.ignoreCase) {
     lexer.setIgnoreCase(true);

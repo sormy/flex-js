@@ -11,7 +11,7 @@ var Lexer = require('../src/Lexer.js');
 function positionsOf(source, rules) {
   var lexer = new Lexer();
   var seen = [];
-  lexer.echo = function () { };
+  lexer.setOutput(function () { });
   (rules || [/[a-z]+/]).forEach(function (expression) {
     lexer.addRule(expression, function (current) {
       seen.push(current.text + '@' + current.line + ':' + current.column);
@@ -171,7 +171,7 @@ describe('the default rule', function () {
   it('echoes unmatched input while it is on', function () {
     var lexer = new Lexer();
     var echoed = '';
-    lexer.echo = function () { echoed += this.text; };
+    lexer.setOutput(function (text) { echoed += text; });
     lexer.addRule(/[a-z]+/, function (current) { return current.text; });
 
     lexer.setSource('ok?');
