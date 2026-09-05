@@ -70,21 +70,33 @@ var TRAILING_NEWLINE = '(?=\\n)';
  * @class Lexer
  */
 function Lexer() {
-  this.idRegExp = /^[a-z_][a-z0-9_-]*$/i;
-
-  Object.defineProperty(this, 'line', {
-    get: function () { return this.getLineAt(this.tokenStart) + 1; }
-  });
-
-  Object.defineProperty(this, 'column', {
-    get: function () {
-      var line = this.getLineAt(this.tokenStart);
-      return this.tokenStart - this.getLineOffsets()[line] + 1;
-    }
-  });
-
   this.clear();
 }
+
+Lexer.prototype.idRegExp = /^[a-z_][a-z0-9_-]*$/i;
+
+/**
+ * Line of the first character of the current token, counting from one.
+ *
+ * @return {number} Line number.
+ *
+ * @public
+ */
+Lexer.prototype.getLine = function () {
+  return this.getLineAt(this.tokenStart) + 1;
+};
+
+/**
+ * Column of the first character of the current token, counting from one.
+ *
+ * @return {number} Column number.
+ *
+ * @public
+ */
+Lexer.prototype.getColumn = function () {
+  var line = this.getLineAt(this.tokenStart);
+  return this.tokenStart - this.getLineOffsets()[line] + 1;
+};
 
 /**
  * End of file indicator.
@@ -148,6 +160,7 @@ Lexer.prototype.clear = function () {
   this.definitions = Object.create(null);
   this.rules = {};
   this.dispatches = {};
+  this.scanState = null;
   this.output = defaultOutput();
   this.ignoreCase = false;
   this.unicode = false;
@@ -405,6 +418,8 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
   var foldsCase = compiledExpression !== null && compiledExpression.ignoreCase;
   var comparable = literal !== undefined && (!foldsCase || isAscii(literal));
 
+  var classTables = isEOF ? null : this.getCharClassTables(compiledExpression);
+
   var rule = {
     expression: compiledExpression,
     isEOF: isEOF,
@@ -414,7 +429,9 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
     literalLower: comparable ? toCharCodes(foldsCase ? literal.toLowerCase() : literal) : null,
     literalUpper: comparable ? toCharCodes(foldsCase ? literal.toUpperCase() : literal) : null,
     action: action,
-    fixedWidth: fixedWidth // used for weighted match optimization
+    fixedWidth: fixedWidth === undefined ? Infinity : fixedWidth,
+    classHead: classTables === null ? null : classTables.head,
+    classTail: classTables === null ? null : classTables.tail
   };
 
   for (var index = 0; index < states.length; index++) {
@@ -426,6 +443,7 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
   }
 
   this.dispatches = {};
+  this.scanState = null;
 };
 
 /**
@@ -513,10 +531,16 @@ Lexer.prototype.lex = function () {
 Lexer.prototype.lexAll = function () {
   var result = [];
   var token;
-  while ((token = this.lex()) !== Lexer.EOF) {
+  for (;;) {
+    token = this.scan();
+    if (token === undefined) {
+      continue;
+    }
+    if (token === Lexer.EOF) {
+      return result;
+    }
     result.push(token);
   }
-  return result;
 };
 
 /**
@@ -716,21 +740,32 @@ Lexer.prototype.scan = function () {
   var matchedEnd = 0;
   var matchedValueLength = 0; // could be 1 char more than matchedValue for expressions with $ at end
 
-  var rules = this.rules[this.state] || [];
-  var dispatch = this.getDispatch(this.state);
+  var state = this.state;
+  if (state !== this.scanState) {
+    this.scanState = state;
+    this.scanRules = this.rules[state] || [];
+    this.scanDispatch = this.getDispatch(state);
+  }
+  var rules = this.scanRules;
+  var dispatch = this.scanDispatch;
   var rejectedRules = this.rejectedRules;
+  var hasRejected = rejectedRules.length !== 0;
+  var source = this.source;
+  var sourceLength = source.length;
+  var position = this.index;
 
   var candidates;
   if (isEOF) {
     candidates = dispatch.eof;
   } else {
-    var charCode = this.source.charCodeAt(this.index);
+    var charCode = source.charCodeAt(position);
     candidates = charCode < ASCII_LIMIT ? dispatch.byCharCode[charCode] : dispatch.nonAscii;
   }
 
-  for (var candidate = 0; candidate < candidates.length; candidate++) {
+  var candidateCount = candidates.length;
+  for (var candidate = 0; candidate < candidateCount; candidate++) {
     var ruleIndex = candidates[candidate];
-    if (rejectedRules.length && rejectedRules.indexOf(ruleIndex) !== -1) {
+    if (hasRejected && rejectedRules.indexOf(ruleIndex) !== -1) {
       continue;
     }
 
@@ -743,28 +778,41 @@ Lexer.prototype.scan = function () {
       break;
     }
 
-    if (rule.fixedWidth !== undefined && rule.fixedWidth <= matchedValueLength) {
+    if (rule.fixedWidth <= matchedValueLength) {
       continue;
     }
 
     var matchEnd;
 
-    if (rule.literalLower !== null) {
-      if (!this.matchesLiteral(rule, this.index)) {
+    var head = rule.classHead;
+    if (head !== null) {
+      if (charCode >= ASCII_LIMIT || head[charCode] !== 1) {
         continue;
       }
-      matchEnd = this.index + rule.literalLower.length;
+      matchEnd = position + 1;
+      var tail = rule.classTail;
+      if (tail !== null) {
+        var next;
+        while (matchEnd < sourceLength && (next = source.charCodeAt(matchEnd)) < ASCII_LIMIT && tail[next] === 1) {
+          matchEnd++;
+        }
+      }
+    } else if (rule.literalLower !== null) {
+      if (!this.matchesLiteral(rule, position)) {
+        continue;
+      }
+      matchEnd = position + rule.literalLower.length;
     } else {
       var expression = rule.expression;
-      expression.lastIndex = this.index;
+      expression.lastIndex = position;
       // test() leaves the end in lastIndex without building a match array
-      if (!expression.test(this.source)) {
+      if (!expression.test(source)) {
         continue;
       }
       matchEnd = expression.lastIndex;
     }
 
-    var curMatchLength = matchEnd - this.index + rule.trailingContextWidth;
+    var curMatchLength = matchEnd - position + rule.trailingContextWidth;
     if (curMatchLength > matchedValueLength) {
       matchedRule = rule;
       matchedIndex = ruleIndex;
@@ -774,7 +822,7 @@ Lexer.prototype.scan = function () {
   }
 
   if (matchedRule && !isEOF) {
-    matchedValue = this.source.substring(this.index, matchedEnd);
+    matchedValue = source.substring(position, matchedEnd);
   }
 
   if (matchedRule && this.debugEnabled) {
@@ -842,10 +890,13 @@ Lexer.prototype.scan = function () {
  * @public
  */
 Lexer.prototype.error = function (message) {
-  var error = new Error(message + ' at line ' + this.line + ', column ' + this.column);
+  var line = this.getLine();
+  var column = this.getColumn();
 
-  error.line = this.line;
-  error.column = this.column;
+  var error = new Error(message + ' at line ' + line + ', column ' + column);
+
+  error.line = line;
+  error.column = column;
   error.text = this.text;
 
   throw error;
@@ -1397,6 +1448,59 @@ function expressionFirstCodes(source) {
  *
  * @private
  */
+var CHAR_CLASS_BODY = '(?:[^\\\\\\]]|\\\\[tnrfv\\-\\]\\\\^/])+';
+var SINGLE_CLASS = new RegExp('^\\[(' + CHAR_CLASS_BODY + ')\\](\\+?)$');
+var PAIRED_CLASS = new RegExp('^\\[(' + CHAR_CLASS_BODY + ')\\]\\[(' + CHAR_CLASS_BODY + ')\\]\\*$');
+
+/**
+ * Which ASCII characters a class body accepts, or null when it could reach
+ * beyond ASCII and a table would answer for characters it has not seen.
+ *
+ * @private
+ */
+Lexer.prototype.getCharClassTable = function (body) {
+  if (body.charAt(0) === '^' || !isAscii(body)) {
+    return null;
+  }
+
+  var probe = new RegExp('^[' + body + ']$');
+  var table = new Array(ASCII_LIMIT);
+  for (var code = 0; code < ASCII_LIMIT; code++) {
+    table[code] = probe.test(String.fromCharCode(code)) ? 1 : 0;
+  }
+
+  return table;
+};
+
+/**
+ * Tables for a pattern that is one character class, optionally repeated, or a
+ * class followed by a repeated one. Head answers for the first character, tail
+ * for every further one, so such a rule matches by walking character codes
+ * instead of entering the regular expression engine.
+ *
+ * @private
+ */
+Lexer.prototype.getCharClassTables = function (expression) {
+  if (expression.ignoreCase || expression.unicode) {
+    return null;
+  }
+
+  var paired = PAIRED_CLASS.exec(expression.source);
+  if (paired) {
+    var pairedHead = this.getCharClassTable(paired[1]);
+    var pairedTail = this.getCharClassTable(paired[2]);
+    return pairedHead && pairedTail ? { head: pairedHead, tail: pairedTail } : null;
+  }
+
+  var single = SINGLE_CLASS.exec(expression.source);
+  if (!single) {
+    return null;
+  }
+
+  var head = this.getCharClassTable(single[1]);
+  return head ? { head: head, tail: single[2] ? head : null } : null;
+};
+
 Lexer.prototype.getFirstCharCodes = function (expression) {
   var codes = expressionFirstCodes(expression.source);
   if (codes === UNKNOWN || !codes.length) {

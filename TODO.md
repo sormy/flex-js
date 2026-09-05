@@ -2,14 +2,14 @@
 
 ## Performance
 
-- Extend the fixed-width early exit to expressions of a known width.
-- Fast path for rules matching exactly one character, measured 5.6ms -> 5.2ms.
-  Sound only for candidates from an ASCII `byCharCode` bucket, since `nonAscii`
-  promises no membership; needs a per-rule character set to re-check.
-- Beating chevrotain needs compiled rules rather than tuning. It stays out of
-  the regex engine for simple patterns; a hand-written scanner using this
-  strategy costs 2.9ms against its 3.3ms, where flex-js is near 5.1ms, 1.25ms
-  of which is the per-token action call the API exists for.
+- Extend the character class tables past one class and one repeated class, so
+  `[0-9]+\.[0-9]+` and the like also stay out of the regex engine.
+- Skip building the token text for a rule with no action, measured 5.51ms ->
+  5.26ms. Nothing can read it before the next scan overwrites it, but FLEX sets
+  `yytext` for every match, so the two disagree where it cannot be observed.
+- Closing the last fifth against chevrotain needs compiled rules rather than
+  tuning. It takes the first rule that matches and stops, where longest match
+  has to try every rule that could start at the position.
 
 ## Missing features
 

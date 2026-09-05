@@ -81,20 +81,24 @@ Rules written as regular expressions, 266 KB and 52,000 tokens:
 
 | lexer             | time    | throughput | tokens/s | peak memory |
 | ----------------- | ------- | ---------- | -------- | ----------- |
-| chevrotain 13.2.0 | 3.2 ms  | 82.2 MB/s  | 16.5 M   | 69 MB       |
-| flex-js           | 5.0 ms  | 51.9 MB/s  | 10.4 M   | 62 MB       |
-| moo 0.5.3         | 7.2 ms  | 36.0 MB/s  | 7.2 M    | 97 MB       |
+| chevrotain 13.2.0 | 3.2 ms  | 82.2 MB/s  | 16.5 M   | 72 MB       |
+| flex-js           | 3.8 ms  | 68.4 MB/s  | 13.7 M   | 62 MB       |
+| moo 0.5.3         | 7.3 ms  | 35.6 MB/s  | 7.1 M    | 96 MB       |
 
 Keywords and punctuation written as plain strings, 273 KB and 88,000 tokens:
 
 | lexer             | time    | throughput | tokens/s | peak memory |
 | ----------------- | ------- | ---------- | -------- | ----------- |
-| chevrotain 13.2.0 | 4.6 ms  | 58.1 MB/s  | 19.2 M   | 86 MB       |
-| flex-js           | 6.9 ms  | 38.8 MB/s  | 12.8 M   | 81 MB       |
-| moo 0.5.3         | 10.5 ms | 25.4 MB/s  | 8.4 M    | 120 MB      |
+| chevrotain 13.2.0 | 4.3 ms  | 61.7 MB/s  | 20.3 M   | 87 MB       |
+| flex-js           | 5.3 ms  | 50.1 MB/s  | 16.5 M   | 82 MB       |
+| moo 0.5.3         | 10.7 ms | 25.0 MB/s  | 8.2 M    | 120 MB      |
 
-chevrotain is the fastest of the three on both grammars and flex-js uses the
-least memory. What flex-js gives in exchange for the difference in speed:
+flex-js is about twice the speed of moo on both grammars and uses the least
+memory of the three. chevrotain is ahead of it by about a fifth, which is a
+consequence of the matching rule: chevrotain stops at the first rule that
+matches, where longest match has to try every rule that could start here. moo
+stops at the first match as well, so the margin there is not about the matching
+rule. What flex-js gives in exchange for the chevrotain gap:
 
 - Longest match whatever order the rules were added in. Add `>` before `>=` and
   chevrotain refuses to build the lexer, because the shorter rule hides the
@@ -746,7 +750,7 @@ lexer.addRule(Lexer.RULE_EOF, function (lexer) {
 This section summarizes the various values available to the user in the rule actions.
 
 - `text` holds the text of the current token. It may be modified.
-- `line` and `column` hold the 1-based position of the first character of the current token. A token running over several lines therefore reports where it began, and so does one built up with `more()`.
+- `getLine()` and `getColumn()` answer the 1-based position of the first character of the current token. A token running over several lines therefore reports where it began, and so does one built up with `more()`.
 - `state` holds string name of current start condition.
 - `restart(newSource)` may be called to point lexer at the new input string. The switch-over is immediate. Calling `restart()` without an argument leaves the input alone and rewinds to the start of it, so the same string is scanned again. Once scanning terminates because an end-of-file has been seen, you can call `restart(newSource)` to continue scanning.
 - `source` is the string which by default lexer reads from. It may be redefined but doing so only makes sense before scanning begins or after an EOF has been encountered. Changing it in the midst of scanning leaves `index` pointing into the string that is gone, so use `restart()` instead.

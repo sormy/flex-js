@@ -21,10 +21,10 @@ declare class Lexer<TToken = unknown> {
   text: string;
 
   /** Line of the first character of the current token, counting from one. */
-  readonly line: number;
+  getLine(): number;
 
   /** Column of the first character of the current token, counting from one. */
-  readonly column: number;
+  getColumn(): number;
 
   /** Name of the current start condition. */
   state: string;

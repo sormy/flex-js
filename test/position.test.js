@@ -14,7 +14,7 @@ function positionsOf(source, rules) {
   lexer.setOutput(function () { });
   (rules || [/[a-z]+/]).forEach(function (expression) {
     lexer.addRule(expression, function (current) {
-      seen.push(current.text + '@' + current.line + ':' + current.column);
+      seen.push(current.text + '@' + current.getLine() + ':' + current.getColumn());
     });
   });
   lexer.addRule(/\s+/);
@@ -27,8 +27,8 @@ describe('line and column', function () {
   it('starts at the first line and column', function () {
     var lexer = new Lexer();
 
-    assert.strictEqual(lexer.line, 1);
-    assert.strictEqual(lexer.column, 1);
+    assert.strictEqual(lexer.getLine(), 1);
+    assert.strictEqual(lexer.getColumn(), 1);
   });
 
   it('counts columns along a line', function () {
@@ -47,10 +47,10 @@ describe('line and column', function () {
     var lexer = new Lexer();
     var seen = [];
     lexer.addRule(/\/\*[\s\S]*?\*\//, function (current) {
-      seen.push('comment@' + current.line + ':' + current.column);
+      seen.push('comment@' + current.getLine() + ':' + current.getColumn());
     });
     lexer.addRule(/[a-z]+/, function (current) {
-      seen.push(current.text + '@' + current.line + ':' + current.column);
+      seen.push(current.text + '@' + current.getLine() + ':' + current.getColumn());
     });
     lexer.addRule(/\s+/);
 
@@ -66,7 +66,7 @@ describe('line and column', function () {
     lexer.addRule(/\n/);
     lexer.addRule(/a/, function (current) { current.more(); });
     lexer.addRule(/b/, function (current) {
-      seen = current.text + '@' + current.line + ':' + current.column;
+      seen = current.text + '@' + current.getLine() + ':' + current.getColumn();
     });
 
     lexer.setSource('\n\nab');
@@ -88,7 +88,7 @@ describe('line and column', function () {
     var seen = [];
     var restored = false;
     lexer.addRule(/[a-z]+/, function (current) {
-      seen.push(current.text + '@' + current.line + ':' + current.column);
+      seen.push(current.text + '@' + current.getLine() + ':' + current.getColumn());
       if (!restored) {
         restored = true;
         current.unput('\ncd');
@@ -106,7 +106,7 @@ describe('line and column', function () {
     var lexer = new Lexer();
     var seen = [];
     lexer.addRule(/[a-z]+/, function (current) {
-      seen.push(current.text + '@' + current.line + ':' + current.column);
+      seen.push(current.text + '@' + current.getLine() + ':' + current.getColumn());
     });
     lexer.addRule(/\s+/);
 
@@ -123,7 +123,7 @@ describe('line and column', function () {
     var seen = [];
     var refilled = false;
     lexer.addRule(/[a-z]+/, function (current) {
-      seen.push(current.text + '@' + current.line + ':' + current.column);
+      seen.push(current.text + '@' + current.getLine() + ':' + current.getColumn());
     });
     lexer.addRule(/\s+/);
     lexer.addRule(Lexer.RULE_EOF, function (current) {
