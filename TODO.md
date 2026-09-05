@@ -28,7 +28,6 @@
 
 ## Project hygiene
 
-- No CI workflow.
 - eslint ignores `*.test.js`. Turning it on reports 21 problems: unread echo
   collectors, unused callback parameters and one needless escape.
 - The script-tag wrapper's body is left un-indented, so wrapping the file did

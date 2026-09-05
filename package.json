@@ -12,7 +12,7 @@
   "license": "MIT",
   "scripts": {
     "eslint": "eslint src test benchmark eslint.config.js",
-    "test": "npm run eslint && node --test 'test/*.test.js'",
+    "test": "npm run eslint && node --test test/*.test.js",
     "bench": "npm --prefix benchmark install --silent --no-audit --no-fund && node benchmark/index.js",
     "prepublishOnly": "npm run test"
   },

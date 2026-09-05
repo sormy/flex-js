@@ -1,5 +1,7 @@
 # FLEX.JS
 
+[![CI](https://github.com/sormy/flex-js/actions/workflows/ci.yml/badge.svg)](https://github.com/sormy/flex-js/actions/workflows/ci.yml)
+
 FLEX.JS - Fast lexer (tokenizer, scanner) for JavaScript inspired by FLEX lexer generator.
 
 ## Description
