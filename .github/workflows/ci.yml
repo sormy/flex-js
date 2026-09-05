@@ -12,9 +12,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['20', '22', '24']
+        include:
+          - node: 'lts/-1'
+            label: previous LTS
+          - node: 'lts/*'
+            label: current LTS
+          - node: 'current'
+            label: latest release
 
-    name: node ${{ matrix.node }}
+    name: ${{ matrix.label }}
 
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +29,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+
+      - run: node --version
 
       - run: npm ci
 
