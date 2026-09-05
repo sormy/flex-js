@@ -86,34 +86,34 @@ Rules written as regular expressions, 155 KB and 39,500 tokens:
 | lexer             | time   | throughput | tokens/s | peak memory |
 | ----------------- | ------ | ---------- | -------- | ----------- |
 | chevrotain 13.2.0 | 2.7 ms | 55.9 MB/s  | 14.6 M   | 73 MB       |
-| flex-js           | 3.1 ms | 49.3 MB/s  | 12.9 M   | 73 MB       |
-| moo 0.5.3         | 5.6 ms | 27.1 MB/s  | 7.1 M    | 97 MB       |
+| flex-js           | 3.1 ms | 49.1 MB/s  | 12.8 M   | 73 MB       |
+| moo 0.5.3         | 5.6 ms | 27.0 MB/s  | 7.0 M    | 96 MB       |
 
 Keywords and punctuation written as plain strings, 163 KB and 52,500 tokens:
 
 | lexer             | time   | throughput | tokens/s | peak memory |
 | ----------------- | ------ | ---------- | -------- | ----------- |
-| chevrotain 13.2.0 | 2.9 ms | 54.9 MB/s  | 18.1 M   | 77 MB       |
-| flex-js           | 3.6 ms | 44.6 MB/s  | 14.7 M   | 76 MB       |
-| moo 0.5.3         | 6.8 ms | 23.5 MB/s  | 7.8 M    | 99 MB       |
+| chevrotain 13.2.0 | 2.9 ms | 55.3 MB/s  | 18.3 M   | 76 MB       |
+| flex-js           | 3.5 ms | 44.8 MB/s  | 14.8 M   | 76 MB       |
+| moo 0.5.3         | 6.8 ms | 23.5 MB/s  | 7.8 M    | 98 MB       |
 
 SQL, seven keywords against identifiers and fourteen pieces of punctuation,
 491 KB and 123,000 tokens:
 
 | lexer             | time    | throughput | tokens/s | peak memory |
 | ----------------- | ------- | ---------- | -------- | ----------- |
-| chevrotain 13.2.0 | 7.3 ms  | 65.8 MB/s  | 16.9 M   | 104 MB      |
-| flex-js           | 8.8 ms  | 54.4 MB/s  | 14.0 M   | 97 MB       |
-| moo 0.5.3         | 15.3 ms | 31.3 MB/s  | 8.1 M    | 162 MB      |
+| chevrotain 13.2.0 | 7.3 ms  | 65.6 MB/s  | 16.9 M   | 104 MB      |
+| flex-js           | 8.5 ms  | 56.5 MB/s  | 14.5 M   | 97 MB       |
+| moo 0.5.3         | 15.2 ms | 31.5 MB/s  | 8.1 M    | 161 MB      |
 
 Reading the tables:
 
 - flex-js is about twice moo's speed on all three, at the least memory.
-- chevrotain leads by about a fifth on each. It stops at the first rule that
+- chevrotain leads by about a seventh on each. It stops at the first rule that
   matches, where longest match tries every rule that could start here. So does
   moo, so matching alone does not account for it.
 
-What the fifth buys:
+What the seventh buys:
 
 - Longest match whatever order the rules were added in. Put `>` before `>=` and
   chevrotain refuses to build the lexer and moo reports `invalid syntax`; each
