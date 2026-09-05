@@ -780,6 +780,9 @@ npm test        # lint, then the suite on node's own test runner
 npm run bench   # installs the lexers compared against, into benchmark/
 ```
 
+`index.d.ts` is written by hand and checked against usage under `strict`; it
+names no node types, so it costs a consumer nothing.
+
 Tests live in `test/` and run on `node:test`, so they need no test framework.
 The lexers the benchmark measures against are kept in `benchmark/package.json`
 rather than the root, so working on flex-js does not mean downloading them.

@@ -24,7 +24,6 @@
 - Warn about a rule that can never match, as FLEX does. Two rules with the same
   expression are accepted and the second is silently dead.
 - Translate POSIX character classes, `[[:alpha:]]` and friends, while compiling.
-- TypeScript declarations (`index.d.ts`) and a `types` field.
 
 ## Project hygiene
 
