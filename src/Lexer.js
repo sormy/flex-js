@@ -443,6 +443,10 @@ Lexer.prototype.addRules = function (rules) {
  * @public
  */
 Lexer.prototype.setSource = function (source) {
+  if (typeof source !== 'string') {
+    throw new Error('Invalid source: should be a string');
+  }
+
   this.source = source;
   this.index = 0;
   this.tokenStart = 0;
@@ -543,6 +547,11 @@ Lexer.prototype.more = function () {
  * @public
  */
 Lexer.prototype.less = function (n) {
+  // a negative length would push the scanner behind where the token started
+  if (n < 0) {
+    throw new Error('Invalid length: should not be negative');
+  }
+
   if (n > this.text.length) {
     return;
   }
@@ -597,6 +606,9 @@ Lexer.prototype.terminate = function () {
  */
 Lexer.prototype.restart = function (newSource) {
   if (newSource !== undefined) {
+    if (typeof newSource !== 'string') {
+      throw new Error('Invalid source: should be a string');
+    }
     this.source = newSource;
     this.lineOffsets = null;
   }

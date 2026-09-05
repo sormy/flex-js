@@ -316,6 +316,15 @@ describe('actions', function () {
     assert.deepStrictEqual(lexer.lexAll(), ['ab', 'cd']);
   });
 
+  it('less() refuses a negative length, which would not advance', function () {
+    var lexer = new Lexer();
+    lexer.addRule(/ab/, function (current) { current.less(-1); });
+
+    lexer.setSource('ab');
+
+    assertThrows(function () { lexer.lexAll(); }, 'Invalid length');
+  });
+
   it('less() ignores a length beyond the match', function () {
     var lexer = new Lexer();
     lexer.addRule(/ab/, function (current) { current.less(10); return current.text; });
@@ -551,6 +560,19 @@ describe('lifecycle', function () {
     lexer.clear();
 
     assertThrows(function () { lexer.begin('other'); }, 'State "other" is not registered');
+  });
+
+  it('refuses a source that is not a string', function () {
+    var lexer = new Lexer();
+
+    assertThrows(function () { lexer.setSource(42); }, 'Invalid source');
+    assertThrows(function () { lexer.setSource(); }, 'Invalid source');
+  });
+
+  it('refuses a restart source that is not a string', function () {
+    var lexer = new Lexer();
+
+    assertThrows(function () { lexer.restart(42); }, 'Invalid source');
   });
 
   it('setSource() rewinds to the start of the new source', function () {

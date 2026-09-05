@@ -27,8 +27,6 @@
 
 ## Project hygiene
 
-- eslint ignores `*.test.js`. Turning it on reports 21 problems: unread echo
-  collectors, unused callback parameters and one needless escape.
 - The script-tag wrapper's body is left un-indented, so wrapping the file did
   not rewrite the blame of 1300 lines. Indenting it would let the editor format
   JavaScript on save: a formatter changes 2226 lines while it stays flat and

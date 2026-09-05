@@ -196,14 +196,13 @@ describe('Lexer', function() {
   });
 
   it('#reject() - with reject', function() {
-    var output = '';
     var wordCount = 0;
     var lexer = new Lexer();
-    lexer.setOutput(function (text) { output += text; });
+    lexer.setOutput(function () { });
     lexer.addRule('frob', function (lexer) {
       lexer.reject();
     });
-    lexer.addRule(/[^\s]+/, function (lexer) {
+    lexer.addRule(/[^\s]+/, function () {
       wordCount++;
     });
     lexer.setSource('frob frob frob');
@@ -212,12 +211,11 @@ describe('Lexer', function() {
   });
 
   it('#reject() - without reject', function() {
-    var output = '';
     var wordCount = 0;
     var lexer = new Lexer();
-    lexer.setOutput(function (text) { output += text; });
+    lexer.setOutput(function () { });
     lexer.addRule('frob');
-    lexer.addRule(/[^\s]+/, function (lexer) {
+    lexer.addRule(/[^\s]+/, function () {
       wordCount++;
     });
     lexer.setSource('frob frob frob');
@@ -352,7 +350,7 @@ describe('Lexer', function() {
     lexer.addRule(/\d+/, function (lexer) {
       output += 'found an integer: ' + parseInt(lexer.text, 10) + '\n';
     });
-    lexer.addRule('.', function (lexer) {
+    lexer.addRule('.', function () {
       output += 'found a dot\n';
     });
     lexer.setSource('1.1\nexpect floats 2.2\n3.3\n');
@@ -384,7 +382,7 @@ describe('Lexer', function() {
     lexer.addRule(/\d+/, function (lexer) {
       output += 'found an integer: ' + parseInt(lexer.text, 10) + '\n';
     });
-    lexer.addRule('.', function (lexer) {
+    lexer.addRule('.', function () {
       output += 'found a dot\n';
     });
     lexer.setSource('test /* line 1\nline 2\nline 3 */ test');
@@ -394,11 +392,10 @@ describe('Lexer', function() {
   });
 
   it('should match C-style quoted strings', function () {
-    var output = '';
     var str = '';
 
     var lexer = new Lexer();
-    lexer.setOutput(function (text) { output += text; });
+    lexer.setOutput(function () { });
     lexer.addState('str', true);
     lexer.addRule('"', function (lexer) {
       lexer.begin('str');
@@ -409,7 +406,7 @@ describe('Lexer', function() {
       str = '';
       return token;
     });
-    lexer.addStateRule('str', '\n', function (lexer) {
+    lexer.addStateRule('str', '\n', function () {
       throw new Error('Unterminated string constant');
     });
     lexer.addStateRule('str', /\\[0-7]{1,3}/, function (lexer) {
@@ -420,28 +417,28 @@ describe('Lexer', function() {
       }
       str += String.fromCharCode(charCode);
     });
-    lexer.addStateRule('str', /\\[0-9]+/, function (lexer) {
+    lexer.addStateRule('str', /\\[0-9]+/, function () {
       throw new Error('Bad escape sequence');
     });
-    lexer.addStateRule('str', '\\n', function (lexer) {
+    lexer.addStateRule('str', '\\n', function () {
       str += '\n';
     });
-    lexer.addStateRule('str', '\\t', function (lexer) {
+    lexer.addStateRule('str', '\\t', function () {
       str += '\t';
     });
-    lexer.addStateRule('str', '\\r', function (lexer) {
+    lexer.addStateRule('str', '\\r', function () {
       str += '\r';
     });
-    lexer.addStateRule('str', '\\b', function (lexer) {
+    lexer.addStateRule('str', '\\b', function () {
       str += '\b';
     });
-    lexer.addStateRule('str', '\\f', function (lexer) {
+    lexer.addStateRule('str', '\\f', function () {
       str += '\f';
     });
     lexer.addStateRule('str', '\\(.|\n)', function (lexer) {
       str += lexer.text.substr(1);
     });
-    lexer.addStateRule('str', /[^\\\n\"]+/, function (lexer) {
+    lexer.addStateRule('str', /[^\\\n"]+/, function (lexer) {
       str += lexer.text;
     });
 
