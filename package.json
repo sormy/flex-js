@@ -1,6 +1,6 @@
 {
   "name": "flex-js",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "FLEX.JS - Fast lexer (tokenizer, scanner) for JavaScript inspired by FLEX lexer generator",
   "keywords": [
     "lexer",
