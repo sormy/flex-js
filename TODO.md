@@ -35,6 +35,8 @@
   there.
 - `input()` takes a negative count and `unput()` a non-string, where
   `setSource()` and `less()` now refuse both.
+- `addDefinition()` refuses a flagged expression, so a body cannot be written
+  `/\p{L}+/u` even though `setUnicode()` would supply the flag anyway.
 
 ## Project hygiene
 
@@ -42,8 +44,6 @@
   not rewrite the blame of 1300 lines. Indenting it would let the editor format
   JavaScript on save: a formatter changes 2226 lines while it stays flat and
   100 once the wrapper is discounted.
-- Publish. npm still serves 1.0.5 from 2018, so none of this is installable:
-  the `<<EOF>>` crash, the input `more()` drops and the three definition faults
-  are all still what an install gets.
+- `repository` is a string npm rewrites to an object on publish.
 - Past ES5 the source needs a build step, at which point the hand-written
   wrapper becomes bundler output and `main`, `module` and `exports` want setting.
