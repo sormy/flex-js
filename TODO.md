@@ -25,11 +25,25 @@
   expression are accepted and the second is silently dead.
 - Translate POSIX character classes, `[[:alpha:]]` and friends, while compiling.
 
+## Robustness
+
+- `addState()` and `addDefinition()` silently reconfigure a name already
+  declared, where FLEX reports a redeclaration. `clear()` re-adds `INITIAL`, so
+  refusing outright needs care.
+- Options set after rules are added do not reach them, `setIgnoreCase()` most
+  visibly. Refuse them once a rule exists, or apply them to what is already
+  there.
+- `input()` takes a negative count and `unput()` a non-string, where
+  `setSource()` and `less()` now refuse both.
+
 ## Project hygiene
 
 - The script-tag wrapper's body is left un-indented, so wrapping the file did
   not rewrite the blame of 1300 lines. Indenting it would let the editor format
   JavaScript on save: a formatter changes 2226 lines while it stays flat and
   100 once the wrapper is discounted.
+- Publish. npm still serves 1.0.5 from 2018, so none of this is installable:
+  the `<<EOF>>` crash, the input `more()` drops and the three definition faults
+  are all still what an install gets.
 - Past ES5 the source needs a build step, at which point the hand-written
   wrapper becomes bundler output and `main`, `module` and `exports` want setting.
