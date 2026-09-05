@@ -168,12 +168,17 @@ lexer.addDefinition('NUMBER', /{DIGIT}+/);
 
 Names are matched case sensitively, so `{digit}` does not refer to "DIGIT". A reference to a name that is not defined is left as is, which is what keeps counted quantifiers such as `/{DIGIT}{2}/` working. The braces of an escape that carries its own, `\p{L}` and `\u{1F600}`, are left alone even when a definition shares the name.
 
-A definition body may carry the `u` flag once `setUnicode(true)` is on. Some bodies cannot be written without it: a range over characters outside the basic plane is a syntax error as a plain expression, so JavaScript rejects it before the lexer sees it.
+A definition body may carry the `u` flag once `setUnicode(true)` is on. Some bodies cannot be written without it. `/[😀-🙏]/` is a syntax error, "range out of order": outside unicode mode each emoji is a pair of surrogates, so the range is read as running from the second half of one to the first half of the other. The flag is what makes it a range of two characters.
 
 ```javascript
 lexer.setUnicode(true);
-lexer.addDefinition('EMOJI', /[\u{1F600}-\u{1F64F}]/u);
+lexer.addDefinition('EMOJI', /[😀-🙏]/u);
 lexer.addRule(/{EMOJI}+/, function (lexer) { return lexer.text; });
+lexer.addRule(/[a-z]+/, function (lexer) { return lexer.text; });
+lexer.addRule(/\s+/);
+
+lexer.setSource('hi 😀😃 there');
+lexer.lexAll(); // ['hi', '😀😃', 'there']
 ```
 
 The flag cannot go on the rule instead, because `/{EMOJI}+/u` is a syntax error of its own: a lone brace is not allowed in a unicode expression. Definitions are expanded before the rule is compiled, so `{EMOJI}` never reaches the regular expression engine, and `setUnicode()` supplies the flag when the finished pattern is built. Unicode cannot be turned off again while such a definition is declared, since its body would then be read as ASCII.

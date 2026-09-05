@@ -138,14 +138,14 @@ describe('unicode definitions', function () {
   it('takes a body that cannot be written without the flag', function () {
     var lexer = new Lexer();
     lexer.setUnicode(true);
-    lexer.addDefinition('EMOJI', /[\u{1F600}-\u{1F64F}]/u);
+    lexer.addDefinition('EMOJI', /[😀-🙏]/u);
     lexer.addRule(/{EMOJI}+/, function (current) { return current.text; });
     lexer.addRule(/[a-z]+/, function (current) { return current.text; });
     lexer.addRule(/\s+/);
 
-    lexer.setSource('hi \u{1F600}\u{1F603}');
+    lexer.setSource('hi 😀😃 there');
 
-    assert.deepStrictEqual(lexer.lexAll(), ['hi', '\u{1F600}\u{1F603}']);
+    assert.deepStrictEqual(lexer.lexAll(), ['hi', '😀😃', 'there']);
   });
 
   it('refuses one while unicode is off, rather than reading it as ASCII', function () {
