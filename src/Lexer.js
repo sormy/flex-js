@@ -405,9 +405,8 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
  * @public
  */
 Lexer.prototype.addStateRules = function (states, rules) {
-  for (var index in rules) {
-    var rule = rules[index];
-    this.addStateRule(states, rule.expression, rule.action);
+  for (var index = 0; index < rules.length; index++) {
+    this.addStateRule(states, rules[index].expression, rules[index].action);
   }
 };
 

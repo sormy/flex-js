@@ -304,6 +304,28 @@ describe('rule registration', function () {
     assert.deepStrictEqual(lexer.lexAll(), ['ab', 'cd']);
   });
 
+  // a polyfill that adds enumerable members to Array.prototype used to be walked
+  // as though it were part of the rules array
+  it('adds rules in bulk with a polluted Array prototype', function () {
+    Object.defineProperty(Array.prototype, 'polyfilled', {
+      value: function () { }, enumerable: true, configurable: true
+    });
+
+    try {
+      var lexer = new Lexer();
+      lexer.addRules([
+        { expression: /[0-9]+/, action: function (current) { return current.text; } },
+        { expression: /\s+/ }
+      ]);
+
+      lexer.setSource('12 34');
+
+      assert.deepStrictEqual(lexer.lexAll(), ['12', '34']);
+    } finally {
+      delete Array.prototype.polyfilled;
+    }
+  });
+
   it('discards a match when no action is given', function () {
     var lexer = new Lexer();
     lexer.addRule(/[a-z]+/);
