@@ -2,6 +2,19 @@
   "name": "flex-js",
   "version": "1.0.5",
   "description": "FLEX.JS - Fast lexer (tokenizer, scanner) for JavaScript inspired by FLEX lexer generator",
+  "keywords": [
+    "lexer",
+    "tokenizer",
+    "scanner",
+    "flex",
+    "lex",
+    "tokenize",
+    "parsing",
+    "compiler",
+    "regexp"
+  ],
+  "homepage": "https://github.com/sormy/flex-js#readme",
+  "bugs": "https://github.com/sormy/flex-js/issues",
   "main": "index.js",
   "types": "index.d.ts",
   "files": [

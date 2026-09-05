@@ -137,6 +137,15 @@ describe('states', function () {
     assert.deepStrictEqual(lexer.lexAll(), ['word']);
   });
 
+  it('files a rule once for a state named twice', function () {
+    var lexer = new Lexer();
+    lexer.addState('other', true);
+
+    lexer.addStateRule(['other', 'other'], /[a-z]+/, function (current) { return current.text; });
+
+    assert.strictEqual(lexer.rules.other.length, 1);
+  });
+
   it('rejects an unqualified rule when every state is exclusive', function () {
     var lexer = new Lexer();
     lexer.addState(Lexer.STATE_INITIAL, true);

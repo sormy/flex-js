@@ -305,8 +305,10 @@ Lexer.prototype.addStateRule = function (states, expression, action) {
     states = [states];
   }
 
-  // filter empty states
-  states = states.filter(function (state) { return !!state; });
+  // drop empty names, and any state named twice, which would file the rule twice
+  states = states.filter(function (state, index) {
+    return !!state && states.indexOf(state) === index;
+  });
 
   // validate if we have at least one state to add rule into
   if (!states.length) {
