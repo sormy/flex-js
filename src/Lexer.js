@@ -4,6 +4,9 @@
 var ASCII_LIMIT = 128;
 var NEWLINE = 10;
 
+// escapes that carry braces of their own, such as \p{L} and \u{1F600}
+var BRACED_ESCAPE = '\\\\[pPuk]\\{[^}]*\\}';
+
 /**
  * console.log ends every call with a newline, so text is held back until one
  * arrives and the scanner's own line breaks decide where lines fall.
@@ -147,6 +150,7 @@ Lexer.prototype.clear = function () {
   this.dispatches = {};
   this.output = defaultOutput();
   this.ignoreCase = false;
+  this.unicode = false;
   this.debugEnabled = false;
   this.defaultRuleEnabled = true;
 
@@ -166,6 +170,20 @@ Lexer.prototype.clear = function () {
  */
 Lexer.prototype.setIgnoreCase = function (ignoreCase) {
   this.ignoreCase = ignoreCase;
+};
+
+/**
+ * Compile rules as unicode expressions, off by default.
+ *
+ * A pattern unicode mode refuses, an escaped dash outside a character class
+ * for instance, keeps its ordinary meaning rather than failing.
+ *
+ * @param {boolean} unicode
+ *
+ * @public
+ */
+Lexer.prototype.setUnicode = function (unicode) {
+  this.unicode = unicode;
 };
 
 /**
@@ -890,7 +908,11 @@ Lexer.prototype.encodeString = function (s) {
 Lexer.prototype.expandDefinitions = function (source) {
   for (var name in this.definitions) {
     var body = '(?:' + this.definitions[name] + ')';
-    source = source.replace(new RegExp('{' + name + '}', 'g'), function () { return body; });
+    var reference = new RegExp(BRACED_ESCAPE + '|\\{' + name + '\\}', 'g');
+    source = source.replace(reference, function (match) {
+      // an escape matched first, so its braces are its own
+      return match.charAt(0) === '\\' ? match : body;
+    });
   }
   return source;
 };
@@ -909,6 +931,15 @@ Lexer.prototype.compileRuleExpression = function (source, flags) {
 
   // sticky flag required for engine to work
   // multiline flag required to be able to match line start
+  if (this.unicode && flags.indexOf('u') === -1) {
+    try {
+      return new RegExp(source, flags + 'uym');
+    } catch (error) {
+      // unicode mode refuses some patterns it has no need to, an escaped dash
+      // outside a character class among them; those keep their old meaning
+    }
+  }
+
   return new RegExp(source, flags + 'ym');
 };
 

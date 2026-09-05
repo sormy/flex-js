@@ -71,6 +71,17 @@ describe('definition references', function () {
     assert.strictEqual(sourceOf(lexer), '{MISSING}');
   });
 
+  it('leaves the braces of a unicode property escape alone', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+    lexer.addDefinition('L', /[0-9]/);
+    lexer.addRule(/\p{L}+/, function (current) { return current.text; });
+
+    lexer.setSource('h\u00e9llo');
+
+    assert.deepStrictEqual(lexer.lexAll(), ['h\u00e9llo']);
+  });
+
   it('leaves a counted quantifier alone', function () {
     var lexer = new Lexer();
     lexer.addDefinition('D', /[0-9]/);

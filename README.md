@@ -166,7 +166,7 @@ lexer.addDefinition('DIGIT', /[0-9]/);
 lexer.addDefinition('NUMBER', /{DIGIT}+/);
 ```
 
-Names are matched case sensitively, so `{digit}` does not refer to "DIGIT". A reference to a name that is not defined is left as is, which is what keeps counted quantifiers such as `/{DIGIT}{2}/` working.
+Names are matched case sensitively, so `{digit}` does not refer to "DIGIT". A reference to a name that is not defined is left as is, which is what keeps counted quantifiers such as `/{DIGIT}{2}/` working. The braces of an escape that carries its own, `\p{L}` and `\u{1F600}`, are left alone even when a definition shares the name.
 
 There is no way to set case sensitivity flag per definition, only per pattern or globally for whole lexer instance.
 
@@ -183,6 +183,7 @@ Lexer defaults and definitions should be added before adding new rules.
 
 ## Options
 
+- Unicode - `setUnicode(true)` compiles rules as unicode expressions, so `\p{L}` and the like work and a character outside the basic plane, an emoji for instance, counts as one character rather than two. It is off by default, since turning it on changes how such characters are matched. A pattern unicode mode refuses, an escaped dash outside a character class for instance, keeps its ordinary meaning rather than failing, so the option can be turned on for a whole grammar without auditing every rule.
 - Ignore Case - case sensitivity could be set via `setIgnoreCase(false)` or `setIgnoreCase(true)`. By default lexer is case sensitive.
 - Output - `setOutput()` says where `echo()` writes, FLEX's `yyout`. It takes anything with a `write` method, a writable stream for instance, or a function receiving the text. By default it writes to standard output where there is one and to the console otherwise.
 - Default Rule - input matching no rule is echoed, as in FLEX. `setDefaultRuleEnabled(false)` makes it an error instead, which is FLEX's `%option nodefault`.

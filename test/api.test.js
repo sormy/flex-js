@@ -619,6 +619,86 @@ describe('lifecycle', function () {
   });
 });
 
+describe('unicode', function () {
+  it('matches an astral character as one token', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+    lexer.setOutput(function () { });
+    lexer.addRule(/./, function (current) { return current.text; });
+
+    lexer.setSource('\u{1F600}');
+
+    assert.deepStrictEqual(lexer.lexAll(), ['\u{1F600}']);
+  });
+
+  it('understands a property escape', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+    lexer.setOutput(function () { });
+    lexer.addRule(/\p{L}+/, function (current) { return current.text; });
+
+    lexer.setSource('h\u00e9llo');
+
+    assert.deepStrictEqual(lexer.lexAll(), ['h\u00e9llo']);
+  });
+
+  it('expands a definition inside a unicode pattern', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+    lexer.setOutput(function () { });
+    lexer.addDefinition('LETTER', /\p{L}/);
+    lexer.addRule(/{LETTER}+/, function (current) { return current.text; });
+
+    lexer.setSource('h\u00e9llo');
+
+    assert.deepStrictEqual(lexer.lexAll(), ['h\u00e9llo']);
+  });
+
+  it('falls back for a pattern unicode mode does not allow', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+    lexer.setOutput(function () { });
+    // the pointless escape is the point: unicode mode refuses it
+    // eslint-disable-next-line no-useless-escape
+    lexer.addRule(/\-/, function (current) { return current.text; });
+
+    lexer.setSource('-');
+
+    assert.deepStrictEqual(lexer.lexAll(), ['-']);
+    assert.strictEqual(lexer.rules.INITIAL[0].expression.flags.indexOf('u'), -1);
+  });
+
+  it('accepts that pattern once unicode is turned off', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(false);
+    // eslint-disable-next-line no-useless-escape
+    lexer.addRule(/\-/, function (current) { return current.text; });
+
+    lexer.setSource('-');
+
+    assert.deepStrictEqual(lexer.lexAll(), ['-']);
+  });
+
+  it('splits an astral character while unicode is off', function () {
+    var lexer = new Lexer();
+    lexer.setOutput(function () { });
+    lexer.addRule(/./, function (current) { return current.text; });
+
+    lexer.setSource('\u{1F600}');
+
+    assert.strictEqual(lexer.lexAll().length, 2);
+  });
+
+  it('is turned back off by clear()', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+
+    lexer.clear();
+
+    assert.strictEqual(lexer.unicode, false);
+  });
+});
+
 describe('debug output', function () {
   function capture(lexer) {
     var lines = [];
