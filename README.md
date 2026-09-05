@@ -70,14 +70,11 @@ Not implemented yet:
 
 ## Performance
 
-Measured with `npm run bench`, best of 30 rounds, ordered fastest first. Each
-grammar runs in its own process, and peak memory is taken from a process running
-one lexer and nothing else, so it counts loading the library as well as scanning
-and includes what a bare Node process already costs. Every lexer collects its
-tokens into an array. The inputs are generated rather than one line repeated, so
-the token sequence varies the way real text does. The grammars differ in token
-density, so read down a table rather than across them. Numbers move with
-hardware and Node version.
+Measured with `npm run bench`, best of 30 rounds. Each grammar runs in its own
+process, and peak memory is from one running a single lexer and nothing else.
+Every lexer collects its tokens into an array. The inputs are generated rather
+than one line repeated. Token density differs between grammars, so read down a
+table rather than across them.
 
 Rules written as regular expressions, 155 KB and 39,500 tokens:
 
@@ -104,22 +101,22 @@ SQL, seven keywords against identifiers and fourteen pieces of punctuation,
 | flex-js           | 8.8 ms  | 54.4 MB/s  | 14.0 M   | 97 MB       |
 | moo 0.5.3         | 15.3 ms | 31.3 MB/s  | 8.1 M    | 162 MB      |
 
-flex-js is about twice the speed of moo on all three grammars and uses the least
-memory of the three. chevrotain is ahead of it by about a fifth on each, which is a
-consequence of the matching rule: chevrotain stops at the first rule that
-matches, where longest match has to try every rule that could start here. moo
-stops at the first match as well, so the margin there is not about the matching
-rule. What flex-js gives in exchange for the chevrotain gap:
+Reading the tables:
 
-- Longest match whatever order the rules were added in. Add `>` before `>=` and
-  chevrotain refuses to build the lexer, because the shorter rule hides the
-  longer one, while moo stops at `invalid syntax` on the `=`. Each has an answer
-  for this, ordering and `longer_alt`; flex-js needs neither.
-- Actions that run while scanning, with FLEX's `reject()`, `more()`, `less()`,
-  `unput()`, `input()` and `echo()`. The other two hand back a token array or an
-  iterator and leave the rest to the caller.
-- One file of ES5 and no dependencies, 28 KB, against 1.5 MB and five packages
-  for chevrotain.
+- flex-js is about twice moo's speed on all three, at the least memory.
+- chevrotain leads by about a fifth on each. It stops at the first rule that
+  matches, where longest match tries every rule that could start here. So does
+  moo, so matching alone does not account for it.
+
+What the fifth buys:
+
+- Longest match whatever order the rules were added in. Put `>` before `>=` and
+  chevrotain refuses to build the lexer and moo reports `invalid syntax`; each
+  has an answer, ordering and `longer_alt`, and flex-js needs neither.
+- Actions that run while scanning: `reject()`, `more()`, `less()`, `unput()`,
+  `input()`, `echo()`. The other two return tokens and leave the rest to you.
+- One file of ES5, no dependencies, 14 KB minified and 4 KB gzipped, against
+  chevrotain's 110 KB and 30 KB before a grammar is written.
 - A FLEX grammar carries over without reordering rules or rewriting actions.
 
 ## Simple example
