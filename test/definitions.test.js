@@ -122,6 +122,42 @@ describe('definition references', function () {
   });
 });
 
+describe('unicode definitions', function () {
+  it('takes a body written as a unicode expression', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+    lexer.addDefinition('WORD', /\p{L}+/u);
+    lexer.addRule(/{WORD}/, function (current) { return current.text; });
+    lexer.addRule(/\s+/);
+
+    lexer.setSource('héllo 日本語');
+
+    assert.deepStrictEqual(lexer.lexAll(), ['héllo', '日本語']);
+  });
+
+  it('refuses one while unicode is off, rather than reading it as ASCII', function () {
+    var lexer = new Lexer();
+
+    assertThrows(function () { lexer.addDefinition('WORD', /\p{L}+/u); }, 'setUnicode(true) must come first');
+  });
+
+  it('refuses a flag other than "u"', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+
+    assertThrows(function () { lexer.addDefinition('WORD', /a/i); }, 'Expression flags besides "u"');
+  });
+
+  it('keeps the body unchanged by the flag', function () {
+    var lexer = new Lexer();
+    lexer.setUnicode(true);
+
+    lexer.addDefinition('WORD', /\p{L}+/u);
+
+    assert.strictEqual(lexer.definitions.WORD, '\\p{L}+');
+  });
+});
+
 describe('definitions built from other definitions', function () {
   it('resolves a reference to an earlier definition', function () {
     var lexer = new Lexer();

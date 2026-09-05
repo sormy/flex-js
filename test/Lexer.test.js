@@ -59,7 +59,7 @@ describe('Lexer', function() {
     var lexer = new Lexer();
     assertThrows(function () {
       lexer.addDefinition('test', /.*/i);
-    }, 'Expression flags are not supported')
+    }, 'Expression flags besides "u" are not supported')
   });
 
   it('#addDefinition() should not accept null/undefined expression', function() {

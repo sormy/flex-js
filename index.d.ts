@@ -59,7 +59,7 @@ declare class Lexer<TToken = unknown> {
   /** Declare a start condition, exclusive to hide rules that name no condition. */
   addState(name: string, exclusive?: boolean): void;
 
-  /** Name an expression, for `{name}` to stand for in later patterns. */
+  /** Name an expression, for `{name}` to stand for in later patterns. Only the `u` flag is allowed, and only with unicode on. */
   addDefinition(name: string, expression: string | RegExp): void;
 
   /** Add a rule to every inclusive start condition. */

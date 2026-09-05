@@ -168,6 +168,16 @@ lexer.addDefinition('NUMBER', /{DIGIT}+/);
 
 Names are matched case sensitively, so `{digit}` does not refer to "DIGIT". A reference to a name that is not defined is left as is, which is what keeps counted quantifiers such as `/{DIGIT}{2}/` working. The braces of an escape that carries its own, `\p{L}` and `\u{1F600}`, are left alone even when a definition shares the name.
 
+A definition body may carry the `u` flag once `setUnicode(true)` is on, so a unicode fragment can be written the way JavaScript expects:
+
+```javascript
+lexer.setUnicode(true);
+lexer.addDefinition('WORD', /\p{L}+/u);
+lexer.addRule(/{WORD}/, function (lexer) { return lexer.text; });
+```
+
+The flag has to go on the lexer rather than on the rule, because `/{WORD}/u` is a JavaScript syntax error: a lone brace is not allowed in a unicode expression. Definitions are expanded before the rule is compiled, so `{WORD}` never reaches the regular expression engine. No other flag is allowed on a definition, since a fragment cannot carry flags of its own into the pattern it is spliced into.
+
 There is no way to set case sensitivity flag per definition, only per pattern or globally for whole lexer instance.
 
 The **rules** section of the lexer configuration contains a series of rules of the form:

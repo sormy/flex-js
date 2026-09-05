@@ -270,7 +270,7 @@ Lexer.prototype.getInclusiveStateNames = function () {
  * Add definition.
  *
  * @param {string}        name        Definition name, case sensitive.
- * @param {string|RegExp} expression  Expression, can't use flags.
+ * @param {string|RegExp} expression  Expression, "u" is the only flag allowed.
  *
  * @public
  */
@@ -288,8 +288,11 @@ Lexer.prototype.addDefinition = function (name, expression) {
     if (expression.source === '(?:)') {
       throw new Error('Empty expression for definition "' + name + '"');
     }
-    if (expression.flags !== '') {
-      throw new Error('Expression flags are not supported for definition expressions');
+    if (expression.flags !== '' && expression.flags !== 'u') {
+      throw new Error('Expression flags besides "u" are not supported for definition expressions');
+    }
+    if (expression.flags === 'u' && !this.unicode) {
+      throw new Error('Definition "' + name + '" carries "u", so setUnicode(true) must come first');
     }
     expression = expression.source;
   } else {

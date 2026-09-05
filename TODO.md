@@ -35,8 +35,6 @@
   there.
 - `input()` takes a negative count and `unput()` a non-string, where
   `setSource()` and `less()` now refuse both.
-- `addDefinition()` refuses a flagged expression, so a body cannot be written
-  `/\p{L}+/u` even though `setUnicode()` would supply the flag anyway.
 
 ## Project hygiene
 
