@@ -2,6 +2,11 @@
 
 [![CI](https://github.com/sormy/flex-js/actions/workflows/ci.yml/badge.svg)](https://github.com/sormy/flex-js/actions/workflows/ci.yml)
 
+> Lexing was solved in 1987. This is that solution in 4 KB of JavaScript:
+> longest match wins, so `>=` beats `>` whichever order you wrote them in, and
+> there is nothing else to install. About twice moo's speed, thirty-nine years
+> late.
+
 FLEX.JS - Fast lexer (tokenizer, scanner) for JavaScript inspired by FLEX lexer generator.
 
 ## Description
