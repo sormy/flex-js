@@ -141,9 +141,10 @@ reproduced against the current code unless marked otherwise.
   on the benchmark, against chevrotain's 3.3ms; replacing the regex for the
   single-character operator rule with a character-code check takes it to 2.5ms.
   So chevrotain runs at hand-written speed by not entering the regex engine for
-  simple patterns. flex-js sits at 5.7ms, and 1.25ms of that is calling the
-  rule action once per token, which is the whole point of the API and cannot be
-  removed. Closing the rest means compiling rules rather than interpreting them.
+  simple patterns. flex-js sits near 5.1ms since string rules stopped going
+  through the regex engine, and 1.25ms of that is calling the rule action once
+  per token, which is the whole point of the API and cannot be removed. Closing
+  the rest means compiling rules rather than interpreting them.
 - [ ] A fast path for rules matching exactly one character (skip the regex, the
   dispatch already narrowed by first character) measured 5.6ms -> 5.2ms. Left
   out: it is only sound when the candidate came from an ASCII `byCharCode`
@@ -225,7 +226,8 @@ dispatch that offers every rule for every character.
   whole run takes 0.17s. Tests moved to `test/`, leaving `src/` holding only the
   file that is published, with `test/assertThrows.js` covering chai's substring
   matching of a thrown message.
-- [ ] eslint is from 2018, and there is no CI workflow.
+- [ ] There is no CI workflow, so nothing but a person running `npm test`
+  checks a change.
 - [ ] Indenting the body of the script-tag wrapper in `src/Lexer.js` would let
   the editor format JavaScript on save. It is left flat so that wrapping the
   file did not rewrite the blame of all 1300 lines; a formatter changes 2226

@@ -770,6 +770,18 @@ Unmaintained:
 - [lexed.js](https://github.com/tantaman/lexed.js) - last change 2013
 - [jslex](https://github.com/YuhangGe/jslex) - last change 2014
 
+## Development
+
+```
+npm install     # eslint, and nothing else
+npm test        # lint, then the suite on node's own test runner
+npm run bench   # installs the lexers compared against, into benchmark/
+```
+
+Tests live in `test/` and run on `node:test`, so they need no test framework.
+The lexers the benchmark measures against are kept in `benchmark/package.json`
+rather than the root, so working on flex-js does not mean downloading them.
+
 ## License
 
 MIT
