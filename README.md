@@ -73,28 +73,39 @@ Not implemented yet:
 Measured with `npm run bench`, best of 30 rounds, ordered fastest first. Each
 grammar runs in its own process, and peak memory is taken from a process running
 one lexer and nothing else, so it counts loading the library as well as scanning
-and includes the 39 MB a bare Node process already costs. Every lexer collects
-its tokens into an array. The two grammars differ in token density, so read down
-a table rather than across the two. Numbers move with hardware and Node version.
+and includes what a bare Node process already costs. Every lexer collects its
+tokens into an array. The inputs are generated rather than one line repeated, so
+the token sequence varies the way real text does. The grammars differ in token
+density, so read down a table rather than across them. Numbers move with
+hardware and Node version.
 
-Rules written as regular expressions, 266 KB and 52,000 tokens:
+Rules written as regular expressions, 155 KB and 39,500 tokens:
+
+| lexer             | time   | throughput | tokens/s | peak memory |
+| ----------------- | ------ | ---------- | -------- | ----------- |
+| chevrotain 13.2.0 | 2.7 ms | 55.9 MB/s  | 14.6 M   | 73 MB       |
+| flex-js           | 3.1 ms | 49.3 MB/s  | 12.9 M   | 73 MB       |
+| moo 0.5.3         | 5.6 ms | 27.1 MB/s  | 7.1 M    | 97 MB       |
+
+Keywords and punctuation written as plain strings, 163 KB and 52,500 tokens:
+
+| lexer             | time   | throughput | tokens/s | peak memory |
+| ----------------- | ------ | ---------- | -------- | ----------- |
+| chevrotain 13.2.0 | 2.9 ms | 54.9 MB/s  | 18.1 M   | 77 MB       |
+| flex-js           | 3.6 ms | 44.6 MB/s  | 14.7 M   | 76 MB       |
+| moo 0.5.3         | 6.8 ms | 23.5 MB/s  | 7.8 M    | 99 MB       |
+
+SQL, seven keywords against identifiers and fourteen pieces of punctuation,
+491 KB and 123,000 tokens:
 
 | lexer             | time    | throughput | tokens/s | peak memory |
 | ----------------- | ------- | ---------- | -------- | ----------- |
-| chevrotain 13.2.0 | 3.2 ms  | 82.2 MB/s  | 16.5 M   | 72 MB       |
-| flex-js           | 3.8 ms  | 68.4 MB/s  | 13.7 M   | 62 MB       |
-| moo 0.5.3         | 7.3 ms  | 35.6 MB/s  | 7.1 M    | 96 MB       |
+| chevrotain 13.2.0 | 7.3 ms  | 65.8 MB/s  | 16.9 M   | 104 MB      |
+| flex-js           | 8.8 ms  | 54.4 MB/s  | 14.0 M   | 97 MB       |
+| moo 0.5.3         | 15.3 ms | 31.3 MB/s  | 8.1 M    | 162 MB      |
 
-Keywords and punctuation written as plain strings, 273 KB and 88,000 tokens:
-
-| lexer             | time    | throughput | tokens/s | peak memory |
-| ----------------- | ------- | ---------- | -------- | ----------- |
-| chevrotain 13.2.0 | 4.3 ms  | 61.7 MB/s  | 20.3 M   | 87 MB       |
-| flex-js           | 5.3 ms  | 50.1 MB/s  | 16.5 M   | 82 MB       |
-| moo 0.5.3         | 10.7 ms | 25.0 MB/s  | 8.2 M    | 120 MB      |
-
-flex-js is about twice the speed of moo on both grammars and uses the least
-memory of the three. chevrotain is ahead of it by about a fifth, which is a
+flex-js is about twice the speed of moo on all three grammars and uses the least
+memory of the three. chevrotain is ahead of it by about a fifth on each, which is a
 consequence of the matching rule: chevrotain stops at the first rule that
 matches, where longest match has to try every rule that could start here. moo
 stops at the first match as well, so the margin there is not about the matching

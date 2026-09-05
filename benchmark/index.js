@@ -17,8 +17,9 @@
 var childProcess = require('child_process');
 
 var Lexer = require('..');
+var corpus = require('./corpus.js');
 
-var REPEATS = 4000;
+var LINES = 3000;
 var MEMORY_ROUNDS = 3;
 var WARMUP_ROUNDS = 20;
 var TIMED_ROUNDS = 30;
@@ -36,13 +37,8 @@ var moo = optional('moo');
 var chevrotain = optional('chevrotain');
 var Lex = optional('lex');
 
-function repeat(line) {
-  var source = '';
-  for (var index = 0; index < REPEATS; index++) {
-    source += line;
-  }
-  return source;
-}
+var SQL_KEYWORDS = ['SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'IN'];
+var SQL_PUNCTUATION = ['<=', '>=', '<>', '=', '<', '>', '+', '-', '*', '/', '(', ')', ',', ';'];
 
 var KEYWORDS = ['if', 'else', 'return', 'null'];
 var PUNCTUATION = ['>=', '<=', '==', '(', ')', '{', '}', ';', '=', '+', '*', '-', '/', '<', '>'];
@@ -50,7 +46,7 @@ var PUNCTUATION = ['>=', '<=', '==', '(', ')', '{', '}', ';', '=', '+', '*', '-'
 var WORKLOADS = [
   {
     name: 'expression rules',
-    source: repeat('let alpha_1 = 1234 + 56.78 * (beta - "a string here") ; // trailing\n'),
+    source: corpus.expressions(LINES),
     flex: function (lexer) {
       lexer.addRule(/[ \t\n]+/);
       lexer.addRule(/\/\/[^\n]*/);
@@ -98,7 +94,7 @@ var WORKLOADS = [
   },
   {
     name: 'string rules',
-    source: repeat('if (count >= 10) { total = total + price * 2; } else { return null; }\n'),
+    source: corpus.keywords(LINES),
     flex: function (lexer) {
       lexer.addRule(/[ \t\n]+/);
       PUNCTUATION.forEach(function (text) { lexer.addRule(text, token('punct')); });
@@ -132,6 +128,52 @@ var WORKLOADS = [
       });
       types.push(create({ name: 'Int', pattern: /[0-9]+/ }));
       types.push(id);
+      return types;
+    }
+  },
+  {
+    name: 'keyword rules',
+    source: corpus.sql(LINES),
+    flex: function (lexer) {
+      lexer.addRule(/[ \t\n]+/);
+      SQL_KEYWORDS.forEach(function (word) { lexer.addRule(word, token('kw')); });
+      lexer.addRule(/'[^']*'/, token('str'));
+      lexer.addRule(/[0-9]+/, token('int'));
+      lexer.addRule(/[a-zA-Z_][a-zA-Z0-9_]*/, token('id'));
+      SQL_PUNCTUATION.forEach(function (text) { lexer.addRule(text, token('punct')); });
+    },
+    moo: function () {
+      return moo.compile({
+        ws: { match: /[ \t\n]+/, lineBreaks: true },
+        str: /'[^']*'/,
+        int: /[0-9]+/,
+        id: {
+          match: /[a-zA-Z_][a-zA-Z0-9_]*/,
+          type: moo.keywords({ kw: SQL_KEYWORDS })
+        },
+        punct: SQL_PUNCTUATION.slice()
+      });
+    },
+    lex: function (lexer) {
+      lexer.addRule(/[ \t\n]+/, function () { });
+      SQL_KEYWORDS.forEach(function (word) { lexer.addRule(asExpression(word), lexeme('kw')); });
+      lexer.addRule(/'[^']*'/, lexeme('str'));
+      lexer.addRule(/[0-9]+/, lexeme('int'));
+      lexer.addRule(/[a-zA-Z_][a-zA-Z0-9_]*/, lexeme('id'));
+      SQL_PUNCTUATION.forEach(function (text) { lexer.addRule(asExpression(text), lexeme('punct')); });
+    },
+    chevrotain: function (create, skipped) {
+      var id = create({ name: 'Id', pattern: /[a-zA-Z_][a-zA-Z0-9_]*/ });
+      var types = [create({ name: 'Ws', pattern: /[ \t\n]+/, group: skipped })];
+      SQL_KEYWORDS.forEach(function (word, index) {
+        types.push(create({ name: 'Kw' + index, pattern: word, longer_alt: id }));
+      });
+      types.push(create({ name: 'Str', pattern: /'[^']*'/ }));
+      types.push(create({ name: 'Int', pattern: /[0-9]+/ }));
+      types.push(id);
+      SQL_PUNCTUATION.forEach(function (text, index) {
+        types.push(create({ name: 'Punct' + index, pattern: text }));
+      });
       return types;
     }
   }
