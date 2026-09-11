@@ -460,6 +460,38 @@ test('a header it cannot create leaves no scanner behind', function () {
     });
   });
 
+/* %option emit chooses the back end again, and a back end brings a default for
+ * `.' and for the table types. Defaults: what the grammar has already asked for
+ * has to outlast the line that names the back end.
+ */
+[['before', '%option nounicode', '%option emit="javascript"'],
+ ['after', '%option emit="javascript"', '%option nounicode']].forEach(function (order) {
+  test('nounicode written ' + order[0] + ' emit is still honoured', function () {
+    var source = grammar([
+      '%option noyywrap',
+      order[1],
+      order[2],
+      '%%',
+      '.   { return 1; }',
+      ''
+    ].join('\n'));
+    var output = path.join(directory, 'order-' + order[0] + '.js');
+    var made = run(['--noline', '-o', output, source]);
+
+    assert.strictEqual(made.status, 0, made.stderr);
+
+    var Scanner = require(output);
+    var scanner = new Scanner('\u00e9');
+    var count = 0;
+    while (scanner.lex()) {
+      count += 1;
+    }
+
+    // the two bytes of e-acute, one at a time, because `.' is a byte again
+    assert.strictEqual(count, 2, 'nounicode was dropped');
+  });
+});
+
 /* The names the back end writes beside the start conditions. A function in the
  * same scope shadows the constant, so BEGIN(input) reached the function and the
  * start condition came out NaN - one wrong token, then a fatal error.

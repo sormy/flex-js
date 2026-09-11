@@ -34,6 +34,14 @@ C's macro would have given.
 `yyterminate()` take arguments or take none in C as well, so they are written
 exactly as they are in FLEX.
 
+`REJECT` leaves the rule body by throwing, since C reaches the next rule with a
+`goto` and JavaScript has nothing that leaves a function from the middle and
+comes back. `yy_fatal_error` and `yyterminate()` go the same way. So a rule body
+that wraps its own code in `try`/`catch` catches these too, and a `catch` that
+does not rethrow turns a `REJECT` into the match it was refusing, with nothing
+said. Catch what you meant to catch, or keep the `try` to the call that can
+throw.
+
 ## The input is held, not read
 
 No `yyin`, no file reading, no interactive mode. A scanner is handed a string, a

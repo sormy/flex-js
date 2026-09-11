@@ -101,7 +101,10 @@ if (run.error) {
  * interrupt as an ordinary failure carries on when it should stop.
  */
 if (run.signal) {
-  process.exit(128 + (os.constants.signals[run.signal] || 0));
+  /* 128 alone would say signal 0, which is not one; a plain failure says
+   * it died without naming a signal this platform does not carry.  */
+  var number = os.constants.signals[run.signal];
+  process.exit(number === undefined ? 1 : 128 + number);
 }
 
 /* A null status with no signal and no error is not a success. */

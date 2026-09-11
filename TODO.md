@@ -116,12 +116,22 @@ already a byte read, so converting to bytes first is paid for nothing.
 
 ## Defaults
 
-`%option typed` is off, and `-Cfe` is not asked for, though the README names
-both as the best buy. Either as a default changes what every existing grammar
-emits: typed tables ask the engine for Int16Array, and `-Cfe` is not the table
-mode FLEX builds. Worth deciding rather than drifting into.
+`-Cfe` is not asked for, though the README names it as the best buy. As a
+default it changes what every existing grammar emits, since it is not the table
+mode FLEX builds. Worth deciding rather than drifting into. Typed tables were
+the other half of this and are now the default, with `%option notyped` to turn
+them off.
 
 ## Known, and left
+
+**m4 keeps its spilled-diversion state between runs.** `output_init()` was made
+re-entrant for the second pass `--header-file` asks for, but `tmp_file1_owner`,
+`tmp_file2_owner` and `output_temp_dir` survive it, and `output_exit()` acts on
+the first two. Clearing them is not the fix: they index two still-open `FILE *`s
+and a temp dir those files live in, and zeroing them alone segfaults the
+two-pass test that diverts past what m4 holds in memory. It wants the cache
+closed and cleared together. Nothing reaches it today, since the skeletons
+divert but the second pass does not spill.
 
 **win32-arm64 ships unverified.** No wine on macOS loads an ARM64 PE - every
 build of it is x86_64, and Rosetta translates the other way. The smoke test asks

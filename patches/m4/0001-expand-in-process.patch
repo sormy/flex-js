@@ -1,5 +1,5 @@
---- a/src/m4.c	2021-05-12 10:01:58
-+++ b/src/m4.c	2026-09-09 03:10:53
+--- a/src/m4.c
++++ b/src/m4.c
 @@ -21,6 +21,8 @@
  
  #include "m4.h"
@@ -9,11 +9,10 @@
  #include <getopt.h>
  #include <limits.h>
  #include <signal.h>
-@@ -80,6 +82,20 @@
- /* Global catchall for any errors that should affect final error status, but
+@@ -81,6 +83,20 @@
     where we try to continue execution in the meantime.  */
  int retcode;
-+
+ 
 +/* Where m4exit goes.  A library cannot end the process it was called in, so
 +   the builtin hands control back to main_m4 instead.  */
 +static jmp_buf m4_exit_jmp;
@@ -27,9 +26,10 @@
 +
 +  exit (status);
 +}
- 
++
  struct macro_definition
  {
+   struct macro_definition *next;
 @@ -400,7 +416,8 @@
  #endif
  
@@ -57,13 +57,15 @@
  
    include_init ();
    debug_init ();
-@@ -703,7 +721,28 @@
+@@ -703,7 +721,30 @@
    /* Handle remaining input files.  Each file is pushed on the input,
       and the input read.  Wrapup text is handled separately later.  */
  
 -  if (optind == argc && !seen_file)
 +  {
-+    int jumped = setjmp (m4_exit_jmp);
++    /* volatile: an automatic holding what setjmp answered is otherwise
++       indeterminate once longjmp has been through it.  */
++    volatile int jumped = setjmp (m4_exit_jmp);
 +
 +    m4_exit_catchable = true;
 +    if (jumped)
@@ -87,7 +89,7 @@
      process_file ("-");
    else
      for (; optind < argc; optind++)
-@@ -726,7 +765,12 @@
+@@ -726,7 +767,12 @@
        make_diversion (0);
        undivert_all ();
      }
@@ -101,8 +103,8 @@
 -  exit (retcode);
 +  return retcode;
  }
---- a/src/m4.h	2021-05-07 17:42:02
-+++ b/src/m4.h	2026-09-09 03:10:53
+--- a/src/m4.h
++++ b/src/m4.h
 @@ -336,6 +336,11 @@
  extern int output_current_line;
  
@@ -115,8 +117,8 @@
  extern void output_exit (void);
  extern void output_text (const char *, int);
  extern void shipout_text (struct obstack *, const char *, int, int);
---- a/src/output.c	2021-05-10 17:30:01
-+++ b/src/output.c	2026-09-09 20:19:23
+--- a/src/output.c
++++ b/src/output.c
 @@ -99,6 +99,9 @@
     output_diversion->size is 0.  */
  static FILE *output_file;
@@ -275,8 +277,8 @@
 +  div0.size = 0;
 +  div0.used = 0;
 +}
---- a/src/builtin.c	2021-05-10 17:33:22
-+++ b/src/builtin.c	2026-09-09 03:10:53
+--- a/src/builtin.c
++++ b/src/builtin.c
 @@ -1566,7 +1566,7 @@
    /* Propagate non-zero status to atexit handlers.  */
    if (exit_code != EXIT_SUCCESS)

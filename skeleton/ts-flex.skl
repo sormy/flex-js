@@ -1247,7 +1247,10 @@ m4_ifdef([[YY_USER_INIT]], [[  if (!this.yy_init) {
 ]])  var yy = this.yy;
 
   yy_scan: for (;;) {
-    /* The scanner holds the input, and a rule body may have replaced it. */
+    /* The scanner holds the input, and a rule body may have replaced it.
+     * Written out rather than calling yy_take_input(): --strict does not
+     * follow an assignment through a call, and calls these unassigned.
+     */
     yy_source = this.yy_source;
     yy_limit = yy_source.length;
     yy_cp = this.yy_c_buf_p;

@@ -61,5 +61,8 @@ jobs:
         run: |
           mkdir -p dist
           cp build/flex/src/flex dist/flex-js-linux-x64
+          # without the header beside it, the --print-includedir test takes its
+          # early return and the path it answers is never checked
+          cp build/flex/src/FlexLexer.h dist/
 
       - run: npm run test:dist

@@ -640,7 +640,7 @@ index 9482736..aa6e2b6 100644
  
  /* vim:set expandtab cindent tabstop=4 softtabstop=4 shiftwidth=4 textwidth=0: */
 diff --git a/src/flexdef.h b/src/flexdef.h
-index 0d8862c..a8e5829 100644
+index 0d8862c..46ace1e 100644
 --- a/src/flexdef.h
 +++ b/src/flexdef.h
 @@ -68,8 +68,6 @@
@@ -652,17 +652,19 @@ index 0d8862c..a8e5829 100644
  #ifdef HAVE_STDBOOL_H
  #include <stdbool.h>
  #elif !defined(__cplusplus) && (!defined(__STDC_VERSION__) || \
-@@ -353,6 +351,9 @@ struct ctrl_bundle_t {
+@@ -353,6 +351,11 @@ struct ctrl_bundle_t {
  	bool spprdflt;		// (-s) suppress the default rule
  	bool useecs;		// (-Ce flag) use equivalence classes 
  	bool usemecs;		// (-Cm flag), use meta-equivalence classes 
-+	bool typed_tables;	// (%option notyped) turns these off
-+	bool unicode_dot;	// (%option unicode) `.' is a character, not a byte
++	bool typed_tables;	// (%option notyped) turns off holding the tables
 +				// as numbers of one width rather than as arrays
++	bool unicode_dot;	// (%option unicode) `.' is a character, not a byte
++	bool typed_tables_set;	// the grammar chose these itself, so a back end
++	bool unicode_dot_set;	// named after it must not choose again
  	bool use_read;		// (-f, -F, or -Cr) use read() for scanner input 
         				// otherwise, use fread(). 
  	char *yyclass;		// yyFlexLexer subclass to use for YY_DECL
-@@ -554,6 +555,13 @@ extern int *rule_type, *rule_linenum;
+@@ -554,6 +557,13 @@ extern int *rule_type, *rule_linenum;
  /* rule_useful[], rule_has_nl[] and ccl_has_nl[] are boolean arrays,
   * but allocated as char arrays for size. */
  extern char *rule_useful, *rule_has_nl, *ccl_has_nl;
@@ -676,7 +678,7 @@ index 0d8862c..a8e5829 100644
  extern int nlch;
  extern size_t footprint;
  
-@@ -894,6 +902,7 @@ extern void lerr_fatal(const char *, ...)
+@@ -894,6 +904,7 @@ extern void lerr_fatal(const char *, ...)
  
  /* Spit out a "#line" statement. */
  extern void line_directive_out(FILE *, char *, int);
@@ -684,7 +686,7 @@ index 0d8862c..a8e5829 100644
  
  /* Mark the current position in the action array as the end of the section 1
   * user defs.
-@@ -1142,28 +1151,15 @@ bool range_covers_case (int c1, int c2);
+@@ -1142,28 +1153,15 @@ bool range_covers_case (int c1, int c2);
   *  From "filter.c"
   */
  
@@ -1368,7 +1370,7 @@ index 80e7f09..776769c 100644
  
  
 diff --git a/src/scan.l b/src/scan.l
-index f2c6ae8..3e61b28 100644
+index f2c6ae8..0851868 100644
 --- a/src/scan.l
 +++ b/src/scan.l
 @@ -49,7 +49,9 @@ extern const char *escaped_qstart, *escaped_qend;
@@ -1386,8 +1388,8 @@ index f2c6ae8..3e61b28 100644
                  		ctrl.do_yywrap = false;
  			}
  	meta-ecs	ctrl.usemecs = option_sense;
-+	typed	ctrl.typed_tables = option_sense;
-+	unicode		ctrl.unicode_dot = option_sense;
++	typed	{ ctrl.typed_tables = option_sense; ctrl.typed_tables_set = true; }
++	unicode	{ ctrl.unicode_dot = option_sense; ctrl.unicode_dot_set = true; }
  	never-interactive	{
  			ctrl.never_interactive = option_sense;
              		ctrl.interactive = (trit)!option_sense;
@@ -1536,7 +1538,7 @@ index f2c6ae8..3e61b28 100644
                  }
               }
 diff --git a/src/skeletons.c b/src/skeletons.c
-index afe592e..f395437 100644
+index afe592e..eb6dadf 100644
 --- a/src/skeletons.c
 +++ b/src/skeletons.c
 @@ -54,6 +54,16 @@ const char *go_skel[] = {
@@ -1565,16 +1567,18 @@ index afe592e..f395437 100644
      {NULL}
  };
  
-@@ -126,6 +138,12 @@ void backend_by_name(const char *name)
+@@ -126,6 +138,14 @@ void backend_by_name(const char *name)
  	prefix_property = skel_property("M4_PROPERTY_PREFIX");
  	if (prefix_property != NULL)
  		ctrl.prefix = xstrdup(prefix_property);
 +	/* A back end that reads text rather than bytes wants `.' to be one
 +	   character.  C does not, and stays the specification.  */
-+	ctrl.unicode_dot = skel_property("M4_PROPERTY_UNICODE_DOT") != NULL;
++	if (!ctrl.unicode_dot_set)
++		ctrl.unicode_dot = skel_property("M4_PROPERTY_UNICODE_DOT") != NULL;
 +	/* Likewise a back end that can hold its tables as numbers of one width
 +	   rather than as arrays of them.  */
-+	ctrl.typed_tables = skel_property("M4_PROPERTY_TYPED_TABLES") != NULL;
++	if (!ctrl.typed_tables_set)
++		ctrl.typed_tables = skel_property("M4_PROPERTY_TYPED_TABLES") != NULL;
  	flex_init_regex(ctrl.traceline_re);
  }
  

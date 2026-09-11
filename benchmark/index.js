@@ -21,7 +21,10 @@ var corpus = require('./corpus.js');
 var LINES = 3000;
 var WARMUP_ROUNDS = 20;
 var TIMED_ROUNDS = 30;
+/* Scans inside one child, to warm the heap before maxRSS is read. */
 var MEMORY_ROUNDS = 3;
+/* Children whose peaks are compared, the smallest being the honest one. */
+var MEMORY_CHILDREN = 3;
 
 var GENERATOR = process.env.FLEX_JS ||
   path.join(__dirname, '..', 'build', 'flex', 'src', 'flex');
@@ -555,7 +558,7 @@ function report(workload) {
       best.toFixed(2).padStart(7) + ' ms  ' +
       (megabytes / (best / 1000)).toFixed(1).padStart(7) + ' MB/s  ' +
       (runner.count / best / 1000).toFixed(1).padStart(6) + ' Mtokens/s  ' +
-      (runner === reference ? '' : (best / reference.samples[0]).toFixed(2) + 'x flex-js 2'));
+      (runner === reference ? '' : (best / reference.samples[0]).toFixed(2) + 'x ' + reference.name));
 
     if (runner.count !== reference.count) {
       console.log('     token count differs (' + runner.count + ' against ' +
@@ -595,7 +598,7 @@ function runEachSeparately() {
     // processes is what gets reported
     runnerNames(workload).forEach(function (name) {
       var peaks = [];
-      for (var round = 0; round < MEMORY_ROUNDS; round++) {
+      for (var round = 0; round < MEMORY_CHILDREN; round++) {
         var run = childProcess.spawnSync(process.execPath,
           [__filename, workload.name, name], { encoding: 'utf8' });
 
