@@ -213,3 +213,30 @@ test('restart leaves nothing of the last input behind', function () {
   assert.deepStrictEqual(drain(reused.restart('qb')),
     drain(new built.Scanner('qb')));
 });
+
+/* FLEX's macros are rewritten by name, and the scanner that reads a rule body
+ * is caseless, so a grammar's own echo(), Echo() or obj.ECHO() once became
+ * FLEX's - silently, in the last case turning a property read into a call.
+ */
+test('a name that is not FLEX\'s is left alone', function () {
+  var built = helper.build([
+    '%{',
+    'function Echo() { return "Echo"; }',
+    'function echo() { return "echo"; }',
+    'function Reject() { return "Reject"; }',
+    'var obj = { ECHO: function () { return "member"; }, REJECT: "prop" };',
+    '%}',
+    '%option noyywrap',
+    '%%',
+    '"a"      { return Echo(); }',
+    '"b"      { return echo(); }',
+    '"c"      { return Reject(); }',
+    '"d"      { return obj.ECHO(); }',
+    '"e"      { return obj.REJECT; }',
+    '.|\\n     ;',
+    '%%'
+  ].join('\n'));
+
+  assert.deepStrictEqual(helper.lexAll(built.Scanner, 'abcde'),
+    ['Echo', 'echo', 'Reject', 'member', 'prop']);
+});

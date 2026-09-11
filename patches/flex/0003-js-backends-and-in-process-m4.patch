@@ -1221,13 +1221,20 @@ index a2d3786..913c17b 100644
  	OPT_REENTRANT,
  	OPT_REJECT,
 diff --git a/src/parse.y b/src/parse.y
-index 80e7f09..74bf03c 100644
+index 80e7f09..776769c 100644
 --- a/src/parse.y
 +++ b/src/parse.y
-@@ -76,6 +76,87 @@ int *scon_stk;
+@@ -76,6 +76,94 @@ int *scon_stk;
  int scon_stk_ptr;
  
  static int madeany = false;  /* whether we've made the '.' character class */
++
++/* Whether `.' stands for a character rather than a byte.  A 7-bit scanner has
++   no byte above 127 to build a character out of, so there it is the byte.  */
++static bool dot_is_a_character (void)
++{
++	return ctrl.unicode_dot && ctrl.csize > 128;
++}
 +
 +/* A character class holding one range, told to the equivalence classes if they
 +   are in use, as a machine.  */
@@ -1312,7 +1319,7 @@ index 80e7f09..74bf03c 100644
  static int ccldot, cclany;
  int previous_continued_action;	/* whether the previous rule's action was '|' */
  
-@@ -139,6 +220,9 @@ goal		:  initlex sect1 sect1end sect2 initforrule
+@@ -139,6 +227,9 @@ goal		:  initlex sect1 sect1end sect2 initforrule
  
  			add_action("]]");
  
@@ -1322,14 +1329,27 @@ index 80e7f09..74bf03c 100644
  			if ( ctrl.spprdflt )
  				add_action(
  				"M4_HOOK_FATAL_ERROR(\"flex scanner jammed\")");
-@@ -739,7 +823,15 @@ singleton	:  singleton '*'
+@@ -713,7 +804,11 @@ singleton	:  singleton '*'
+ 
+ 		|  '.'
+ 			{
+-			if ( ! madeany )
++			/* The unicode machine uses neither of these, so a grammar
++			   that never takes the byte path never builds them - which
++			   also leaves newline in whatever class the classes that
++			   are built put it in, rather than one of its own. */
++			if ( ! madeany && ! dot_is_a_character () )
+ 				{
+ 				/* Create the '.' character class. */
+                     ccldot = cclinit();
+@@ -739,7 +834,15 @@ singleton	:  singleton '*'
  
  			++rulelen;
  
 -            if (sf_dot_all())
 +            /* A 7-bit scanner has no byte above 127 to build a character
 +               out of, so there the byte is the character. */
-+            if (ctrl.unicode_dot && ctrl.csize > 128) {
++            if (dot_is_a_character ()) {
 +                /* One character is one to four bytes, so a rule holding it is
 +                   no longer of a length flex can count. */
 +                varlength = true;
@@ -1339,7 +1359,7 @@ index 80e7f09..74bf03c 100644
                  $$ = mkstate( -cclany );
              else
                  $$ = mkstate( -ccldot );
-@@ -1010,6 +1102,7 @@ void build_eof_action(void)
+@@ -1010,6 +1113,7 @@ void build_eof_action(void)
  	 */
  	--num_rules;
  	++num_eof_rules;
@@ -1348,7 +1368,7 @@ index 80e7f09..74bf03c 100644
  
  
 diff --git a/src/scan.l b/src/scan.l
-index f2c6ae8..1298107 100644
+index f2c6ae8..38fd8a8 100644
 --- a/src/scan.l
 +++ b/src/scan.l
 @@ -49,7 +49,9 @@ extern const char *escaped_qstart, *escaped_qend;
@@ -1371,10 +1391,17 @@ index f2c6ae8..1298107 100644
  	never-interactive	{
  			ctrl.never_interactive = option_sense;
              		ctrl.interactive = (trit)!option_sense;
-@@ -923,11 +927,79 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -923,11 +927,94 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
  	<ACTION>"/*"		ACTION_ECHO; yy_push_state( CODE_COMMENT );
  
  	<CODEBLOCK,ACTION>{
+-		"reject" {
++		"."{NAME} {
++			/* A name reached through something else is that thing's,
++			   whatever it is called: obj.ECHO() is not FLEX's ECHO.
++			   Taken whole so the arms below never see it. */
+ 			ACTION_ECHO;
++        }
 +		"yy_start"{OPTWS}"("{OPTWS}")"|"yy_at_bol"{OPTWS}"("{OPTWS}")" {
 +			if (ctrl.rewrite && isupper((unsigned char) yytext[0])) {
 +				ACTION_NOTE;
@@ -1391,11 +1418,13 @@ index f2c6ae8..1298107 100644
 +			   instead is handed the spelling and writes the call.
 +			   {NAME} matches any longer word, so only these on their
 +			   own reach here. */
-+			/* The first letter, not all of them: all_upper turns down
-+			   the underscore these names carry. */
-+			if (ctrl.rewrite && isupper((unsigned char) yytext[0])) {
++			/* The one spelling: all_upper turns down the underscore
++			   these names carry, and a capital alone would take a
++			   grammar's own Yy_start() with it. */
++			if (ctrl.rewrite && (strncmp (yytext, "YY_START", 8) == 0
++					     || strncmp (yytext, "YY_AT_BOL", 9) == 0)) {
 +				ACTION_NOTE;
-+				if (yytext[3] == 'S' || yytext[3] == 's')
++				if (yytext[3] == 'S')
 +					add_action("]""]M4_HOOK_YY_START[""[");
 +				else
 +					add_action("]""]M4_HOOK_YY_AT_BOL[""[");
@@ -1404,7 +1433,10 @@ index f2c6ae8..1298107 100644
 +				ACTION_ECHO;
 +        }
 +		"echo"{OPTWS}"("{OPTWS}")" {
-+			if (ctrl.rewrite) {
++			/* The one spelling, not merely a capital: this scanner is
++			   caseless, so echo(), Echo() and ECHO() all arrive here
++			   and only the last is FLEX's. */
++			if (ctrl.rewrite && strncmp (yytext, "ECHO", 4) == 0) {
 +				ACTION_NOTE;
 +				add_action("]""]M4_HOOK_ECHO[""[");
 +			}
@@ -1425,17 +1457,20 @@ index f2c6ae8..1298107 100644
 +		"reject"{OPTWS}"("{OPTWS}")" {
 +			/* The first letter, not the whole match: all_upper is
 +			   turned down by the parentheses. */
-+			if (isupper((unsigned char) yytext[0]))
++			/* The one spelling, for both: reject(), Reject() and
++			   REJECT() all arrive here and only the last is FLEX's. */
++			if (strncmp (yytext, "REJECT", 6) == 0 && ctrl.rewrite) {
 +				reject = true;
-+			if (ctrl.rewrite) {
 +				ACTION_NOTE;
 +				add_action("]""]M4_HOOK_REJECT[""[");
 +			}
-+			else
++			else {
++				if (strncmp (yytext, "REJECT", 6) == 0)
++					reject = true;
 +				ACTION_ECHO;
++			}
 +        }
- 		"reject" {
--			ACTION_ECHO;
++		"reject" {
  			CHECK_REJECT(yytext);
 +			/* A back end of its own is handed the spelling the way
 +			   yyreject() is: REJECT is a macro in C, and written bare
@@ -1452,7 +1487,7 @@ index f2c6ae8..1298107 100644
  			add_action("]""]M4_HOOK_REJECT[""[");
  			/* The name, not the match: yytext carries the parentheses
  			   too, and all_lower turns them down, so REJECT was never
-@@ -952,6 +1024,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -952,6 +1039,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
                  add_action( "\t]""]M4_HOOK_STATE_CASE_BREAK\n" );
  
              doing_rule_action = doing_codeblock = false;
@@ -1460,7 +1495,7 @@ index f2c6ae8..1298107 100644
              BEGIN(SECT2);
          }
      }
-@@ -963,23 +1036,27 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -963,23 +1051,27 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
  	"{"		ACTION_ECHO; ++bracelevel;
  	"}"		ACTION_ECHO; --bracelevel;
  	yyecho\(\)|yyinput\(\)|yystart\({FUNARGS}\)|yybegin\({FUNARGS}\)|yyunput\({FUNARGS}\)|yypanic\({FUNARGS}\)|yyatbol\(\)|yysetbol\({FUNARGS}\) {
@@ -1488,7 +1523,7 @@ index f2c6ae8..1298107 100644
  			if (ctrl.rewrite)
  				context_member(yytext, "M4_PROPERTY_BUFFERSTACK_CONTEXT_FORMAT");
  			else
-@@ -998,6 +1075,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -998,6 +1090,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
                        add_action( "\t]""]M4_HOOK_STATE_CASE_BREAK\n" );
  
                     doing_rule_action = false;

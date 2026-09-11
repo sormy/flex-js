@@ -335,8 +335,20 @@ m4_ifdef([[M4_MODE_DEBUG]],
 %# A 7-bit alphabet leaves no column for a byte above ASCII, so the input is
 %# checked where one could arrive rather than on every byte.
 m4_ifdef([[M4_MODE_7BIT]],
-  [[m4_define([[M4_GEN_JS_WIDE]], [[yy_check_7bit(this, $1)]])]],
-  [[m4_define([[M4_GEN_JS_WIDE]], [[$1]])]])
+  [[m4_define([[M4_GEN_JS_WIDE]], [[yy_check_7bit(this, $1)]])m4_dnl
+%# Refused input is not held: a byte above ASCII has no column in the tables,
+%# so scanning it would go round for ever once yy_fatal_error is one that
+%# returns rather than throws.
+m4_define([[M4_GEN_JS_HELD]], [[($2 ? '' : $1)]])m4_dnl
+%# And nothing else is done with it: a give-back that was refused did not
+%# happen, so what a rule can read is left as it was.
+m4_define([[M4_GEN_JS_GAVE_BACK]], [[  if ($1) {
+    return this;
+  }
+]])]],
+  [[m4_define([[M4_GEN_JS_WIDE]], [[$1]])m4_dnl
+m4_define([[M4_GEN_JS_HELD]], [[$1]])m4_dnl
+m4_define([[M4_GEN_JS_GAVE_BACK]], [[]])]])
 
 m4_ifdef([[M4_MODE_USEECS]], [[
 m4_define([[M4_GEN_JS_EOB_EC]], [[YY_EOB_EC]])
@@ -860,7 +872,7 @@ YYScanner.prototype.restart = function (this: ScannerState, source?: string | Ui
    * would leave the scanner holding bytes it cannot read.
    */
   this.yy_wide = M4_GEN_JS_WIDE(yy_beyond_ascii);
-  this.yy_source = yy_bytes;
+  this.yy_source = M4_GEN_JS_HELD(yy_bytes, yy_beyond_ascii);
   this.yy_c_buf_p = 0;
   this.yytext = '';
   this.yyleng = 0;
@@ -953,7 +965,7 @@ YYScanner.prototype.unput = function (this: ScannerState, text: string) {
   var bytes = yy_not_ascii.test(given) ? yy_utf8_encode(given) : given;
 
   this.yy_wide = M4_GEN_JS_WIDE(this.yy_wide || bytes !== given);
-
+M4_GEN_JS_GAVE_BACK(bytes !== given)
   /* C writes over the bytes in front of the cursor and steps back across
    * them rather than making room, so giving back what is already there costs
    * nothing and giving back something else replaces as much as it is long.

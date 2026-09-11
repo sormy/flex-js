@@ -231,6 +231,69 @@ test('the fallback encoder agrees with the one Buffer provides', function () {
   });
 });
 
+/* docs/scanner.md lets a caller replace yy_fatal_error with one that returns.
+ * A refused input must then not be held: a byte above ASCII has no column in a
+ * 7-bit table, so scanning it went round for ever.
+ */
+test('a 7-bit scanner holds nothing it refused', function () {
+  var built = helper.build([
+    '%option 7bit noyywrap',
+    '%%',
+    '[a-z]+   { return 1; }',
+    '.|\\n     ;',
+    '%%'
+  ].join('\n'));
+  var scanner = new built.Scanner('');
+  var refusals = 0;
+
+  scanner.yy_fatal_error = function () {
+    refusals++;
+  };
+  scanner.restart(Buffer.from([0x61, 0xc3, 0xa9, 0x62]));
+
+  assert.strictEqual(refusals, 1, 'the input was not refused');
+  assert.strictEqual(scanner.yy_source, '', 'it kept bytes it cannot read');
+
+  /* Counted rather than run out: a regression here does not end. */
+  var tokens = 0;
+  while (scanner.lex() !== 0 && tokens < 50) {
+    tokens++;
+  }
+  assert.strictEqual(tokens, 0, 'it scanned an input it had refused');
+});
+
+/* unput() is the other way in, and had the same hole: restart() was fixed and
+ * this was not, so a refused unput went round for ever inside one lex().
+ */
+test('a 7-bit scanner puts back nothing it refused', function () {
+  var built = helper.build([
+    '%option 7bit noyywrap',
+    '%%',
+    '[a-z]+   { return 1; }',
+    '.|\\n     ;',
+    '%%'
+  ].join('\n'));
+  var scanner = new built.Scanner('ab cd');
+  var refusals = 0;
+
+  scanner.yy_fatal_error = function () {
+    refusals++;
+  };
+
+  /* Scanned first, so the cursor is off zero and a give-back that moved it
+   * would show; at zero the branch that moves it cannot run at all.
+   */
+  assert.strictEqual(scanner.lex(), 1);
+  scanner.unput('\u00e9');
+
+  assert.strictEqual(refusals, 1, 'the text was not refused');
+  assert.strictEqual(scanner.yy_source, 'ab cd', 'it put back what it refused');
+  assert.strictEqual(scanner.yy_c_buf_p, 2, 'the cursor moved for a refusal');
+  assert.strictEqual(scanner.yytext, 'ab', 'the match was thrown away');
+  assert.strictEqual(scanner.yyleng, 2);
+  assert.strictEqual(scanner.lex(), 1, 'it stopped scanning after a refusal');
+});
+
 test('%option 7bit scans ASCII and refuses anything above it', function () {
   ['%option 7bit\n', ''].forEach(function (option) {
     var built = helper.build([

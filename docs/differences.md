@@ -188,6 +188,13 @@ holds it to that: the JavaScript scanner writes `.`, the C scanner writes
 stray continuation byte, a `\xff` - it matches one of them, since a whole
 character is the longer match wherever there is one.
 
+A 7-bit scanner refuses input above ASCII, and holds none of what it refused:
+`restart()` keeps nothing and `unput()` gives nothing back, leaving `yytext` and
+the cursor as they were. That matters where `yy_fatal_error` has been replaced
+by one that returns, which `docs/scanner.md` allows - a byte above ASCII has no
+column in a 128-wide table, so scanning it would not end. A give-back mixing
+ASCII with such a byte is refused whole rather than in part.
+
 `%option nounicode` asks for C's byte. `-7` has no byte above 127 to build a
 character from, so there the byte is the character and the option means nothing.
 

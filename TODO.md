@@ -44,6 +44,14 @@ here, and the constructors a scanner reaches for, which is what `Int16Array` is
 and which no syntax level decides. Whichever way it goes, say it once and point
 at it.
 
+**Build the byte classes behind `.` once.** With `%option unicode`, every `.` in
+a grammar builds its own 28 character classes over 15 distinct byte ranges and
+runs `mkeccl` across them again, where the byte path has a `madeany` cache that
+builds its two once. Generation time only - the tables that come out are
+identical - but a grammar with many `.` rules pays for all of it. The classes
+are the part worth caching; the states cannot be, since a machine is consumed
+where it is used.
+
 **Let a build choose whether m4 is linked in.** The in-process m4 and the back
 ends are independent: the skeletons never touch how m4 is invoked, so a flex
 patched with only the back ends would fork a system m4 and work. Worth having as
