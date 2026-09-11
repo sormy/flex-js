@@ -44,6 +44,22 @@ here, and the constructors a scanner reaches for, which is what `Int16Array` is
 and which no syntax level decides. Whichever way it goes, say it once and point
 at it.
 
+**Let a build choose whether m4 is linked in.** The in-process m4 and the back
+ends are independent: the skeletons never touch how m4 is invoked, so a flex
+patched with only the back ends would fork a system m4 and work. Worth having as
+a build-time choice - someone packaging this may not want a GPL-3 static link,
+and it de-risks the largest patch by making it optional rather than
+load-bearing.
+
+Not by splitting the patch. `src/main.c` alone has 31 hunks and `flexdef.h`,
+`misc.c` and `src/Makefile.am` are touched by both halves, so the split is a
+refactor of the series rather than a division of files, and the back-end patch
+would then have to apply both with and without the m4 one. Keeping one patch and
+choosing inside it is cheaper and reads better upstream: `filter.c` keeps the
+fork chain beside the in-process call, a preprocessor symbol picks one, and
+`build.sh` defines it alongside linking m4. A patch that adds an option is a
+much easier sell to flex than one that takes forking away.
+
 **An incremental lexer.** What an editor wants: keep the tokens from last time
 and, on an edit, re-lex only from the last token boundary before it until the
 scanner's state matches the state it had at that point before, then reuse the
