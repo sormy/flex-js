@@ -389,6 +389,52 @@ test('a grammar that diverts more than m4 keeps in memory still works',
       'what the grammar diverted did not come back');
   });
 
+/* --header-file expands the source a second time, so whatever the first pass
+ * left behind in m4 has to be reset rather than reused - the name it hands a
+ * spilled diversion among it.
+ */
+test('a grammar that diverts that much also gets a header', function () {
+  var diverted = new Array(600 * 1024).join('z');
+  var source = grammar([
+    '%top{',
+    'm4_divert(1)' + diverted,
+    'm4_divert(0)',
+    '}',
+    '%option noyywrap',
+    '%%',
+    '[a-z]+   { return 1; }',
+    ''
+  ].join('\n'));
+  var output = path.join(directory, 'divertedheader.js');
+  var header = output.replace(/\.js$/, '.d.ts');
+  var made = run(['--emit=javascript', '--noline', '--header-file=' + header,
+    '-o', output, source]);
+
+  assert.strictEqual(made.status, 0, made.stderr);
+  assert.ok(fs.readFileSync(output, 'utf8').indexOf(diverted) !== -1,
+    'what the grammar diverted did not come back');
+  assert.match(fs.readFileSync(header, 'utf8'), /declare const Scanner/);
+});
+
+/* C unlinks what it was writing when it exits with a status; a pair where only
+ * one of the two could be created has to leave neither.
+ */
+test('a header it cannot create leaves no scanner behind', function () {
+  var source = grammar();
+  var output = path.join(directory, 'unpaired.js');
+  var shut = path.join(directory, 'shut');
+
+  fs.mkdirSync(shut, { recursive: true });
+  fs.chmodSync(shut, 0o500);
+
+  var made = run(['--emit=javascript', '--noline',
+    '--header-file=' + path.join(shut, 'x.d.ts'), '-o', output, source]);
+
+  assert.notStrictEqual(made.status, 0, 'the unwritable header was accepted');
+  assert.strictEqual(fs.existsSync(output), false,
+    'the scanner was left behind without its header');
+});
+
 test('a reentrant scanner is refused rather than quietly not made', function () {
   ['reentrant', 'bison-bridge', 'bison-locations'].forEach(function (option) {
     var source = grammar([

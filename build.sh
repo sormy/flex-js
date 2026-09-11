@@ -57,6 +57,7 @@ fi
 
 if [ ! -d "$m4_build" ]; then
 	echo "building m4"
+	m4_rebuilt=yes
 	mkdir -p "$m4_build"
 	# m4 has no main of its own any more, so its own binary is the one thing
 	# that cannot be linked. What flex wants is built before that, and flex
@@ -120,5 +121,11 @@ for skeleton in "$here"/skeleton/*.skl; do
 		cp "$skeleton" "$src/src/"
 	fi
 done
+# make is told the m4 objects on the command line, so it has no way to know a
+# rebuilt m4 is newer than the binary it linked. Taking the binary away is what
+# asks for the relink.
+if [ -n "$m4_rebuilt" ]; then
+	rm -f "$src/src/flex"
+fi
 make -C "$src/src" FLEX_JS_M4="$m4_objects $m4_libs" >/dev/null
 echo "built $("$src/src/flex" --version)"

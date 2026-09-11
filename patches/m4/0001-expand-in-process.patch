@@ -1,5 +1,5 @@
 --- a/src/m4.c	2021-05-12 10:01:58
-+++ b/src/m4.c	2026-09-09 02:33:03
++++ b/src/m4.c	2026-09-09 03:10:53
 @@ -21,6 +21,8 @@
  
  #include "m4.h"
@@ -102,7 +102,7 @@
 +  return retcode;
  }
 --- a/src/m4.h	2021-05-07 17:42:02
-+++ b/src/m4.h	2026-09-09 02:33:03
++++ b/src/m4.h	2026-09-09 03:10:53
 @@ -336,6 +336,11 @@
  extern int output_current_line;
  
@@ -116,7 +116,7 @@
  extern void output_text (const char *, int);
  extern void shipout_text (struct obstack *, const char *, int, int);
 --- a/src/output.c	2021-05-10 17:30:01
-+++ b/src/output.c	2026-09-09 02:54:54
++++ b/src/output.c	2026-09-09 20:19:23
 @@ -99,6 +99,9 @@
     output_diversion->size is 0.  */
  static FILE *output_file;
@@ -127,7 +127,31 @@
  /* Cache of output_diversion->u.buffer + output_diversion->used, only
     valid when output_diversion->size is non-zero.  */
  static char *output_cursor;
-@@ -373,9 +376,32 @@
+@@ -183,12 +186,14 @@
+     _exit (exit_failure);
+ }
+ 
++static char *tmpname_buffer;
++
+ /* Convert DIVNUM into a temporary file name for use in m4_tmp*.  */
+ static const char *
+ m4_tmpname (int divnum)
+ {
+-  static char *buffer;
+   static char *tail;
++  char *buffer = tmpname_buffer;
+   if (buffer == NULL)
+     {
+       tail = xasprintf ("%s/m4-%d", output_temp_dir->dir_name, INT_MAX);
+@@ -196,6 +201,7 @@
+                                        strlen (tail));
+       free (tail);
+       tail = strrchr (buffer, '-') + 1;
++      tmpname_buffer = buffer;
+     }
+   assert (0 < divnum);
+   sprintf (tail, "%d", divnum);
+@@ -373,9 +379,35 @@
  {
    diversion_table = gl_oset_create_empty (GL_AVLTREE_OSET, cmp_diversion_CB,
                                            NULL);
@@ -136,6 +160,9 @@
 +  output_current_line = 0;
 +  free_list = NULL;
 +  total_buffer_size = 0;
++  /* Named out of the obstack output_exit frees, so a second run must ask for
++     the name again rather than reuse the one it was handed.  */
++  tmpname_buffer = NULL;
    output_diversion = &div0;
 -  output_file = stdout;
 +  div0.used = 0;
@@ -162,7 +189,7 @@
    obstack_init (&diversion_storage);
  }
  
-@@ -441,11 +467,21 @@
+@@ -441,11 +473,21 @@
        selected_diversion = output_diversion;
        selected_used = output_diversion->used + length;
  
@@ -185,7 +212,7 @@
              {
                selected_diversion = diversion;
                selected_used = diversion->used;
-@@ -459,25 +495,28 @@
+@@ -459,25 +501,28 @@
           m4_tmpfile), so that the atexit handler doesn't try to close
           a garbage pointer as a file.  */
  
@@ -230,7 +257,7 @@
      }
  
    /* Reload output_file, just in case the flushed diversion was current.  */
-@@ -1002,3 +1041,17 @@
+@@ -1002,3 +1047,17 @@
    if (saved_number != last_inserted)
      xfprintf (file, "D%d,0\n\n", saved_number);
  }
@@ -249,7 +276,7 @@
 +  div0.used = 0;
 +}
 --- a/src/builtin.c	2021-05-10 17:33:22
-+++ b/src/builtin.c	2026-09-09 02:33:03
++++ b/src/builtin.c	2026-09-09 03:10:53
 @@ -1566,7 +1566,7 @@
    /* Propagate non-zero status to atexit handlers.  */
    if (exit_code != EXIT_SUCCESS)

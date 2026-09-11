@@ -219,7 +219,9 @@ smoke_one() {
 	{
 		printf '#!/bin/sh\nexec'
 		for word in "$@"; do
-			printf " '%s'" "$word"
+			# a quote inside the word ends the quoting, so it is closed,
+			# escaped and opened again
+			printf " '%s'" "$(printf '%s' "$word" | sed "s/'/'\\\\''/g")"
 		done
 		printf ' "$@"\n'
 	} > "$runner"

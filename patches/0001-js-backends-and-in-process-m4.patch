@@ -74,10 +74,10 @@ index b9ead07..86f5b69 100644
  # generation. If scan.l is not modified by builders, stage1scan.c should
  # be bit-identical to the scan.c pregenerated on release.
 diff --git a/src/filter.c b/src/filter.c
-index 9482736..d175ccb 100644
+index 9482736..938b811 100644
 --- a/src/filter.c
 +++ b/src/filter.c
-@@ -24,294 +24,128 @@
+@@ -24,294 +24,155 @@
  /*  PURPOSE. */
  
  #include "flexdef.h"
@@ -129,15 +129,27 @@ index 9482736..d175ccb 100644
 -			chain = chain->next;
 -		chain->next = f;
 -	}
--
--
++static char m4_source_name[MAXLINE];
++static FILE *console;
+ 
++/* What flex made and would rather not leave behind: the scratch file always,
++ * and the files it was writing to unless it got to the end of writing them.
++ * C unlinks its output the same way when it exits with a status.
++ */
++static const char *landed[2];
++static int landings;
++static bool landed_whole;
+ 
 -	/* allocate argv, and populate it with the argument list. */
 -	max_args = 8;
 -	f->argv = malloc(sizeof(char *) * (size_t) (max_args + 1));
 -	if (!f->argv)
 -		flexerror(_("malloc failed (f->argv) in filter_create_ext"));
 -	f->argv[f->argc++] = cmd;
--
++static void remove_what_was_made (void)
++{
++	int     i;
+ 
 -	va_start (ap, cmd);
 -	while ((s = va_arg (ap, const char *)) != NULL) {
 -		if (f->argc >= max_args) {
@@ -147,12 +159,15 @@ index 9482736..d175ccb 100644
 -		f->argv[f->argc++] = s;
 -	}
 -	f->argv[f->argc] = NULL;
--
++	if (m4_source_name[0] != '\0')
++		remove (m4_source_name);
+ 
 -	va_end (ap);
 -	return f;
--}
-+static char m4_source_name[MAXLINE];
-+static FILE *console;
++	if (!landed_whole)
++		for (i = 0; i < landings; i++)
++			remove (landed[i]);
+ }
  
 -/* Allocate and initialize an internal filter.
 - * @param chain the current chain or NULL for new chain
@@ -161,13 +176,13 @@ index 9482736..d175ccb 100644
 - *        if an error occurs -- or it can simply exit().
 - * @param extra optional user-defined data to pass to the filter.
 - * @return newest filter in chain
-+/* However flex ends, and it has several ways, the scratch file does not
-+ * outlive it.
++/* flex writes the m4 source the way it writes everything, through stdout, so
++ * that is what is pointed at a file of our own until m4 has read it back.
   */
 -struct filter *filter_create_int (struct filter *chain,
 -				  int (*filter_func) (struct filter *),
 -				  void *extra)
-+static void remove_m4_source (void)
++void open_m4_source (void)
  {
 -	struct filter *f;
 -
@@ -188,27 +203,31 @@ index 9482736..d175ccb 100644
 -			chain = chain->next;
 -		chain->next = f;
 -	}
--
++	const char *dir;
++	int     fd;
+ 
 -	return f;
-+	if (m4_source_name[0] != '\0')
-+		remove (m4_source_name);
- }
+-}
++	if (env.use_stdout) {
++		int     kept = dup (fileno (stdout));
  
 -/** Fork and exec entire filter chain.
 - *  @param chain The head of the chain.
 - *  @return true on success.
-+/* flex writes the m4 source the way it writes everything, through stdout, so
-+ * that is what is pointed at a file of our own until m4 has read it back.
-  */
+- */
 -bool filter_apply_chain (struct filter * chain)
-+void open_m4_source (void)
- {
+-{
 -	int     pid, pipes[2];
-+	const char *dir;
-+	int     fd;
++		if (kept == -1 || (console = fdopen (kept, "wb")) == NULL)
++			flexfatal (_("dup(1) failed"));
  
-+	if (env.use_stdout) {
-+		int     kept = dup (fileno (stdout));
++#ifdef _WIN32
++		/* Asking for bytes says how the stream behaves; the descriptor
++		 * under it goes on ending lines its own way until it is told.
++		 */
++		_setmode (kept, _O_BINARY);
++#endif
++	}
  
 -	/* Tricky recursion, since we want to begin the chain
 -	 * at the END. Why? Because we need all the forked processes
@@ -218,18 +237,17 @@ index 9482736..d175ccb 100644
 -		filter_apply_chain (chain->next);
 -	else
 -		return true;
-+		if (kept == -1 || (console = fdopen (kept, "wb")) == NULL)
-+			flexfatal (_("dup(1) failed"));
++	if ((dir = getenv ("TMPDIR")) == NULL || *dir == '\0')
++		if ((dir = getenv ("TEMP")) == NULL || *dir == '\0')
++			if ((dir = getenv ("TMP")) == NULL || *dir == '\0')
++				dir = "/tmp";
  
 -	/* Now we are the right-most unprocessed link in the chain.
 -	 */
-+#ifdef _WIN32
-+		/* Asking for bytes says how the stream behaves; the descriptor
-+		 * under it goes on ending lines its own way until it is told.
-+		 */
-+		_setmode (kept, _O_BINARY);
-+#endif
-+	}
++	snprintf (m4_source_name, sizeof m4_source_name, "%s/flexXXXXXX", dir);
++	if ((fd = mkstemp (m4_source_name)) == -1)
++		lerr (_("could not create %s"), m4_source_name);
++	close (fd);
  
 -	fflush (stdout);
 -	fflush (stderr);
@@ -273,17 +291,14 @@ index 9482736..d175ccb 100644
 -			lerr_fatal ( _("exec of %s failed"),
 -				     chain->argv[0]);
 -		}
-+	if ((dir = getenv ("TMPDIR")) == NULL || *dir == '\0')
-+		if ((dir = getenv ("TEMP")) == NULL || *dir == '\0')
-+			if ((dir = getenv ("TMP")) == NULL || *dir == '\0')
-+				dir = "/tmp";
++	/* Before the reopen rather than after: a reopen that fails would
++	   otherwise leave the file mkstemp made behind.  */
++	atexit (remove_what_was_made);
  
 -		FLEX_EXIT (1);
 -	}
-+	snprintf (m4_source_name, sizeof m4_source_name, "%s/flexXXXXXX", dir);
-+	if ((fd = mkstemp (m4_source_name)) == -1)
++	if (freopen (m4_source_name, "w+b", stdout) == NULL)
 +		lerr (_("could not create %s"), m4_source_name);
-+	close (fd);
  
 -	/* Parent */
 -	close (pipes[0]);
@@ -291,11 +306,16 @@ index 9482736..d175ccb 100644
 -		flexfatal (_("dup2(pipes[1],1)"));
 -	close (pipes[1]);
 -	fseek (stdout, 0, SEEK_CUR);
-+	if (freopen (m4_source_name, "w+b", stdout) == NULL)
-+		lerr (_("could not create %s"), m4_source_name);
- 
+-
 -	return true;
-+	atexit (remove_m4_source);
++#ifndef _WIN32
++	/* Taken off the directory now rather than at the end: the stream holds
++	 * it open, and nothing is left behind if flex is interrupted. Windows
++	 * keeps a name until every handle on it is shut, so there it waits.
++	 */
++	remove (m4_source_name);
++	m4_source_name[0] = '\0';
++#endif
  }
  
 -/** Truncate the chain to max_len number of filters.
@@ -313,14 +333,19 @@ index 9482736..d175ccb 100644
  
 -	if (!chain)
 -		return 0;
-+	fflush (stdout);
-+	if (ferror (stdout))
-+		lerr (_("error writing output file %s"), m4_source_name);
++	/* The scratch file is unlinked as soon as it is opened wherever that is
++	   allowed, so name the scanner it is being written for instead.  */
++	const char *scanner = env.outfilename != NULL
++		? env.outfilename : "<stdout>";
  
 -	while (chain->next && len < max_len) {
 -		chain = chain->next;
 -		++len;
 -	}
++	fflush (stdout);
++	if (ferror (stdout))
++		lerr (_("error writing the m4 source for %s"), scanner);
++
 +	rewind (stdout);
 +	buf_init (source, 1);
 +	while ((got = fread (chunk, 1, sizeof chunk, stdout)) > 0)
@@ -329,7 +354,7 @@ index 9482736..d175ccb 100644
 -	chain->next = NULL;
 -	return len;
 +	if (ferror (stdout))
-+		lerr (_("input error reading %s"), m4_source_name);
++		lerr (_("error reading the m4 source for %s"), scanner);
  }
  
 -/** Splits the chain in order to write to a header file.
@@ -458,7 +483,7 @@ index 9482736..d175ccb 100644
  }
  
  static bool is_blank_line (const char *str)
-@@ -327,19 +161,17 @@ static bool is_blank_line (const char *str)
+@@ -327,19 +188,17 @@ static bool is_blank_line (const char *str)
   * not user code. This also happens to be a good place to squeeze multiple
   * blank lines into a single blank line.
   */
@@ -483,7 +508,7 @@ index 9482736..d175ccb 100644
  
  		regmatch_t m[10];
  
-@@ -409,19 +241,96 @@ int filter_fix_linedirs (struct filter *chain)
+@@ -409,19 +268,118 @@ int filter_fix_linedirs (struct filter *chain)
  			last_was_blank = false;
  		}
  
@@ -507,10 +532,7 @@ index 9482736..d175ccb 100644
 +	struct Buf input;
 +	char   *text = NULL;
 +	size_t  length = 0;
- 
--	else if (fclose (stdout))
--		lerr (_("error closing output file %s"),
--			env.outfilename != NULL ? env.outfilename : "<stdout>");
++
 +	buf_init (&input, 1);
 +	prologue (&input, named, for_header);
 +	buf_append (&input, source->elts, source->nelts);
@@ -540,19 +562,35 @@ index 9482736..d175ccb 100644
 +}
 +
 +/* The expansion, to the file it names or to the console. */
-+static void land (const char *named, FILE *where, const struct Buf *text)
++/* Where the expansion is bound for, opened before any of it is written: a
++ * name that cannot be created is worth knowing about while there is still
++ * nothing on disk to take back.
++ */
++static FILE *landing (const char *named, FILE *where)
 +{
 +	FILE   *out = where;
 +
-+	if (out == NULL && (out = fopen (named, "wb")) == NULL)
-+		lerr (_("could not create %s"), named);
++	if (out == NULL) {
++		if ((out = fopen (named, "wb")) == NULL)
++			lerr (_("could not create %s"), named);
 +
++		landed[landings++] = named;
++	}
++
++	return out;
++}
++
++static void land (const char *named, FILE *out, const struct Buf *text)
++{
 +	fwrite (text->elts, 1, (size_t) text->nelts, out);
 +	fflush (out);
 +
 +	if (ferror (out))
 +		lerr (_("error writing output file %s"), named);
-+	else if (where == NULL && fclose (out))
++	/* Closed here rather than left to the exit, which reports nothing: a
++	 * write that only fails on the way out still loses the tail.
++	 */
++	else if (fclose (out))
 +		lerr (_("error closing output file %s"), named);
 +}
 +
@@ -570,27 +608,36 @@ index 9482736..d175ccb 100644
 +	expand (&expanded, &source, scanner, false);
 +	if (env.headerfilename != NULL)
 +		expand (&declared, &source, env.headerfilename, true);
-+
+ 
+-	else if (fclose (stdout))
+-		lerr (_("error closing output file %s"),
+-			env.outfilename != NULL ? env.outfilename : "<stdout>");
 +	buf_destroy (&source);
 +
-+	/* Nothing lands until both have expanded, so a grammar m4 rejects
-+	 * leaves no half-written scanner behind.
++	/* Nothing lands until both have expanded and both have somewhere to go,
++	 * so neither a grammar m4 rejects nor a name that cannot be created
++	 * leaves a half-written pair behind.
 +	 */
-+	land (scanner, console, &expanded);
++	FILE *to_scanner = landing (scanner, console);
++	FILE *to_header = env.headerfilename != NULL
++		? landing (env.headerfilename, NULL) : NULL;
++
++	land (scanner, to_scanner, &expanded);
 +	buf_destroy (&expanded);
 +
-+	if (env.headerfilename != NULL) {
-+		land (env.headerfilename, NULL, &declared);
++	if (to_header != NULL) {
++		land (env.headerfilename, to_header, &declared);
 +		buf_destroy (&declared);
 +	}
  
 -	return 0;
++	landed_whole = true;
 +	fclose (stdout);
  }
  
  /* vim:set expandtab cindent tabstop=4 softtabstop=4 shiftwidth=4 textwidth=0: */
 diff --git a/src/flexdef.h b/src/flexdef.h
-index adf4fd0..d45754e 100644
+index adf4fd0..572e85c 100644
 --- a/src/flexdef.h
 +++ b/src/flexdef.h
 @@ -68,8 +68,6 @@
@@ -602,7 +649,27 @@ index adf4fd0..d45754e 100644
  #ifdef HAVE_STDBOOL_H
  #include <stdbool.h>
  #elif !defined(__cplusplus) && (!defined(__STDC_VERSION__) || \
-@@ -889,6 +887,7 @@ extern void lerr_fatal(const char *, ...)
+@@ -353,6 +351,8 @@ struct ctrl_bundle_t {
+ 	bool spprdflt;		// (-s) suppress the default rule
+ 	bool useecs;		// (-Ce flag) use equivalence classes 
+ 	bool usemecs;		// (-Cm flag), use meta-equivalence classes 
++	bool typed_tables;	// (%option typed-tables) tables a back end can hold
++				// as numbers of one width rather than as arrays
+ 	bool use_read;		// (-f, -F, or -Cr) use read() for scanner input 
+        				// otherwise, use fread(). 
+ 	char *yyclass;		// yyFlexLexer subclass to use for YY_DECL
+@@ -549,6 +549,10 @@ extern int *rule_type, *rule_linenum;
+ /* rule_useful[], rule_has_nl[] and ccl_has_nl[] are boolean arrays,
+  * but allocated as char arrays for size. */
+ extern char *rule_useful, *rule_has_nl, *ccl_has_nl;
++/* rule_no_action[] - true where a rule's action is empty, so what it
++ * matched is never looked at and need not be made into a string. */
++extern char *rule_no_action;
++extern void note_rule_text (const char *text);
+ extern int nlch;
+ extern size_t footprint;
+ 
+@@ -889,6 +893,7 @@ extern void lerr_fatal(const char *, ...)
  
  /* Spit out a "#line" statement. */
  extern void line_directive_out(FILE *, char *, int);
@@ -610,7 +677,7 @@ index adf4fd0..d45754e 100644
  
  /* Mark the current position in the action array as the end of the section 1
   * user defs.
-@@ -1137,28 +1136,15 @@ bool range_covers_case (int c1, int c2);
+@@ -1137,28 +1142,15 @@ bool range_covers_case (int c1, int c2);
   *  From "filter.c"
   */
  
@@ -646,11 +713,64 @@ index adf4fd0..d45754e 100644
  
  
  /*
+diff --git a/src/gen.c b/src/gen.c
+index 6699c2b..2706be0 100644
+--- a/src/gen.c
++++ b/src/gen.c
+@@ -89,6 +89,31 @@ static struct yytbl_data *mkeoltbl (void)
+ 	return tbl;
+ }
+ 
++/* Name the rules whose action is empty, for a back end that would rather not
++   build a string nothing reads.  REJECT, yymore(), tracking ^, tracing and the
++   code a grammar asks to run before or after every action all reach for the
++   text behind the action's back, so none of them is asked to do without.  */
++static void genneedtext (void)
++{
++	int     i;
++
++	if (reject || yymore_used || bol_needed || ctrl.ddebug
++	    || ctrl.preaction != NULL || ctrl.postaction != NULL)
++		return;
++
++	for (i = 1; i <= num_rules && !rule_no_action[i]; i++)
++		continue;
++	if (i > num_rules)
++		return;
++
++	outn ("m4_define([[M4_MODE_SKIP_UNUSED_TEXT]], [[]])");
++	out ("m4_define([[M4_HOOK_UNREAD_RULES]], [[");
++	for (i = 1; i <= num_rules; i++)
++		if (rule_no_action[i])
++			out_dec ("M4_HOOK_UNREAD_RULE(%d)", i);
++	outn ("]])");
++}
++
+ /* Generate the table for possible eol matches. */
+ static void geneoltbl (void)
+ {
+@@ -1017,6 +1042,8 @@ void make_tables (void)
+ 	comment("m4 controls end\n");
+ 	out ("\n");
+ 
++	genneedtext ();
++
+ 	if (ctrl.do_yylineno) {
+ 
+ 		geneoltbl ();
 diff --git a/src/main.c b/src/main.c
-index ef48e7a..13e2a81 100644
+index ef48e7a..866d8e0 100644
 --- a/src/main.c
 +++ b/src/main.c
-@@ -123,19 +123,14 @@ static const char tablesfile_template[] = "lex.%s.tables";
+@@ -100,6 +100,7 @@ jmp_buf flex_main_jmp_buf;
+ /* rule_useful[], rule_has_nl[] and ccl_has_nl[] are boolean arrays,
+  * but allocated as char arrays for size. */
+ char   *rule_useful, *rule_has_nl, *ccl_has_nl;
++char   *rule_no_action;
+ int     nlch = '\n';
+ 
+ bool    tablesext, tablesverify, gentables;
+@@ -123,19 +124,14 @@ static const char tablesfile_template[] = "lex.%s.tables";
  extern FILE* yyout;
  
  static char outfile_path[MAXLINE];
@@ -671,7 +791,7 @@ index ef48e7a..13e2a81 100644
  	int	did_eof_rule = false;
  
  	/* Set a longjmp target. Yes, I know it's a hack, but it gets worse: The
-@@ -146,23 +141,8 @@ int flex_main (int argc, char *argv[])
+@@ -146,23 +142,8 @@ int flex_main (int argc, char *argv[])
  	 * exit(n);
  	 */
  	exit_status = setjmp (flex_main_jmp_buf);
@@ -696,7 +816,7 @@ index ef48e7a..13e2a81 100644
  
  	flexinit (argc, argv);
  
-@@ -291,29 +271,29 @@ int main (int argc, char *argv[])
+@@ -291,29 +272,29 @@ int main (int argc, char *argv[])
  	return flex_main (argc, argv);
  }
  
@@ -742,7 +862,7 @@ index ef48e7a..13e2a81 100644
  void check_options (void)
  {
  	int     i;
-@@ -343,7 +323,14 @@ void check_options (void)
+@@ -343,7 +324,14 @@ void check_options (void)
  #endif
  
  	if (ctrl.csize == trit_unspecified) {
@@ -758,7 +878,7 @@ index ef48e7a..13e2a81 100644
  			ctrl.csize = DEFAULT_CSIZE;
  		else
  			ctrl.csize = CSIZE;
-@@ -356,7 +343,35 @@ void check_options (void)
+@@ -356,7 +344,35 @@ void check_options (void)
  			ctrl.interactive = trit_true;
  	}
  
@@ -794,7 +914,7 @@ index ef48e7a..13e2a81 100644
  		if (ctrl.usemecs)
  			flexerror (_
  				   ("-Cf/-CF and -Cm don't make sense together"));
-@@ -412,23 +427,17 @@ void check_options (void)
+@@ -412,23 +428,17 @@ void check_options (void)
  		}
  	}
  
@@ -827,7 +947,7 @@ index ef48e7a..13e2a81 100644
  }
  
  /* flexend - terminate flex
-@@ -458,19 +467,8 @@ void flexend (int exit_status)
+@@ -458,19 +468,8 @@ void flexend (int exit_status)
  				env.skelname);
  	}
  
@@ -849,7 +969,7 @@ index ef48e7a..13e2a81 100644
  
  
  	if (env.backing_up_report && ctrl.backing_up_file) {
-@@ -854,10 +852,6 @@ void flexinit (int argc, char **argv)
+@@ -854,10 +853,6 @@ void flexinit (int argc, char **argv)
  			ctrl.posix_compat = true;
  			break;
  
@@ -860,7 +980,7 @@ index ef48e7a..13e2a81 100644
  		    case OPT_MAIN:
  			ctrl.do_yywrap = false;
  			ctrl.do_main = trit_true;
-@@ -1186,6 +1180,12 @@ void flexinit (int argc, char **argv)
+@@ -1186,6 +1181,12 @@ void flexinit (int argc, char **argv)
  	 */
  	lastprot = 1;
  
@@ -873,7 +993,7 @@ index ef48e7a..13e2a81 100644
  	set_up_initial_allocations ();
  }
  
-@@ -1206,16 +1206,6 @@ void readin (void)
+@@ -1206,16 +1207,6 @@ void readin (void)
  	if (syntaxerror)
  		flexend (1);
  
@@ -890,7 +1010,7 @@ index ef48e7a..13e2a81 100644
  	yyout = stdout;
  
  	if (tablesext)
-@@ -1276,19 +1266,23 @@ void readin (void)
+@@ -1276,19 +1267,23 @@ void readin (void)
  	/* Place a bogus line directive, it will be fixed in the filter. */
  	line_directive_out(NULL, NULL, 0);
  
@@ -918,7 +1038,17 @@ index ef48e7a..13e2a81 100644
  	}
  
  	/* This has to be a straight textual substitution rather
-@@ -1598,6 +1592,11 @@ void readin (void)
+@@ -1515,6 +1510,9 @@ void readin (void)
+ 	if (ctrl.usemecs)
+ 		visible_define ( "M4_MODE_USEMECS");
+ 
++	if (ctrl.typed_tables)
++		visible_define ( "M4_MODE_TYPED_TABLES");
++
+ 	// mode switches for find-action code
+ 	if (ctrl.fullspd)
+ 		visible_define ( "M4_MODE_FULLSPD");
+@@ -1598,6 +1596,11 @@ void readin (void)
  	if (ctrl.bufsize != 0)
  	    visible_define_int("M4_MODE_YY_BUFSIZE", ctrl.bufsize);
  
@@ -930,11 +1060,41 @@ index ef48e7a..13e2a81 100644
  	if (ctrl.yyterminate != NULL)
  	    visible_define_str("M4_MODE_YYTERMINATE", ctrl.yyterminate);
  	
+@@ -1700,6 +1703,7 @@ void set_up_initial_allocations (void)
+ 	rule_linenum = allocate_integer_array (current_max_rules);
+ 	rule_useful = allocate_array(current_max_rules, sizeof(char));
+ 	rule_has_nl = allocate_array(current_max_rules, sizeof(char));
++	rule_no_action = allocate_array(current_max_rules, sizeof(char));
+ 
+ 	current_max_scs = INITIAL_MAX_SCS;
+ 	scset = allocate_integer_array (current_max_scs);
 diff --git a/src/misc.c b/src/misc.c
-index 68ce745..99216a7 100644
+index 68ce745..a3120ba 100644
 --- a/src/misc.c
 +++ b/src/misc.c
-@@ -132,15 +132,6 @@ unsigned char clower (int c)
+@@ -36,6 +36,21 @@
+ #include "tables.h"
+ 
+ /* Append "new_text" to the running buffer. */
++/* Action text as the grammar wrote it, rather than the scaffolding flex
++ * puts around it: a rule whose own text is only spacing and semicolons
++ * looks at nothing it matched.
++ */
++void note_rule_text (const char *text)
++{
++	const char *cp;
++
++	for (cp = text; *cp != '\0'; cp++)
++		if (!isspace ((unsigned char) *cp) && *cp != ';') {
++			rule_no_action[num_rules] = false;
++			return;
++		}
++}
++
+ void add_action (const char *new_text)
+ {
+ 	int     len = (int) strlen (new_text);
+@@ -132,15 +147,6 @@ unsigned char clower (int c)
  }
  
  
@@ -950,7 +1110,7 @@ index 68ce745..99216a7 100644
  
  
  /* cclcmp - compares two characters for use by qsort with '\0' sorting last. */
-@@ -246,15 +237,12 @@ void lerr_fatal (const char *msg, ...)
+@@ -246,15 +252,12 @@ void lerr_fatal (const char *msg, ...)
  
  
  /* line_directive_out - spit out a "#line" statement or equivalent */
@@ -968,7 +1128,7 @@ index 68ce745..99216a7 100644
  	s1 = (path != NULL) ? path : "M4_YY_OUTFILE_NAME";
  
  	if ((path != NULL) && !s1)
-@@ -273,11 +261,17 @@ void line_directive_out (FILE *output_file, char *path, int linenum)
+@@ -273,11 +276,17 @@ void line_directive_out (FILE *output_file, char *path, int linenum)
  
  	*s2 = '\0';
  
@@ -991,6 +1151,26 @@ index 68ce745..99216a7 100644
  
  	/* If output_file is nil then we should put the directive in
  	 * the accumulated actions.
+diff --git a/src/nfa.c b/src/nfa.c
+index 86a895d..6f7aa2c 100644
+--- a/src/nfa.c
++++ b/src/nfa.c
+@@ -693,6 +693,8 @@ void    new_rule (void)
+ 					current_max_rules, sizeof(char));
+ 		rule_has_nl = reallocate_array(rule_has_nl,
+ 					current_max_rules, sizeof(char));
++		rule_no_action = reallocate_array(rule_no_action,
++					current_max_rules, sizeof(char));
+ 	}
+ 
+ 	if (num_rules > MAX_RULE)
+@@ -701,4 +703,6 @@ void    new_rule (void)
+ 	rule_linenum[num_rules] = linenum;
+ 	rule_useful[num_rules] = false;
+ 	rule_has_nl[num_rules] = false;
++	/* Until the action says otherwise, which add_rule_action reports. */
++	rule_no_action[num_rules] = true;
+ }
 diff --git a/src/options.c b/src/options.c
 index 7be3000..b92a6d7 100644
 --- a/src/options.c
@@ -1016,6 +1196,79 @@ index a2d3786..913c17b 100644
  	OPT_READ,
  	OPT_REENTRANT,
  	OPT_REJECT,
+diff --git a/src/parse.y b/src/parse.y
+index 80e7f09..bff540e 100644
+--- a/src/parse.y
++++ b/src/parse.y
+@@ -139,6 +139,9 @@ goal		:  initlex sect1 sect1end sect2 initforrule
+ 
+ 			add_action("]]");
+ 
++			/* The default rule writes what it matched. */
++			rule_no_action[num_rules] = false;
++
+ 			if ( ctrl.spprdflt )
+ 				add_action(
+ 				"M4_HOOK_FATAL_ERROR(\"flex scanner jammed\")");
+diff --git a/src/scan.l b/src/scan.l
+index b65bd4c..d889c1b 100644
+--- a/src/scan.l
++++ b/src/scan.l
+@@ -49,7 +49,9 @@ extern const char *escaped_qstart, *escaped_qend;
+ #define ESCAPED_QSTART "[" M4QEND M4QSTART "[" M4QEND M4QSTART
+ #define ESCAPED_QEND M4QEND "]" M4QSTART M4QEND "]" M4QSTART
+ 
+-#define ACTION_ECHO add_action( yytext )
++#define ACTION_NOTE do { if (doing_rule_action) note_rule_text (yytext); \
++			   } while (0)
++#define ACTION_ECHO do { ACTION_NOTE; add_action (yytext); } while (0)
+ #define ACTION_ECHO_QSTART add_action (ESCAPED_QSTART)
+ #define ACTION_ECHO_QEND   add_action (ESCAPED_QEND)
+ 
+@@ -400,6 +402,7 @@ void context_member(char *, const char *);
+                 		ctrl.do_yywrap = false;
+ 			}
+ 	meta-ecs	ctrl.usemecs = option_sense;
++	typed-tables	ctrl.typed_tables = option_sense;
+ 	never-interactive	{
+ 			ctrl.never_interactive = option_sense;
+             		ctrl.interactive = (trit)!option_sense;
+@@ -924,6 +927,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+ 			CHECK_REJECT(yytext);
+         }
+ 		"yyreject"{OPTWS}"("{OPTWS}")" {
++			ACTION_NOTE;
+ 			add_action("]""]M4_HOOK_REJECT[""[");
+ 			CHECK_YYREJECT(yytext);
+         }
+@@ -956,23 +960,27 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+ 	"{"		ACTION_ECHO; ++bracelevel;
+ 	"}"		ACTION_ECHO; --bracelevel;
+ 	yyecho\(\)|yyinput\(\)|yystart\({FUNARGS}\)|yybegin\({FUNARGS}\)|yyunput\({FUNARGS}\)|yypanic\({FUNARGS}\)|yyatbol\(\)|yysetbol\({FUNARGS}\) {
++			ACTION_NOTE;
+ 			if (ctrl.rewrite)
+ 				context_call(yytext);
+ 			else
+ 				ACTION_ECHO;
+ 	}
+ 	yyterminate\(\)|yyless\({FUNARGS}\) {
++			ACTION_NOTE;
+ 			add_action("]""]");
+ 			add_action(yytext);
+ 			add_action("[""[");
+ 	}
+ 	(yyin|yyout|yyextra|yyleng|yytext|yyflexdebug)/[^[:alnum:]_] {
++			ACTION_NOTE;
+ 			if (ctrl.rewrite)
+ 				context_member(yytext, "M4_PROPERTY_CONTEXT_FORMAT");
+ 			else
+ 				ACTION_ECHO;
+ 	}
+ 	(yylineno|yycolumn)/[^[:alnum:]_] {
++			ACTION_NOTE;
+ 			if (ctrl.rewrite)
+ 				context_member(yytext, "M4_PROPERTY_BUFFERSTACK_CONTEXT_FORMAT");
+ 			else
 diff --git a/src/skeletons.c b/src/skeletons.c
 index afe592e..41fd199 100644
 --- a/src/skeletons.c

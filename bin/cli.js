@@ -12,6 +12,7 @@
 var fs = require('fs');
 var path = require('path');
 var childProcess = require('child_process');
+var os = require('os');
 
 var BINARIES = {
   'darwin-x64': 'flex-js-darwin-universal',
@@ -74,6 +75,13 @@ if (run.error) {
   fail(run.error.message);
 }
 
+/* A shell says a signal as 128 plus its number, and a caller that reads an
+ * interrupt as an ordinary failure carries on when it should stop.
+ */
+if (run.signal) {
+  process.exit(128 + (os.constants.signals[run.signal] || 0));
+}
+
 if (run.status !== 0) {
-  process.exit(run.status === null ? 1 : run.status);
+  process.exit(run.status);
 }

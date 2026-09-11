@@ -42,7 +42,13 @@ jobs:
       - name: Reuse the generator built for these patches
         uses: actions/cache@v4
         with:
-          path: build/flex
+          # m4 is linked into the generator and built before it, so leaving it
+          # out means fetching and building it again on every run - and then
+          # relinking flex against objects newer than the cached ones.
+          path: |
+            build/flex
+            build/m4
+            build/m4-*
           key: flex-${{ hashFiles('build.sh', 'patches/**') }}
 
       - run: npm ci

@@ -38,7 +38,7 @@ scanner on every platform.
 Write a grammar, `tokens.l`:
 
 ```
-%option noyywrap
+%option noyywrap typed-tables
 %%
 [0-9]+          return { kind: 'number', value: parseInt(yytext, 10) };
 [a-z]+          return { kind: 'word', value: yytext };
@@ -51,8 +51,14 @@ Write a grammar, `tokens.l`:
 Generate a scanner from it:
 
 ```sh
-npx flex-js --emit=javascript --header-file=tokens.d.ts -o tokens.js tokens.l
+npx flex-js --emit=javascript -Cfe --header-file=tokens.d.ts -o tokens.js tokens.l
 ```
+
+Those two are what to reach for unless you know otherwise: `-Cfe` is within
+noise of the quickest table mode at under a third of its size, and
+`%option typed-tables` is worth a seventh to a fifth more. It needs typed
+arrays, so leave it out for an engine older than about 2011. Both are measured
+under [Performance](#performance).
 
 `--header-file` is flex's own, the way a `.c` gets a `.h`; without it only
 `tokens.js` is written.
@@ -151,65 +157,73 @@ two, as it does everywhere in JavaScript.
 ## Performance
 
 `npm run bench`, best of 30 rounds, every engine building one object per token
-and having to return the same number of them. Each is driven the way its own
-interface allows: flex-js and moo answer one token per call, the way FLEX's
-`yylex()` does, and chevrotain and peggy take the whole input and loop inside.
-What each does to take on an input is timed with it, which for flex-js includes
-one pass to see whether the input holds anything above ASCII - 0.3 ms of the 7.4
-below. SQL, 491 KB and 123,000 tokens, on a MacBook Pro (M1 Max), macOS 26.6.2,
-Node 24.20.0:
+and returning the same number of them. flex-js and moo answer one token per
+call, the way FLEX's `yylex()` does; chevrotain and peggy take the whole input
+and loop inside. SQL, 491 KB and 123,000 tokens, MacBook Pro (M1 Max), macOS
+26.6.2, Node 24.20.0. `typed` is `%option typed-tables`, and a row with no table
+mode named is the one FLEX builds unasked. In bold is the pairing
+[A first scanner](#a-first-scanner) reaches for, quickest within noise at under
+a third of the size:
 
-| scanner                   | time       | peak memory | raw       | minified   | gzipped    | dependencies |
-| ------------------------- | ---------- | ----------- | --------- | ---------- | ---------- | ------------ |
-| flex-js 2, `-Cf`          | 7.4 ms     | ~100 MB     | 106 KB    | 54 KB      | 3.0 KB     | **none**     |
-| flex-js 2, `-7 -Cf`       | 7.7 ms     | ~100 MB     | 63 KB     | 29 KB      | 3.0 KB     | **none**     |
-| flex-js 2, `-Cfe`         | 7.8 ms     | ~100 MB     | 32 KB     | 12 KB      | 2.6 KB     | **none**     |
-| flex-js 2, default tables | 9.4 ms     | ~100 MB     | **23 KB** | **7.1 KB** | **2.4 KB** | **none**     |
-| chevrotain 13.2.0         | **7.3 ms** | 106 MB      | 240 KB    | 111 KB     | 30.5 KB    | 5 packages   |
-| flex-js 1.x               | 8.6 ms     | ~100 MB     | 37 KB     | 14 KB      | 4.8 KB     | none         |
-| moo 0.5.3                 | 15.6 ms    | 161 MB      | 18 KB     | 8.5 KB     | 3.2 KB     | none         |
-| peggy 5.1.0               | 50.2 ms    | 164 MB      | 20 KB     | 6 KB       | 2.4 KB     | none         |
+| scanner                     | time       | peak memory | raw       | minified  | gzipped    | dependencies |
+| --------------------------- | ---------- | ----------- | --------- | --------- | ---------- | ------------ |
+| flex-js 2, `-Cf` typed      | 6.6 ms     | ~110 MB     | 107 KB    | 54 KB     | 3.2 KB     | none         |
+| flex-js 2, `-7 -Cf` typed   | 6.6 ms     | ~110 MB     | 64 KB     | 29 KB     | 3.1 KB     | none         |
+| **flex-js 2, `-Cfe` typed** | **6.8 ms** | ~110 MB     | **33 KB** | **12 KB** | **2.7 KB** | none         |
+| chevrotain 13.2.0           | 7.3 ms     | 108 MB      | 240 KB    | 111 KB    | 30.5 KB    | 5 packages   |
+| flex-js 2, `-7 -Cf`         | 7.7 ms     | ~110 MB     | 64 KB     | 29 KB     | 3.1 KB     | none         |
+| flex-js 2, `-Cf`            | 7.8 ms     | ~110 MB     | 107 KB    | 54 KB     | 3.2 KB     | none         |
+| flex-js 2 typed             | 8.0 ms     | ~110 MB     | 24 KB     | 7.5 KB    | 2.5 KB     | none         |
+| flex-js 2, `-Cfe`           | 8.1 ms     | ~110 MB     | 33 KB     | 12 KB     | 2.7 KB     | none         |
+| flex-js 1.x                 | 8.9 ms     | 99 MB       | 37 KB     | 14 KB     | 4.8 KB     | none         |
+| flex-js 2                   | 9.8 ms     | ~110 MB     | 24 KB     | 7.4 KB    | 2.5 KB     | none         |
+| moo 0.5.3                   | 16.2 ms    | 163 MB      | 18 KB     | 8.5 KB    | 3.2 KB     | none         |
+| peggy 5.1.0                 | 51.2 ms    | 168 MB      | 20 KB     | 6 KB      | 2.4 KB     | none         |
 
-The size columns differ in kind: for flex-js and peggy they are the whole
-scanner, grammar included; for the rest, the library before your grammar.
-Minified with esbuild, gzipped with `gzip -9`. `FLEX_JS_TABLES` picks the table
-mode the benchmark generates with.
+The sizes are the whole scanner for flex-js and peggy, grammar included, and the
+library before your grammar for the rest. Minified with esbuild, gzipped with
+`gzip -9`. `FLEX_JS_TABLES` picks the mode the benchmark generates with.
 
-Peak memory moves about 15 MB between runs, since it depends on when the
-collector wakes; it separates these engines but says nothing about which table
-mode a scanner was built with. Time moves about half a millisecond, so the three
-full-table rows say nothing about each other either - only that the compressed
-default is slower than all three.
+Time moves about half a millisecond between runs and peak memory about 15 MB, so
+neighbouring rows say nothing about each other. What the table does say is that
+typed tables are worth more than the choice between the three full ones, and
+that compressed tables are slower than all of them.
 
-Speed on the other two grammars, same conditions:
+The other two grammars, same conditions, flex-js with `-Cf` and
+`%option typed-tables`:
 
 | scanner     | expression rules | keywords as strings |
 | ----------- | ---------------- | ------------------- |
-| flex-js 2   | **2.6 ms**       | 3.2 ms              |
-| chevrotain  | 2.7 ms           | **2.9 ms**          |
-| flex-js 1.x | 3.0 ms           | 3.4 ms              |
-| moo         | 5.6 ms           | 6.7 ms              |
-| peggy       | 13.2 ms          | 16.6 ms             |
+| flex-js 2   | **2.3 ms**       | **2.7 ms**          |
+| chevrotain  | 2.9 ms           | 3.1 ms              |
+| flex-js 1.x | 3.2 ms           | 3.6 ms              |
+| moo         | 5.8 ms           | 7.1 ms              |
+| peggy       | 14.1 ms          | 16.9 ms             |
 
-Ahead of chevrotain on one of the three, about a tenth behind on the others,
-under it on memory, a tenth of the bytes over the wire, no dependencies - while
-doing more work, since chevrotain stops at the first rule that matches and this
-takes the longest.
+Without the option those read 2.7 ms and 3.0 ms, still ahead of chevrotain but
+by less than the spread between runs.
 
-`-Cf` is the full transition table FLEX's manual asks for when speed is the
-point. It holds a column per byte, and covering UTF-8 means 256 of them, which
-is most of that 54 KB. `-Cfe` keeps the full table but indexes it by equivalence
-class, so bytes no rule tells apart share a column - 32 of them for this
-grammar - which is four times smaller and no slower. The default tables compress
-further again and cost about a quarter more.
+### The table modes
 
-`%option 7bit` halves a full table by dropping the bytes above ASCII. It buys
-size rather than speed - a narrower table is no quicker to read - and rules
-UTF-8 out; `-Cfe` gets smaller than that without giving up either, which is the
-reason to reach for it first.
+| mode     | what it holds                             | against `-Cf`              |
+| -------- | ----------------------------------------- | -------------------------- |
+| `-Cf`    | a column per byte, 256 to cover UTF-8     | -                          |
+| `-Cfe`   | a column per equivalence class, 32 here   | a third, within noise      |
+| `-7 -Cf` | ASCII only, and refuses anything above it | half, no UTF-8             |
+| none     | compressed, what FLEX builds unasked      | smallest, a quarter slower |
 
-The gap opens when the scanner feeds a parser instead of building objects: with
-[lemon-js](https://github.com/sormy/lemon-js), the 103 TPC-DS queries parse from
+`%option typed-tables` is what the `typed` rows above ask for. It holds the
+tables as numbers of one width rather than as arrays of them, and a full table
+as one run rather than a row per state. Nothing about the scanning or the size
+changes. It needs typed arrays, which are ES2015 where the rest of a generated
+scanner is ES5.
+
+Every row already leaves the text of a match unbuilt where the rule that matched
+reads none of it - a rule whose action is empty. That asks for no option, and is
+worth 3 to 10 percent on its own.
+
+With a parser rather than objects, the gap opens: with
+[lemon-js](https://github.com/sormy/lemon-js) the 103 TPC-DS queries parse from
 text in 2.8 ms against chevrotain's 9.2 ms.
 
 ## Documentation

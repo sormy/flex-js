@@ -102,6 +102,13 @@ of its stack.
 out of `lex()`; C reports it through its own panic, which exits the process.
 Neither goes on to change the start condition.
 
+## Reading the top of an empty start-condition stack
+
+`yy_top_state()` with nothing pushed answers the start condition in force. C
+reads the slot below its stack, which is whatever happens to be there and a
+crash where the stack was never allocated. Neither answer is useful; a rule that
+asks whether it is nested has to keep count itself, or push once at the start.
+
 ## yylineno inside a rule body
 
 `yylineno` can be read in a rule body but not set there: the scanner reads its
@@ -131,6 +138,50 @@ table, and a scanner built that way refuses input holding anything above ASCII
 instead of reading past the end of a row the way C does. `-Cfe` is smaller still
 and keeps UTF-8, so reach for 7bit only to halve a full table for input that can
 never be anything but ASCII - it is no quicker than the 8-bit one.
+
+## A rule cannot borrow the next rule's action
+
+```
+"a"   |
+"b"   return SAME;
+```
+
+FLEX takes that - `|` says "the action is the next rule's" - and the C back end
+it has always had still does. The back ends that reach their output through m4
+hooks do not: flex 2.6.4 quotes a continued rule's action unevenly, and the
+generator stops with `ERROR: end of file in string` having written nothing.
+
+It is not this back end's doing. `--emit=c99` and `--emit=go`, which are FLEX's
+own, fail on the same grammar in the same way; only the C back end that predates
+the hooks is unaffected. Until it is fixed upstream, write the action out twice
+or send both rules to one function.
+
+## A match no rule reads is not built
+
+A rule whose action is empty looks at nothing it matched, so the scanner does
+not spend a string on it. FLEX names those rules in the generated switch and
+`yytext` keeps whatever the rule before was handed - which the empty action
+never reads. It is worth 3 to 10 percent, and needs no option.
+
+Scanners that reach for the text behind an action's back keep the string every
+time: `REJECT`, `yymore()`, tracking `^`, `%option debug`, and code a grammar
+asks to run before or after every action with `%option pre-action` or
+`post-action`.
+
+C builds `yytext` unconditionally, which is only visible to a debugger stopped
+inside an empty action.
+
+## An option of this back end's own
+
+`%option typed-tables` holds the tables as numbers of one width rather than as
+arrays of them, and the full table as one run rather than a row per state, so
+the matcher reaches an entry with a single indexed load. The width is the one
+FLEX picked for the C table, `flex_int16_t` or `flex_int32_t`.
+
+Nothing about the scanning changes, and neither does the size of what is
+shipped. What changes is the floor a scanner runs on: typed arrays are ES2015
+where the rest of the generated code is ES5. That is why it is off unless a
+grammar asks for it. `%option notyped-tables` says so explicitly.
 
 ## Platforms
 

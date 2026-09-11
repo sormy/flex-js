@@ -100,6 +100,9 @@ test('and answers the same once compiled', { timeout: 180000 }, function () {
 /*
 ** Most of the skeleton is behind a mode switch, and TypeScript only checks
 ** what a grammar asks for, so this one asks for as much as it can at once.
+** %option debug is among them, which rules out the switch that skips the text
+** of a match no rule reads - so that, and the typed tables it used to come
+** with, are checked on their own below.
 */
 var EVERY_MODE = [
   '%option noyywrap yylineno stack debug',
@@ -262,6 +265,47 @@ test('every mode switch type-checks too', { timeout: 180000 }, function () {
     '--lib', 'es2020,dom', output]);
 
   assert.strictEqual(run.status, 0, run.stdout || run.stderr);
+});
+
+/* Typed tables and the switch that skips a match nothing reads are shapes
+ * TypeScript has to accept in every table mode, not just the default one.
+ */
+['', '-Cf', '-Cfe'].forEach(function (mode) {
+  test('typed tables type-check with ' + (mode || 'the default tables'),
+    { timeout: 180000 }, function () {
+      var name = 'typed' + mode.replace(/[^a-z0-9]+/g, '');
+      var source = path.join(directory, name + '.l');
+      var output = path.join(directory, name + '.ts');
+
+      fs.writeFileSync(source, [
+        '%{',
+        'function emit(kind: string, text: string) { console.log(kind + text); }',
+        '%}',
+        '%option noyywrap typed-tables',
+        '%%',
+        '[ \\t\\n]+        ;',
+        '[a-z]+           emit("word", yytext);',
+        '.                ;',
+        '%%',
+        'const scanner = new Scanner("ab cd");',
+        'scanner.lex();'
+      ].join('\n') + '\n');
+
+      var made = childProcess.spawnSync(GENERATOR,
+        ['--emit=typescript', '--noline'].concat(
+          mode ? mode.split(' ') : [], ['-o', output, source]),
+        { encoding: 'utf8' });
+      assert.strictEqual(made.status, 0, made.stderr);
+
+      var text = fs.readFileSync(output, 'utf8');
+      assert.match(text, /new Int\d+Array\(/, 'the tables are not typed');
+      assert.match(text, /switch \(yy_act\) \{\n\s*case 0: case 1: case 3: break;/,
+        'the rules that read nothing they matched are not named');
+
+      var run = tsc(['--strict', '--noEmit', '--target', 'es5',
+        '--lib', 'es2020,dom', output]);
+      assert.strictEqual(run.status, 0, run.stdout || run.stderr);
+    });
 });
 
 test('a compiled scanner answers the same with Buffer taken away',

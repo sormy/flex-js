@@ -108,13 +108,27 @@ m4_define([[M4_HOOK_ECHO]], [[yy_scanner.yy_echo(yytext);]])
 m4_define([[M4_HOOK_FATAL_ERROR]], [[yy_scanner.yy_fatal_error($1);]])
 
 m4_define([[M4_HOOK_RELEASE_YYTEXT]], [[]])
+%# Whether a rule looks at what it matched. Where flex worked out that some do
+%# not, it names them and the string is built for everything else; those rules
+%# are handed the one before, which they never read.
+%# Asked at expansion, since flex says which modes are on after this point.
+m4_define([[M4_HOOK_UNREAD_RULE]], [[case $1: ]])
+%# Rule 0 is not a rule: it is the backup arm, which picks a real one and comes
+%# back through here, so the string it would be handed is thrown away.
+m4_define([[M4_JS_TEXT_WHEN_READ]],
+  [[m4_ifdef([[M4_MODE_SKIP_UNUSED_TEXT]], [[switch (yy_act) {
+      case 0: M4_HOOK_UNREAD_RULES[[]]break;
+      default:
+      $1
+      }]], [[$1]])]])
+
 %# Taking yytext from a pair of positions. Written once and expanded in each
 %# place rather than called, because this is the per-token path.
 m4_define([[M4_GEN_JS_TAKE_TEXT]], [[m4_ifelse([[$2]], [[yy_cp]], [[]], [[yy_cp = $2;
       ]])yy_scanner.yy_c_buf_p = yy_cp;
-      yytext = yy_source.substring($1, yy_cp);
+      M4_JS_TEXT_WHEN_READ([[yytext = yy_source.substring($1, yy_cp);
       yytext = yy_scanner.yytext = yy_wide ? yy_utf8_decode(yytext) : yytext;
-      yyleng = yy_scanner.yyleng = yytext.length;]])
+      yyleng = yy_scanner.yyleng = yytext.length;]])]])
 
 m4_define([[M4_HOOK_TAKE_YYTEXT]], [[M4_GEN_JS_TAKE_TEXT(yy_bp - yy_more_len, yy_cp)]])
 
@@ -171,7 +185,7 @@ export interface M4_JS_EXPORT_NAME {
   yy_start: number;
   /** Scan until a rule returns something, or 0 at the end of the input. */
   lex(): unknown;
-  /** Scan input from its beginning, in the initial start condition. */
+  /** Scan input from its beginning. The start condition is left alone. */
   restart(source?: string | Uint8Array): M4_JS_EXPORT_NAME;
   /** The same, under the name FLEX gives it. */
   yy_scan_string(source: string | Uint8Array): M4_JS_EXPORT_NAME;
@@ -276,6 +290,22 @@ m4_define([[M4_GEN_JS_REJECT_CATCH]], [[]])
 m4_ifdef([[M4_MODE_USEECS]], [[m4_define([[M4_EC]], [[yy_ec[$1] ]])]])
 m4_ifdef([[M4_MODE_NO_USEECS]], [[m4_define([[M4_EC]], [[$1]])]])
 
+%# How a table of numbers is written: as one the engine holds at a fixed width,
+%# which is what %option typed-tables asks for and needs typed arrays to do, or
+%# as a plain array.
+m4_ifdef([[M4_MODE_TYPED_TABLES]],
+  [[m4_define([[M4_TABLE_OPEN]], [[new $1[[]]Array([ 0,]])m4_dnl
+m4_define([[M4_TABLE_SHUT]], [[]);]])]],
+  [[m4_define([[M4_TABLE_OPEN]], [[[ 0,]])m4_dnl
+m4_define([[M4_TABLE_SHUT]], [[];]])]])
+
+m4_ifdef([[M4_MODE_TYPED_TABLES]],
+  [[m4_define([[M4_NXT_AT]], [[$1 * M4_HOOK_NXT_ROWS + $2]])]],
+  [[m4_define([[M4_NXT_AT]], [[$1][$2]])]])
+m4_ifdef([[M4_MODE_TYPED_TABLES]],
+  [[m4_define([[M4_NXT_STATES]], [[yy_nxt.length / M4_HOOK_NXT_ROWS]])]],
+  [[m4_define([[M4_NXT_STATES]], [[yy_nxt.length]])]])
+
 m4_ifdef([[M4_MODE_DEBUG]],
   [[m4_define([[M4_MODE_DEBUG_INITIAL]], [[true]])]],
   [[m4_define([[M4_MODE_DEBUG_INITIAL]], [[false]])]])
@@ -305,7 +335,7 @@ m4_ifdef([[M4_MODE_FIND_ACTION_FULLTBL]], [[
 m4_define([[M4_GEN_JS_MATCH]], [[
       var yy_next = 0;
       while (yy_cp < yy_limit) {
-        yy_next = yy_nxt[yy_current_state][M4_EC(yy_source.charCodeAt(yy_cp))];
+        yy_next = yy_nxt[M4_NXT_AT(yy_current_state, M4_EC(yy_source.charCodeAt(yy_cp)))];
         if (yy_next <= 0) {
           break;
         }
@@ -472,72 +502,87 @@ m4_ifdef([[M4_MODE_DEBUG]], [[
 %% [2.0] payload macros for the DFA data tables are inserted here
 
 m4_ifdef( [[M4_HOOK_NXT_ROWS]],[[m4_dnl
+m4_ifdef([[M4_MODE_TYPED_TABLES]], [[m4_dnl
+m4_define([[M4_HOOK_TABLE_OPENER]], [[]])m4_dnl
+m4_define([[M4_HOOK_TABLE_CONTINUE]], [[,]])m4_dnl
+m4_define([[M4_HOOK_TABLE_CLOSER]], [[]])m4_dnl
+var yy_nxt = new M4_HOOK_NXT_TYPE[[]]Array([
+M4_HOOK_NXT_BODY
+]);
+]], [[m4_dnl
 var yy_nxt: number[][] =
 M4_HOOK_NXT_BODY
+]])m4_dnl
 ]])
 
 m4_ifdef( [[M4_HOOK_NEED_ACCEPT]],[[m4_dnl
+m4_ifdef([[M4_MODE_TYPED_TABLES]], [[m4_dnl
+var yy_accept = new M4_HOOK_ACCEPT_TYPE[[]]Array([ 0,
+M4_HOOK_ACCEPT_BODY[[]]m4_dnl
+]);
+]], [[m4_dnl
 var yy_accept: number[] = [ 0,
 M4_HOOK_ACCEPT_BODY[[]]m4_dnl
 ];
+]])m4_dnl
 ]])
 
 m4_ifdef( [[M4_MODE_USEECS]],[[m4_dnl
 /* Character equivalence-class mapping */
-var yy_ec: number[] = [ 0,
+var yy_ec = M4_TABLE_OPEN(M4_HOOK_INT16)
 M4_HOOK_ECSTABLE_BODY[[]]m4_dnl
-];
+M4_TABLE_SHUT
 ]])
 
 m4_ifdef( [[M4_MODE_USEMECS]],[[m4_dnl
 /* Character meta-equivalence-class mapping */
-var yy_meta: number[] = [ 0,
+var yy_meta = M4_TABLE_OPEN(M4_HOOK_INT16)
 M4_HOOK_MECSTABLE_BODY[[]]m4_dnl
-];
+M4_TABLE_SHUT
 ]])
 
 m4_ifdef( [[M4_HOOK_NULTRANS_SIZE]],[[m4_dnl
 /* Where a NUL leads, which the table columns do not cover. */
-var yy_NUL_trans: number[] = [ 0,
+var yy_NUL_trans = M4_TABLE_OPEN(M4_HOOK_NULTRANS_TYPE)
 M4_HOOK_NULTRANS_BODY[[]]m4_dnl
-];
+M4_TABLE_SHUT
 ]])
 
 m4_ifdef( [[M4_HOOK_ACCLIST_TYPE]],[[m4_dnl
-var yy_acclist: number[] = [ 0,
+var yy_acclist = M4_TABLE_OPEN(M4_HOOK_ACCLIST_TYPE)
 M4_HOOK_ACCLIST_BODY[[]]m4_dnl
-];
+M4_TABLE_SHUT
 ]])
 
 m4_ifdef( [[M4_HOOK_BASE_TYPE]],[[m4_dnl
-var yy_base: number[] = [ 0,
+var yy_base = M4_TABLE_OPEN(M4_HOOK_BASE_TYPE)
 M4_HOOK_BASE_BODY[[]]m4_dnl
-];
+M4_TABLE_SHUT
 ]])
 
 m4_ifdef( [[M4_HOOK_DEF_TYPE]],[[m4_dnl
-var yy_def: number[] = [ 0,
+var yy_def = M4_TABLE_OPEN(M4_HOOK_DEF_TYPE)
 M4_HOOK_DEF_BODY[[]]m4_dnl
-];
+M4_TABLE_SHUT
 ]])
 
 m4_ifdef( [[M4_HOOK_YYNXT_TYPE]],[[m4_dnl
-var yy_nxt: number[] = [ 0,
+var yy_nxt = M4_TABLE_OPEN(M4_HOOK_YYNXT_TYPE)
 M4_HOOK_YYNXT_BODY[[]]m4_dnl
-];
+M4_TABLE_SHUT
 ]])
 
 m4_ifdef( [[M4_HOOK_CHK_TYPE]],[[m4_dnl
-var yy_chk: number[] = [ 0,
+var yy_chk = M4_TABLE_OPEN(M4_HOOK_CHK_TYPE)
 M4_HOOK_CHK_BODY[[]]m4_dnl
-];
+M4_TABLE_SHUT
 ]])
 
 m4_ifdef( [[M4_MODE_YYLINENO]],[[m4_dnl
 /* True where the rule could match an end of line. */
-var yy_rule_can_match_eol: number[] = [ 0,
+var yy_rule_can_match_eol = M4_TABLE_OPEN(M4_HOOK_EOLTABLE_TYPE)
 M4_HOOK_EOLTABLE_BODY[[]]m4_dnl
-];
+M4_TABLE_SHUT
 ]])
 
 m4_ifdef( [[M4_MODE_DEBUG]],[[m4_dnl
@@ -561,17 +606,18 @@ yy_ec[0] = YY_NUL_EC;
 %# NUL already indexes leaves the loop a plain lookup.
 m4_ifdef([[M4_MODE_NULTRANS]], [[
 (function () {
-  for (var yy_state = 0; yy_state < yy_nxt.length; yy_state++) {
+  for (var yy_state = 0; yy_state < M4_NXT_STATES; yy_state++) {
     var yy_to = yy_NUL_trans[yy_state];
 
-    yy_nxt[yy_state][M4_EC(0)] = yy_to > 0 ? yy_to : -yy_state;
+    yy_nxt[M4_NXT_AT(yy_state, M4_EC(0))] = yy_to > 0 ? yy_to : -yy_state;
   }
 }());
 ]])
 m4_ifdef([[M4_MODE_NULTRANS_FULLTBL]], [[
 (function () {
-  for (var yy_state = 0; yy_state < yy_nxt.length; yy_state++) {
-    yy_nxt[yy_state][M4_EC(0)] = yy_nxt[yy_state][YY_NUL_EC];
+  for (var yy_state = 0; yy_state < M4_NXT_STATES; yy_state++) {
+    yy_nxt[M4_NXT_AT(yy_state, M4_EC(0))] =
+      yy_nxt[M4_NXT_AT(yy_state, YY_NUL_EC)];
   }
 }());
 ]])
@@ -758,7 +804,7 @@ m4_ifdef([[YY_USER_INIT]], [[  this.yy_init = false;
   this.restart(source);
 }
 
-/** Scan a string, from its beginning, in the initial start condition. */
+/** Scan a string, from its beginning. The start condition is left alone. */
 YYScanner.prototype.restart = function (this: ScannerState, source?: string | Uint8Array) {
   /* Pure ASCII needs no decoding, which is the common case and the fast one:
    * asking here answers it, where the encoder would have asked again. Text
@@ -945,6 +991,11 @@ YYScanner.prototype.yy_pop_state = function (this: ScannerState) {
   var depth = this.yy_start_stack.length;
   if (!depth) {
     this.yy_fatal_error('start-condition stack underflow');
+    /* Looks unreachable, and is until a caller replaces yy_fatal_error with
+     * one that returns, which docs/scanner.md says it may. yy_less_to takes
+     * the same care.
+     */
+    return this;
   }
   this.yy_start = this.yy_start_stack[depth - 1];
   this.yy_start_stack.length = depth - 1;

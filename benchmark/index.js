@@ -53,13 +53,36 @@ process.on('exit', function () {
   fs.rmSync(directory, { recursive: true, force: true });
 });
 
-/** Generates a scanner from one of the grammars beside this file. */
-function generated(name) {
-  var output = path.join(directory, name + '.js');
+/**
+ * Generates a scanner from one of the grammars beside this file. Options are
+ * written into the grammar rather than given on the command line, since that
+ * is where flex takes them.
+ */
+function generated(name, options) {
+  /* A name, not a summary of one: two option strings that differ only in
+   * their digits would otherwise share a file, and the second require()
+   * would hand back the first scanner out of the module cache.
+   */
+  var suffix = options ? '-' + options.replace(/[^a-z0-9]+/g, '-') : '';
+  var output = path.join(directory, name + suffix + '.js');
+  var grammar = path.join(__dirname, name + '.l');
+
+  if (options) {
+    var written = path.join(directory, name + suffix + '.l');
+
+    fs.writeFileSync(written,
+      '%option ' + options + '\n' + fs.readFileSync(grammar, 'utf8'));
+    grammar = written;
+  }
+
   var run = childProcess.spawnSync(GENERATOR,
     ['--emit=javascript'].concat(TABLES,
-      ['--noline', '-o', output, path.join(__dirname, name + '.l')]),
+      ['--noline', '-o', output, grammar]),
     { encoding: 'utf8' });
+
+  if (run.error) {
+    throw new Error('running ' + GENERATOR + ' failed: ' + run.error.message);
+  }
 
   if (run.status !== 0) {
     throw new Error('generating ' + name + ' failed: ' + run.stderr);
@@ -233,8 +256,7 @@ var WORKLOADS = [
   }
 ];
 
-function generatedRunner(workload) {
-  var Scanner = generated(workload.grammar);
+function scannerRunner(Scanner, workload) {
   /* Built empty: the round below takes the input, and taking it twice would
    * pay for a pass over the corpus that nothing measures.
    */
@@ -248,6 +270,14 @@ function generatedRunner(workload) {
     }
     return tokens.length;
   };
+}
+
+function generatedRunner(workload) {
+  return scannerRunner(generated(workload.grammar), workload);
+}
+
+function typedRunner(workload) {
+  return scannerRunner(generated(workload.grammar, 'typed-tables'), workload);
 }
 
 function legacyRunner(workload) {
@@ -304,6 +334,7 @@ function chevrotainRunner(workload) {
 function candidates(workload) {
   return [
     ['flex-js 2', true, generatedRunner],
+    ['flex-js 2 typed', true, typedRunner],
     ['flex-js 1.x', LegacyLexer, legacyRunner],
     ['moo', moo, mooRunner],
     ['peggy', peggy && PEGGY[workload.name], peggyRunner],

@@ -2,6 +2,7 @@
 
 var test = require('node:test');
 var assert = require('node:assert');
+var fs = require('fs');
 var helper = require('./helper.js');
 
 test('takes the longest match', function () {
@@ -108,4 +109,152 @@ test('the fast-scanner tables have no matcher here, so they are refused', functi
       ].join('\n'), { args: [option] });
     }, /-F\/-CF is not supported/, option + ' was not refused');
   });
+});
+
+/* The tables are the same automaton either way they are held, so the option
+ * only has to leave the matching alone. Full and compressed both, since they
+ * index the table differently.
+ */
+['-Cf', '-Cfe', '-Cm', ''].forEach(function (tables) {
+  test('typed tables scan the same as untyped ones' +
+    (tables ? ' with ' + tables : ' with the default tables'), function () {
+    var rules = [
+      '%%',
+      '"<="       return "le";',
+      '"<"        return "lt";',
+      '[0-9]+     return "int";',
+      '[a-z]+     return "word";',
+      '[ \\t\\n]+   ;',
+      '.          return "other";',
+      '%%'
+    ];
+    var input = 'ab <= 12 < c9 ?\n x';
+    var args = tables ? [tables] : [];
+
+    function scanned(options) {
+      return helper.lexAll(helper.build(
+        ['%option noyywrap' + options].concat(rules).join('\n'),
+        { args: args }).Scanner, input);
+    }
+
+    var untyped = scanned('');
+
+    assert.deepStrictEqual(scanned(' typed-tables'), untyped);
+    assert.ok(untyped.length > 0, 'the grammar matched nothing');
+  });
+});
+
+test('typed tables are the numbers flex sized them for', function () {
+  var built = helper.build([
+    '%option noyywrap typed-tables',
+    '%%',
+    '[a-z]+   return "word";',
+    '.|\\n     ;',
+    '%%'
+  ].join('\n'), { args: ['-Cf'] });
+  var source = fs.readFileSync(built.path, 'utf8');
+
+  assert.match(source, /var yy_nxt = new Int(16|32)Array\(\[/);
+  assert.match(source, /yy_nxt\[yy_current_state \* [0-9]+ \+/);
+});
+
+/* An empty action reads nothing it matched, so the string is not built for it.
+ * These are the ways something else reads that string anyway, behind the
+ * action's back, and each has to keep working.
+ */
+[
+  ['a plain grammar', [
+    '"a"        return "a";',
+    '[b-z]+     return "word";',
+    '[ \\t\\n]+   ;'
+  ], 'a bb a  c'],
+  ['^ rules, which read the text to track it', [
+    '^"a"       return "bol";',
+    '"a"        return "a";',
+    '[b-z]+     return "word";',
+    '[ \\t\\n]+   ;'
+  ], 'a b\na c'],
+  ['REJECT, which runs a rule again', [
+    '"ab"       { REJECT; }',
+    '"a"        return "a";',
+    '[a-z]      return "one";',
+    '[ \\t\\n]+   ;'
+  ], 'ab a b'],
+  ['yymore, which keeps the text for the next match', [
+    '"a"        { yymore(); }',
+    '"b"        return yytext;',
+    '[ \\t\\n]+   ;'
+  ], 'ab b']
+].forEach(function (grammar) {
+  test('an unread match is not missed with ' + grammar[0], function () {
+    function scanned(options) {
+      /* REJECT is not allowed with a full table, so that one asks for none. */
+      var args = grammar[1].join('').indexOf('REJECT') === -1 ? ['-Cf'] : [];
+
+      return helper.lexAll(helper.build(
+        ['%option noyywrap' + options, '%%']
+          .concat(grammar[1], ['%%']).join('\n'),
+        { args: args }).Scanner, grammar[2]);
+    }
+
+    assert.deepStrictEqual(scanned(' typed-tables'), scanned(''));
+  });
+});
+
+/* Vanilla defaults as well, since naming the rules costs nothing a table of
+ * numbers would have to earn back.
+ */
+[[], ['-Cf']].forEach(function (args) {
+  test('a rule that reads nothing it matched is named apart from one that does'
+    + (args.length ? ' with ' + args.join(' ') : ''), function () {
+    var built = helper.build([
+      '%option noyywrap',
+      '%%',
+      '[a-z]+     return "word";',
+      '[ \\t\\n]+   ;',
+      '%%'
+    ].join('\n'), { args: args });
+    var source = fs.readFileSync(built.path, 'utf8');
+    var named = source.match(/switch \(yy_act\) \{\n\s*((?:case \d+: )+)break;/);
+
+    assert.ok(named, 'no switch naming the rules that read nothing');
+    /* 0 is the backup arm rather than a rule: it picks a real one and comes
+     * back through here, so the string it would be handed is thrown away.
+     */
+    assert.deepStrictEqual(named[1].match(/\d+/g), ['0', '2'],
+      'only the spacing rule is left without the text it matched');
+  });
+});
+
+/* Code a grammar asks to run before or after every action reads the match the
+ * same way an action does, without being one.
+ */
+/* post-action stands in for the break that ends a case, so it writes one, and
+ * only rules that reach a break run it - here the spacing rule and no other.
+ */
+[['pre-action', '', '[ab][ ][cd]'],
+  ['post-action', ' break;', '[ ]']].forEach(function (which) {
+  test(which[0] + ' sees the match of a rule whose own action is empty',
+    function () {
+      function echoed(options) {
+        var built = helper.build([
+          '%option noyywrap' + options,
+          '%option ' + which[0] + '="yy_scanner.yy_echo(\'[\' + yytext + \']\');'
+            + which[1] + '"',
+          '%%',
+          '[a-z]+     return "word";',
+          '[ \\t\\n]+   ;',
+          '%%'
+        ].join('\n'), { args: ['-Cf'] });
+        var written = [];
+        var scanner = new built.Scanner('ab cd');
+
+        scanner.yyout = { write: function (text) { written.push(text); } };
+        while (scanner.lex() !== 0) { /* the echo is what is being read */ }
+        return written.join('');
+      }
+
+      assert.strictEqual(echoed(' typed-tables'), echoed(''));
+      assert.strictEqual(echoed(''), which[2]);
+    });
 });

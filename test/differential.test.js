@@ -130,13 +130,15 @@ function show(input) {
 }
 
 /** Runs both scanners over every input and returns their traces. */
-function compare(options, rules, inputs, extra) {
+function compare(options, rules, inputs, extra, typed) {
   var name = 'case' + (++counter);
   var args = extra || [];
+  /* Only this back end has the option, so only this side is asked for it. */
+  var jsOptions = spell(options, true) + (typed ? '\n%option typed-tables' : '');
 
   var cFile = generate(name + 'c', spell(options, false), spell(rules, false),
     C_PROLOGUE, C_DRIVER, args);
-  var jsFile = generate(name + 'js', spell(options, true), spell(rules, true),
+  var jsFile = generate(name + 'js', jsOptions, spell(rules, true),
     JS_PROLOGUE, JS_DRIVER, args.concat(['--emit=javascript']));
 
   var binary = path.join(directory, name);
@@ -169,6 +171,15 @@ function compare(options, rules, inputs, extra) {
 */
 var TABLE_MODES = [[], ['-C'], ['-Cm'], ['-Cf'], ['-Cfe']];
 
+/*
+** %option typed-tables changes what the scanner holds its tables in, so it has
+** to be answered for against C too. Three shapes matter: a compressed table, a
+** full one, and a full one over equivalence classes, where the flat index has
+** to land inside its own row and NUL's column is folded onto 0. Crossing it
+** with every mode would double the slowest test here and say nothing more.
+*/
+var TYPED_MODES = ['', '-Cf', '-Cfe'];
+
 function agree(options, rules, inputs, extra) {
   TABLE_MODES.forEach(function (mode) {
     var fullTable = mode.indexOf('-Cf') !== -1 || mode.indexOf('-Cfe') !== -1;
@@ -188,13 +199,19 @@ function agree(options, rules, inputs, extra) {
 
     // -8 so the C scanner covers the same bytes this one always does
     var args = ['-8'].concat(extra || []).concat(mode);
-    compare(options, rules, inputs, args).forEach(function (result) {
-      assert.strictEqual(result.cError, '', result.cError);
-      assert.strictEqual(result.jsError, '', result.jsError);
-      assert.strictEqual(result.js, result.c,
-        'disagreed on ' + show(result.input) +
-        ' with ' + (args.length ? args.join(' ') : 'the default tables') +
-        (result.jsError ? '\nJavaScript wrote: ' + result.jsError : ''));
+    var ways = TYPED_MODES.indexOf(mode.join(' ')) === -1
+      ? [false] : [false, true];
+
+    ways.forEach(function (typed) {
+      compare(options, rules, inputs, args, typed).forEach(function (result) {
+        assert.strictEqual(result.cError, '', result.cError);
+        assert.strictEqual(result.jsError, '', result.jsError);
+        assert.strictEqual(result.js, result.c,
+          'disagreed on ' + show(result.input) +
+          ' with ' + (args.length ? args.join(' ') : 'the default tables') +
+          (typed ? ' and typed tables' : '') +
+          (result.jsError ? '\nJavaScript wrote: ' + result.jsError : ''));
+      });
     });
   });
 }
