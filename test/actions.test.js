@@ -41,6 +41,23 @@ test('yymore accumulates over several matches', function () {
   assert.deepStrictEqual(helper.lexAll(built.Scanner, 'abc.'), ['abc.']);
 });
 
+/* Giving back more than has been read moves the whole input forward, so there
+ * is no room in front of the cursor for a yymore() carry to survive. FLEX
+ * reports the last byte of the new match instead; neither keeps the carry.
+ * docs/differences.md says so under what a rule body sees after unput.
+ */
+test('a give-back longer than the match drops a yymore carry', function () {
+  var built = helper.build([
+    '%option noyywrap',
+    '%%',
+    '"@"           { yymore(); unput("abc"); }',
+    '[@a-z]+       return yytext;',
+    '%%'
+  ].join('\n'));
+
+  assert.deepStrictEqual(helper.lexAll(built.Scanner, '@'), ['abc']);
+});
+
 test('yyless returns all but the first characters to the input', function () {
   var built = helper.build([
     '%option noyywrap',
@@ -225,6 +242,8 @@ test('a name that is not FLEX\'s is left alone', function () {
     'function echo() { return "echo"; }',
     'function Reject() { return "Reject"; }',
     'var obj = { ECHO: function () { return "member"; }, REJECT: "prop" };',
+    'function Yy_start() { return "Yy_start"; }',
+    'function Yy_at_bol() { return "Yy_at_bol"; }',
     '%}',
     '%option noyywrap',
     '%%',
@@ -233,10 +252,12 @@ test('a name that is not FLEX\'s is left alone', function () {
     '"c"      { return Reject(); }',
     '"d"      { return obj.ECHO(); }',
     '"e"      { return obj.REJECT; }',
+    '"f"      { return Yy_start(); }',
+    '"g"      { return Yy_at_bol(); }',
     '.|\\n     ;',
     '%%'
   ].join('\n'));
 
-  assert.deepStrictEqual(helper.lexAll(built.Scanner, 'abcde'),
-    ['Echo', 'echo', 'Reject', 'member', 'prop']);
+  assert.deepStrictEqual(helper.lexAll(built.Scanner, 'abcdefg'),
+    ['Echo', 'echo', 'Reject', 'member', 'prop', 'Yy_start', 'Yy_at_bol']);
 });

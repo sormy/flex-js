@@ -460,6 +460,29 @@ test('a header it cannot create leaves no scanner behind', function () {
     });
   });
 
+/* The names the back end writes beside the start conditions. A function in the
+ * same scope shadows the constant, so BEGIN(input) reached the function and the
+ * start condition came out NaN - one wrong token, then a fatal error.
+ */
+['BEGIN', 'ECHO', 'REJECT', 'input', 'unput'].forEach(function (name) {
+  test('a start condition named ' + name + ' is refused', function () {
+    var source = grammar([
+      '%option noyywrap',
+      '%x ' + name,
+      '%%',
+      '[a-z]+   { return 1; }',
+      ''
+    ].join('\n'));
+    var output = path.join(directory, 'bound' + name + '.js');
+    var made = run(['--emit=javascript', '--noline', '-o', output, source]);
+
+    assert.notStrictEqual(made.status, 0, name + ' was accepted');
+    assert.match(made.stderr, /binds that name/);
+    assert.strictEqual(fs.existsSync(output), false,
+      'a scanner was written anyway');
+  });
+});
+
 /* Loaded and run, not just generated: a name that breaks a scanner generates
  * perfectly well, so exit 0 says nothing on its own.
  */

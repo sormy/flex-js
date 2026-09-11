@@ -90,7 +90,7 @@ m4_define([[M4_HOOK_EOF_STATE_CASE_ARM]], [[    case YY_STATE_EOF($1):]])
 m4_define([[M4_HOOK_EOF_STATE_CASE_FALLTHROUGH]], [[/* fallthrough */]])
 m4_define([[M4_HOOK_EOF_STATE_CASE_TERMINATE]], [[yyterminate();
 ]])
-m4_define([[M4_HOOK_ECHO]], [[yy_scanner.yy_echo(yytext);]])
+m4_define([[M4_HOOK_ECHO]], [[ECHO()]])
 %# flex spells REJECT yyreject() for a back end of its own, and hands the
 %# spelling here rather than writing one.
 m4_define([[M4_HOOK_REJECT]], [[REJECT()]])

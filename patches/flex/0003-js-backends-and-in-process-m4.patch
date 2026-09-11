@@ -1368,7 +1368,7 @@ index 80e7f09..776769c 100644
  
  
 diff --git a/src/scan.l b/src/scan.l
-index f2c6ae8..38fd8a8 100644
+index f2c6ae8..3e61b28 100644
 --- a/src/scan.l
 +++ b/src/scan.l
 @@ -49,7 +49,9 @@ extern const char *escaped_qstart, *escaped_qend;
@@ -1391,7 +1391,7 @@ index f2c6ae8..38fd8a8 100644
  	never-interactive	{
  			ctrl.never_interactive = option_sense;
              		ctrl.interactive = (trit)!option_sense;
-@@ -923,11 +927,94 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -923,11 +927,98 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
  	<ACTION>"/*"		ACTION_ECHO; yy_push_state( CODE_COMMENT );
  
  	<CODEBLOCK,ACTION>{
@@ -1403,12 +1403,16 @@ index f2c6ae8..38fd8a8 100644
  			ACTION_ECHO;
 +        }
 +		"yy_start"{OPTWS}"("{OPTWS}")"|"yy_at_bol"{OPTWS}"("{OPTWS}")" {
-+			if (ctrl.rewrite && isupper((unsigned char) yytext[0])) {
++			/* The one spelling, as the arm below: a capital alone
++			   would take a grammar's own Yy_start() with it. */
++			if (ctrl.rewrite && strncmp (yytext, "YY_START", 8) == 0) {
 +				ACTION_NOTE;
-+				if (yytext[3] == 'S' || yytext[3] == 's')
-+					add_action("]""]M4_HOOK_YY_START[""[");
-+				else
-+					add_action("]""]M4_HOOK_YY_AT_BOL[""[");
++				add_action("]""]M4_HOOK_YY_START[""[");
++			}
++			else if (ctrl.rewrite
++				 && strncmp (yytext, "YY_AT_BOL", 9) == 0) {
++				ACTION_NOTE;
++				add_action("]""]M4_HOOK_YY_AT_BOL[""[");
 +			}
 +			else
 +				ACTION_ECHO;
@@ -1487,7 +1491,7 @@ index f2c6ae8..38fd8a8 100644
  			add_action("]""]M4_HOOK_REJECT[""[");
  			/* The name, not the match: yytext carries the parentheses
  			   too, and all_lower turns them down, so REJECT was never
-@@ -952,6 +1039,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -952,6 +1043,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
                  add_action( "\t]""]M4_HOOK_STATE_CASE_BREAK\n" );
  
              doing_rule_action = doing_codeblock = false;
@@ -1495,7 +1499,7 @@ index f2c6ae8..38fd8a8 100644
              BEGIN(SECT2);
          }
      }
-@@ -963,23 +1051,27 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -963,23 +1055,27 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
  	"{"		ACTION_ECHO; ++bracelevel;
  	"}"		ACTION_ECHO; --bracelevel;
  	yyecho\(\)|yyinput\(\)|yystart\({FUNARGS}\)|yybegin\({FUNARGS}\)|yyunput\({FUNARGS}\)|yypanic\({FUNARGS}\)|yyatbol\(\)|yysetbol\({FUNARGS}\) {
@@ -1523,7 +1527,7 @@ index f2c6ae8..38fd8a8 100644
  			if (ctrl.rewrite)
  				context_member(yytext, "M4_PROPERTY_BUFFERSTACK_CONTEXT_FORMAT");
  			else
-@@ -998,6 +1090,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -998,6 +1094,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
                        add_action( "\t]""]M4_HOOK_STATE_CASE_BREAK\n" );
  
                     doing_rule_action = false;
@@ -1575,10 +1579,25 @@ index afe592e..f395437 100644
  }
  
 diff --git a/src/sym.c b/src/sym.c
-index b96ba2e..8664566 100644
+index b96ba2e..0f4ac7d 100644
 --- a/src/sym.c
 +++ b/src/sym.c
-@@ -215,6 +215,15 @@ void    scinstal (const char *str, bool sc_is_exclusive)
+@@ -211,10 +211,37 @@ void    scextend (void)
+ 
+ void    scinstal (const char *str, bool sc_is_exclusive)
+ {
++	/* skel_property answers into a shared buffer, so ask it the once. */
++	bool	binds = skel_property ("M4_PROPERTY_PREFIX_NAMES_A_BINDING") != NULL;
++	int	i;
++
++	/* The names the back end writes beside the start conditions.  A start
++	   condition is a constant there, and one of these is a function in the
++	   same scope, so the function wins and BEGIN() reaches it instead of a
++	   number.  */
++	static const char *const bound[] = {
++		"BEGIN", "ECHO", "REJECT", "input", "unput", NULL
++	};
+ 
  	if (++lastsc >= current_max_scs)
  		scextend ();
  
@@ -1586,10 +1605,17 @@ index b96ba2e..8664566 100644
 +	   scanner out of it - and a back end that turns a start condition into a
 +	   binding would let one of those quietly take over its own.  Anything
 +	   else a grammar names is its own business, as it is in C.  */
-+	if (skel_property ("M4_PROPERTY_PREFIX_NAMES_A_BINDING") != NULL
++	if (binds
 +	    && (strncmp (str, "yy", 2) == 0 || strncmp (str, "YY", 2) == 0))
 +		format_synerr (
 +			_("start condition %s: yy and YY are flex's own"), str);
++
++	if (binds)
++		for (i = 0; bound[i] != NULL; i++)
++			if (strcmp (str, bound[i]) == 0)
++				format_synerr (
++					_("start condition %s: the scanner binds that name"),
++					str);
 +
  	if (addsym(str, NULL, lastsc, sctbl, START_COND_HASH_SIZE)) {
  		format_pinpoint_message (

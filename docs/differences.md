@@ -86,6 +86,13 @@ moved, and answers differently here. FLEX either faults on it, reporting "end of
 buffer missed", or reads a byte twice, so neither says what it should mean. Do
 one or the other in a rule, not both.
 
+A give-back longer than what has been read moves the whole input forward, and a
+`yymore()` carry from the same rule body does not survive it: `yytext` is the
+new match alone. FLEX reports only the last byte of that match, because the
+give-back leaves the length it measures for the carry negative. Neither keeps
+the carry, so do not put back more than the match holds and expect `yymore()` to
+reach past it.
+
 `input()` hands back the byte itself for anything that cannot begin a character,
 which is what C does, where `yytext` would show U+FFFD for the same byte. It
 answers `''` at the end of the input. The C scanner asks `yywrap()` first and
@@ -175,10 +182,14 @@ Since flex is a machine over the 256 byte values, a C grammar that reads UTF-8
 spells the shape of a character out for itself:
 
 ```
-UTF8    [\x20-\x7f]|[\xc2-\xdf][\x80-\xbf]|[\xe0-\xef][\x80-\xbf]{2}|[\xf0-\xf4][\x80-\xbf]{3}
+UTF8    [\x20-\x7f]|[\xc2-\xdf][\x80-\xbf]|\xe0[\xa0-\xbf][\x80-\xbf]|[\xe1-\xec][\x80-\xbf]{2}|\xed[\x80-\x9f][\x80-\xbf]|[\xee-\xef][\x80-\xbf]{2}|\xf0[\x90-\xbf][\x80-\xbf]{2}|[\xf1-\xf3][\x80-\xbf]{3}|\xf4[\x80-\x8f][\x80-\xbf]{2}
 ```
 
-Here `.` compiles to that shape, so a grammar does not have to. The machine
+The lead byte decides which continuations may follow it, which is what keeps an
+overlong encoding, half a surrogate pair and anything past U+10FFFF from being
+one character. Here `.` compiles to that shape, so a grammar does not have to,
+over every byte rather than from `\x20` up: NUL and the control bytes are
+characters too, and `\n` is the only one `.` leaves out, as in C. The machine
 underneath is the same one - bytes all the way down, which is how every fast
 engine does Unicode - and only the pattern language changes. `test/differential`
 holds it to that: the JavaScript scanner writes `.`, the C scanner writes

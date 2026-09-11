@@ -260,8 +260,8 @@ KB and 123,000 tokens:
 | lezer 1.4.10 \*   | 41.9 ms | 11.4 MB/s  | 2.9 M    | 160 MB      |
 | peggy 5.1.0 \*    | 51.1 ms | 9.4 MB/s   | 2.4 M    | 165 MB      |
 
-Time moves by about a fiftieth between runs and peak memory by about 15 MB.
-The corpus, the grammars and the harness are all in `benchmark/`.
+Time moves by about a fiftieth between runs and peak memory by about 15 MB. The
+corpus, the grammars and the harness are all in `benchmark/`.
 
 ### The table modes
 
@@ -296,8 +296,8 @@ lezer is both - the row is its runtime, and a generated parser sits on top.
 Minified with esbuild, gzipped with `gzip -9`.
 
 Typed arrays hold the tables unless `%option notyped` says otherwise, which is
-worth a seventh to a quarter. A match no rule reads is never built, which asks for
-nothing and is worth 3 to 10 percent.
+worth a seventh to a quarter. A match no rule reads is never built, which asks
+for nothing and is worth 3 to 10 percent.
 
 With a parser rather than objects the gap opens: with
 [lemon-js](https://github.com/sormy/lemon-js) the 103 TPC-DS queries parse from

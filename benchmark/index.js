@@ -31,13 +31,17 @@ var GENERATOR = process.env.FLEX_JS ||
  */
 function optional(name) {
   try {
-    return require(name);
+    /* resolve answers whether it is installed; require would also report a
+     * MODULE_NOT_FOUND raised inside it, which is the broken case.
+     */
+    require.resolve(name);
   } catch (error) {
     if (error.code !== 'MODULE_NOT_FOUND') {
       throw error;
     }
     return null;
   }
+  return require(name);
 }
 
 var LegacyLexer = optional('flex-js');
@@ -627,4 +631,11 @@ import('@lezer/generator')
       throw error;
     }
   })
-  .then(main);
+  .then(main)
+  .catch(function (error) {
+    /* main() and what it calls throw with a message written to be read; an
+     * unhandled rejection would print a stack over the top of it.
+     */
+    console.error(error.message);
+    process.exit(1);
+  });
