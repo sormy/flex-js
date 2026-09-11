@@ -460,6 +460,45 @@ test('a header it cannot create leaves no scanner behind', function () {
     });
   });
 
+/* A file name travels to m4 inside the same quote pair a value does. One
+ * carrying the pair used to exit 0 and write line directives naming a file
+ * that does not exist, which the filter then never renumbered, or kill m4
+ * with "end of file in string", naming neither the file nor the cause.
+ */
+[['the output', ['--emit=javascript', '--noline', '-o', 'we]]ird.js']],
+ ['the header', ['--emit=javascript', '--noline', '--header-file=we]]ird.d.ts',
+   '-o', 'fine.js']]].forEach(function (which) {
+  test(which[0] + ' file name carrying a quote pair is refused', function () {
+    var source = grammar([
+      '%option noyywrap',
+      '%%',
+      '"a"      { return 1; }',
+      '.|\\n     ;',
+      ''
+    ].join('\n'));
+    var made = run(which[1].concat([source]));
+
+    assert.notStrictEqual(made.status, 0, 'a corrupt name was accepted');
+    assert.match(made.stderr, /cannot carry/);
+  });
+});
+
+test('an input file name carrying a quote pair is refused', function () {
+  var source = path.join(directory, 'we]]ird.l');
+  fs.writeFileSync(source, [
+    '%option noyywrap',
+    '%%',
+    '"a"      { return 1; }',
+    '.|\\n     ;',
+    ''
+  ].join('\n'));
+  var made = run(['--emit=javascript', '--noline', '-o',
+    path.join(directory, 'fromweird.js'), source]);
+
+  assert.notStrictEqual(made.status, 0, 'a corrupt name was accepted');
+  assert.match(made.stderr, /cannot carry/);
+});
+
 /* A value is handed to m4 quoted so a comma in it survives, which leaves the
  * quote pairs. One escaping carries it through one m4 pass, and this back end
  * expands these rather than writing them out, which is a second. It used to
@@ -536,7 +575,10 @@ test('%option pre-action keeps a comma in its value', function () {
  * same scope shadows the constant, so BEGIN(input) reached the function and the
  * start condition came out NaN - one wrong token, then a fatal error.
  */
-['BEGIN', 'ECHO', 'REJECT', 'input', 'unput'].forEach(function (name) {
+['BEGIN', 'ECHO', 'REJECT', 'input', 'unput', 'String', 'Buffer',
+ 'ArrayBuffer', 'Array', 'Error', 'process', 'module', 'exports', 'console',
+ 'undefined', 'Int8Array', 'Uint8Array', 'Int16Array', 'Uint16Array',
+ 'Int32Array', 'Uint32Array'].forEach(function (name) {
   test('a start condition named ' + name + ' is refused', function () {
     var source = grammar([
       '%option noyywrap',

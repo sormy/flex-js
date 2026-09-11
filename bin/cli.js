@@ -34,7 +34,15 @@ var BUILD_IT = 'It can be built from source:\n' +
   'https://github.com/sormy/flex-js#installing';
 
 function fail(message) {
-  process.stderr.write(message + '\n');
+  /* Written synchronously: a write to a terminal is asynchronous on Windows
+   * and process.exit does not wait for one, so the message can be lost on
+   * the platform most likely to have no binary to run.
+   */
+  try {
+    fs.writeSync(2, message + '\n');
+  } catch (error) {
+    process.stderr.write(message + '\n');
+  }
   process.exit(1);
 }
 
@@ -86,7 +94,11 @@ if (args.length === 1 && args[0] === INCLUDEDIR) {
   if (!fs.existsSync(path.join(includedir, 'FlexLexer.h'))) {
     fail('flex-js has no headers in dist/ to point at.\n' + BUILD_IT);
   }
-  process.stdout.write(includedir + '\n');
+  /* Synchronously, as fail() does: this exists to be read from a pipe,
+   * and a pipe write is asynchronous on macOS as a terminal one is on
+   * Windows, which process.exit does not wait for.
+   */
+  fs.writeSync(1, includedir + '\n');
   process.exit(0);
 }
 

@@ -63,24 +63,42 @@ if [ "$(cat "$m4_src/.patches" 2>/dev/null)" != "$m4_applied" ]; then
 	echo "$m4_applied" > "$m4_src/.patches"
 fi
 
-if [ ! -f "$m4_build/.built" ]; then
+# What flex links is every object in m4's src/ plus lib/libm4.a. A stamp, or a
+# directory, says a build was started; this says it arrived.
+m4_missing_parts() {
+	m4_missing=
+	for m4_source in "$m4_src"/src/*.c; do
+		m4_object=$m4_build/src/$(basename "$m4_source" .c).o
+		if [ ! -f "$m4_object" ]; then
+			m4_missing="$m4_missing $(basename "$m4_object")"
+		fi
+	done
+	if [ ! -f "$m4_build/lib/libm4.a" ]; then
+		m4_missing="$m4_missing libm4.a"
+	fi
+	echo "$m4_missing"
+}
+
+# Asked before the stamp is trusted, not only when one is missing: a stamp an
+# older script wrote over a make that died part way would otherwise be taken
+# for a build, and the link would fail much later naming m4 symbols.
+if [ ! -f "$m4_build/.built" ] || [ -n "$(m4_missing_parts)" ]; then
 	echo "building m4"
 	m4_rebuilt=yes
-	# A directory on its own says nothing: an interrupted build leaves one
-	# with some of the objects in it, and skipping it then fails much later
-	# as a link error naming m4 symbols, with nothing pointing back here.
 	rm -rf "$m4_build"
 	mkdir -p "$m4_build"
 	# m4 has no main of its own any more, so its own binary is the one thing
-	# that cannot be linked. What flex wants is built before that, and flex
-	# linking against it is what says whether it all arrived.
-	if ! (cd "$m4_build" && "$m4_src/configure" --quiet >/dev/null \
-			&& make) >"$here/build/m4.log" 2>&1; then
-		if [ ! -f "$m4_build/src/output.o" ]; then
-			cat "$here/build/m4.log" >&2
-			rm -rf "$m4_build"
-			exit 1
-		fi
+	# that cannot be linked. Every object it is made of still compiles, so
+	# make failing is expected and says nothing on its own.
+	(cd "$m4_build" && "$m4_src/configure" --quiet >/dev/null \
+			&& make) >"$here/build/m4.log" 2>&1 || true
+
+	m4_missing=$(m4_missing_parts)
+	if [ -n "$m4_missing" ]; then
+		cat "$here/build/m4.log" >&2
+		echo "m4 did not finish building, missing:$m4_missing" >&2
+		rm -rf "$m4_build"
+		exit 1
 	fi
 	: > "$m4_build/.built"
 fi

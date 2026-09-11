@@ -234,9 +234,31 @@ FLEX's own namespace, so a start condition cannot take one - `%x YY_NL` left
 `yylineno` stuck on 1 and stopped `^` matching after a newline. C takes that
 grammar and leaves its compiler to warn, or not.
 
+The names the generated scanner writes or reaches for in that scope are refused
+the same way, since the one declared last answers and the scanner would lose its
+own:
+
+```
+BEGIN ECHO REJECT input unput
+String Buffer ArrayBuffer Array Error process module exports console
+Int8Array Uint8Array Int16Array Uint16Array Int32Array Uint32Array
+```
+
+`%x String` used to generate cleanly and then die in `restart()` at
+`String(source)`. The back end names them rather than flex, since they are
+JavaScript's.
+
 Every other name is a grammar's own business, as it is in C. One that JavaScript
-keeps, or that the scanner reaches for, breaks the scanner - loudly for a
-keyword, since the file will not parse; quietly for a name like `undefined`.
+keeps breaks the scanner loudly, since the file will not parse; one like
+`undefined` breaks it quietly.
+
+A rule body is scanned as C is scanned, which is where the two languages part. A
+`"..."` and a `'...'` are strings to flex, so the names above are left alone
+inside them, but a `` `...` `` is not: FLEX's macro names written in a template
+literal are rewritten inside the string, and the word `REJECT` in one turns the
+scanner into a REJECT scanner. A `//` comment is read as code too, which is
+FLEX's own doing - the C back end refuses the same grammar. Keep FLEX's macro
+names out of a template literal, or write the string with quotes.
 
 ## An option of this back end's own
 

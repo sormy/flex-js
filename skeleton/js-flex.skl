@@ -45,7 +45,7 @@ m4_define([[M4_PROPERTY_NO_REENTRANT]], [[yes]])
 m4_define([[M4_PROPERTY_NO_YYDECL]], [[yes]])
 %# The prefix names the scanner, so it has to read as one.
 m4_define([[M4_PROPERTY_PREFIX_NAMES_A_BINDING]], [[yes]])
-m4_define([[M4_PROPERTY_RESERVED_NAMES]], [[BEGIN ECHO REJECT input unput String Buffer Array Error process module exports console Int8Array Uint8Array Int16Array Uint16Array Int32Array Uint32Array]])
+m4_define([[M4_PROPERTY_RESERVED_NAMES]], [[BEGIN ECHO REJECT input unput String Buffer Array Error process module exports console undefined ArrayBuffer Int8Array Uint8Array Int16Array Uint16Array Int32Array Uint32Array]])
 %# Typed arrays hold the tables, so this asks the engine for Int16Array, which
 %# browsers had from about 2011. %option notyped asks for plain arrays.
 m4_define([[M4_PROPERTY_TYPED_TABLES]], [[yes]])

@@ -124,6 +124,31 @@ them off.
 
 ## Known, and left
 
+**The Linux generators ship their debug info.** `dist/flex-js-linux-x64` is
+2,822,744 bytes, of which 1,805,352 (64%) is `.debug*`/`.symtab`/`.strtab`;
+`flex-js-linux-arm64` is 2,936,512 with 1,944,655 (66%). `zig cc` does not
+honour the `-g0` in CFLAGS, and only the macOS binary gets a `strip`. That is
+~3.7 MB of dead weight in a package that sells a prebuilt generator.
+`zig objcopy --strip-debug` answers "unimplemented" for ELF in zig 0.16, and
+this machine has no other ELF stripper, so the fix is probably `-Wl,-s` on the
+zig link - unverified, since checking it means a full cross build.
+
+**The differential harness cannot hold stderr to C.** `cError` is set to `''`
+whenever the C scanner exits 0, so `fromC.stderr` is discarded, while the
+JavaScript side is asserted empty. Anything that writes to stderr in both -
+`%option debug`, whose whole output goes there - cannot be compared, and the
+trace has no differential case at all. docs/differences.md claims the trace
+follows C. Comparing both stderrs, with the documented
+`--(end of buffer or a NUL)` line allowed for, would make that claim testable.
+
+**flex reads a `//` comment in an action as code.** `{ // no REJECT here }`
+makes flex refuse the grammar with "REJECT cannot be used with -f or -F" under
+`-Cf`, for a grammar that never wrote REJECT. It is upstream's, not this back
+end's: the C back end does the same, while a `/* */` comment and a string
+literal are both handled. scan.l has COMMENT and CODE_COMMENT states for the
+block form and nothing for the line form. A fourth patch beside 0001 and 0002,
+if it is worth sending.
+
 **m4 keeps its spilled-diversion state between runs.** `output_init()` was made
 re-entrant for the second pass `--header-file` asks for, but `tmp_file1_owner`,
 `tmp_file2_owner` and `output_temp_dir` survive it, and `output_exit()` acts on
