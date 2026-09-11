@@ -130,7 +130,7 @@ function show(input) {
 }
 
 /** Runs both scanners over every input and returns their traces. */
-function compare(options, rules, inputs, extra, typed) {
+function compare(options, rules, inputs, extra, typed, jsRules) {
   var name = 'case' + (++counter);
   var args = extra || [];
   /* Only this back end has the option, so only this side is asked for it. */
@@ -138,7 +138,10 @@ function compare(options, rules, inputs, extra, typed) {
 
   var cFile = generate(name + 'c', spell(options, false), spell(rules, false),
     C_PROLOGUE, C_DRIVER, args);
-  var jsFile = generate(name + 'js', jsOptions, spell(rules, true),
+  /* Different rules on this side where C has to spell out what one of ours
+   * says in a word - the two are meant to mean the same thing.
+   */
+  var jsFile = generate(name + 'js', jsOptions, spell(jsRules || rules, true),
     JS_PROLOGUE, JS_DRIVER, args.concat(['--emit=javascript']));
 
   var binary = path.join(directory, name);
@@ -180,7 +183,7 @@ var TABLE_MODES = [[], ['-C'], ['-Cm'], ['-Cf'], ['-Cfe']];
 */
 var TYPED_MODES = ['', '-Cf', '-Cfe'];
 
-function agree(options, rules, inputs, extra) {
+function agree(options, rules, inputs, extra, jsRules) {
   TABLE_MODES.forEach(function (mode) {
     var fullTable = mode.indexOf('-Cf') !== -1 || mode.indexOf('-Cfe') !== -1;
 
@@ -203,7 +206,8 @@ function agree(options, rules, inputs, extra) {
       ? [false] : [false, true];
 
     ways.forEach(function (typed) {
-      compare(options, rules, inputs, args, typed).forEach(function (result) {
+      compare(options, rules, inputs, args, typed, jsRules)
+        .forEach(function (result) {
         assert.strictEqual(result.cError, '', result.cError);
         assert.strictEqual(result.jsError, '', result.jsError);
         assert.strictEqual(result.js, result.c,
@@ -431,6 +435,23 @@ test('whole characters, both table modes', { skip: !HAVE_CC && 'no C compiler' }
   ].join('\n'), MULTIBYTE);
 });
 
+/* The oracle for `.' as a character is C spelling that shape out by hand: the
+ * JavaScript scanner writes `.' and the C one writes {UTF8}, and they have to
+ * agree token for token.
+ */
+test('a dot is a whole character, against C spelling it out',
+  { skip: !HAVE_CC && 'no C compiler' }, function () {
+    agree('%option noyywrap\n' + UTF8_CLASS, [
+      '[a-z]+      emit(1, yytext);',
+      '[ \\n]+     ;',
+      '{UTF8}      emit(2, yytext);'
+    ].join('\n'), MULTIBYTE, [], [
+      '[a-z]+      emit(1, yytext);',
+      '[ \\n]+     ;',
+      '.           emit(2, yytext);'
+    ].join('\n'));
+  });
+
 test('yymore over multibyte input',
   { skip: !HAVE_CC && 'no C compiler' }, function () {
     agree('%option noyywrap\n' + UTF8_CLASS, [
@@ -541,9 +562,12 @@ test('input() reads a byte at a time the way C does',
     ]);
   });
 
+/* nounicode: this is about yyless counting bytes, and it feeds bytes that are
+ * no character at all, so `.' has to stay byte-wide for C to be the oracle.
+ */
 test('yyless measures the match, not what it decoded to',
   { skip: !HAVE_CC && 'no C compiler' }, function () {
-    agree('%option noyywrap', [
+    agree('%option noyywrap nounicode', [
       '[\\x80-\\xff]"x"  { yyless(1); emit(1, "kept"); }',
       '"x"             emit(2, "x");',
       '[A-Z]           emit(3, yytext);',

@@ -65,6 +65,9 @@ m4_define([[M4_PROPERTY_NO_HEADER]], [[yes]])
 %# END BACKEND-DIVERGENCE
 %# The prefix names the scanner, so it has to read as one.
 m4_define([[M4_PROPERTY_PREFIX_NAMES_A_BINDING]], [[yes]])
+%# yytext is text here, so `.' is one character rather than one byte.
+%# %option nounicode asks for the byte, which is what C does.
+m4_define([[M4_PROPERTY_UNICODE_DOT]], [[yes]])
 m4_define([[M4_PROPERTY_TRACE_LINE_REGEXP]], [[^//#line ([0-9]+) "(.*)"]])
 m4_define([[M4_PROPERTY_TRACE_LINE_TEMPLATE]], [[//#line %d "%s"]])
 

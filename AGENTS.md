@@ -55,8 +55,14 @@ last week. If a published number does not reproduce, fix the number.
 ## Prose
 
 Comments say why, in less space than the code they sit above. Rationale and
-history go in `docs/`, never inline. Documentation is scannable: tables and
-short sentences, no narration, and each thing said once.
+history go in `docs/`, never inline. `docs/` is scannable: tables and short
+sentences, no narration, and each thing said once.
+
+The README is the exception, and it earns it. Narration there has to pay for
+itself in good mood - a joke someone would repeat, aimed at something actually
+funny about this project - or it is just length. Nothing that carries a number,
+a command, an option, a caveat or a licence gets a joke; those are read by
+someone at 2am with a broken build, and they are read literally.
 
 ## Releases
 

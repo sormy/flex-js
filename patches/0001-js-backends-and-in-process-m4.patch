@@ -637,7 +637,7 @@ index 9482736..938b811 100644
  
  /* vim:set expandtab cindent tabstop=4 softtabstop=4 shiftwidth=4 textwidth=0: */
 diff --git a/src/flexdef.h b/src/flexdef.h
-index adf4fd0..572e85c 100644
+index adf4fd0..58c8001 100644
 --- a/src/flexdef.h
 +++ b/src/flexdef.h
 @@ -68,8 +68,6 @@
@@ -649,16 +649,17 @@ index adf4fd0..572e85c 100644
  #ifdef HAVE_STDBOOL_H
  #include <stdbool.h>
  #elif !defined(__cplusplus) && (!defined(__STDC_VERSION__) || \
-@@ -353,6 +351,8 @@ struct ctrl_bundle_t {
+@@ -353,6 +351,9 @@ struct ctrl_bundle_t {
  	bool spprdflt;		// (-s) suppress the default rule
  	bool useecs;		// (-Ce flag) use equivalence classes 
  	bool usemecs;		// (-Cm flag), use meta-equivalence classes 
 +	bool typed_tables;	// (%option typed-tables) tables a back end can hold
++	bool unicode_dot;	// (%option unicode) `.' is a character, not a byte
 +				// as numbers of one width rather than as arrays
  	bool use_read;		// (-f, -F, or -Cr) use read() for scanner input 
         				// otherwise, use fread(). 
  	char *yyclass;		// yyFlexLexer subclass to use for YY_DECL
-@@ -549,6 +549,10 @@ extern int *rule_type, *rule_linenum;
+@@ -549,6 +550,10 @@ extern int *rule_type, *rule_linenum;
  /* rule_useful[], rule_has_nl[] and ccl_has_nl[] are boolean arrays,
   * but allocated as char arrays for size. */
  extern char *rule_useful, *rule_has_nl, *ccl_has_nl;
@@ -669,7 +670,7 @@ index adf4fd0..572e85c 100644
  extern int nlch;
  extern size_t footprint;
  
-@@ -889,6 +893,7 @@ extern void lerr_fatal(const char *, ...)
+@@ -889,6 +894,7 @@ extern void lerr_fatal(const char *, ...)
  
  /* Spit out a "#line" statement. */
  extern void line_directive_out(FILE *, char *, int);
@@ -677,7 +678,7 @@ index adf4fd0..572e85c 100644
  
  /* Mark the current position in the action array as the end of the section 1
   * user defs.
-@@ -1137,28 +1142,15 @@ bool range_covers_case (int c1, int c2);
+@@ -1137,28 +1143,15 @@ bool range_covers_case (int c1, int c2);
   *  From "filter.c"
   */
  
@@ -1197,10 +1198,74 @@ index a2d3786..913c17b 100644
  	OPT_REENTRANT,
  	OPT_REJECT,
 diff --git a/src/parse.y b/src/parse.y
-index 80e7f09..bff540e 100644
+index 80e7f09..92965cb 100644
 --- a/src/parse.y
 +++ b/src/parse.y
-@@ -139,6 +139,9 @@ goal		:  initlex sect1 sect1end sect2 initforrule
+@@ -76,6 +76,63 @@ int *scon_stk;
+ int scon_stk_ptr;
+ 
+ static int madeany = false;  /* whether we've made the '.' character class */
++
++/* A character class holding one range, told to the equivalence classes if they
++   are in use, as a machine.  */
++static int mkbyteclass (int first, int last, int except)
++{
++	int     cclnum = cclinit ();
++	int     c;
++
++	for (c = first; c <= last; c++)
++		if (c != except)
++			ccladd (cclnum, c);
++
++	if (ctrl.useecs)
++		mkeccl (ccltbl + cclmap[cclnum], ccllen[cclnum], nextecm,
++			ecgroup, ctrl.csize, ctrl.csize);
++
++	return mkstate (-cclnum);
++}
++
++
++/* `.' as one character rather than one byte: the shape of a UTF-8 sequence,
++   which a grammar would otherwise have to spell out for itself.  Each piece is
++   built in its own statement, since these leave states behind them in the order
++   they are called and C does not say what order it evaluates arguments in.  */
++static int mkutf8any (int except)
++{
++	int     ascii, two, three, four, part;
++
++	/* NUL is a literal rather than a member: flex maps it to an equivalence
++	   class of its own when a state is made for it, and a class built here
++	   has no such mapping, so a 0 inside one matches nothing.  */
++	ascii = mkstate (0);
++	part = mkbyteclass (0x01, 0x7f, except);
++	ascii = mkor (ascii, part);
++
++	two = mkbyteclass (0xc2, 0xdf, -1);
++	part = mkbyteclass (0x80, 0xbf, -1);
++	two = link_machines (two, part);
++
++	three = mkbyteclass (0xe0, 0xef, -1);
++	part = mkbyteclass (0x80, 0xbf, -1);
++	three = link_machines (three, part);
++	part = mkbyteclass (0x80, 0xbf, -1);
++	three = link_machines (three, part);
++
++	four = mkbyteclass (0xf0, 0xf4, -1);
++	part = mkbyteclass (0x80, 0xbf, -1);
++	four = link_machines (four, part);
++	part = mkbyteclass (0x80, 0xbf, -1);
++	four = link_machines (four, part);
++	part = mkbyteclass (0x80, 0xbf, -1);
++	four = link_machines (four, part);
++
++	three = mkor (three, four);
++	two = mkor (two, three);
++	return mkor (ascii, two);
++}
+ static int ccldot, cclany;
+ int previous_continued_action;	/* whether the previous rule's action was '|' */
+ 
+@@ -139,6 +196,9 @@ goal		:  initlex sect1 sect1end sect2 initforrule
  
  			add_action("]]");
  
@@ -1210,8 +1275,25 @@ index 80e7f09..bff540e 100644
  			if ( ctrl.spprdflt )
  				add_action(
  				"M4_HOOK_FATAL_ERROR(\"flex scanner jammed\")");
+@@ -739,7 +799,15 @@ singleton	:  singleton '*'
+ 
+ 			++rulelen;
+ 
+-            if (sf_dot_all())
++            /* A 7-bit scanner has no byte above 127 to build a character
++               out of, so there the byte is the character. */
++            if (ctrl.unicode_dot && ctrl.csize > 128) {
++                /* One character is one to four bytes, so a rule holding it is
++                   no longer of a length flex can count. */
++                varlength = true;
++                $$ = mkutf8any( sf_dot_all() ? -1 : '\n' );
++            }
++            else if (sf_dot_all())
+                 $$ = mkstate( -cclany );
+             else
+                 $$ = mkstate( -ccldot );
 diff --git a/src/scan.l b/src/scan.l
-index b65bd4c..d889c1b 100644
+index b65bd4c..4126863 100644
 --- a/src/scan.l
 +++ b/src/scan.l
 @@ -49,7 +49,9 @@ extern const char *escaped_qstart, *escaped_qend;
@@ -1225,15 +1307,16 @@ index b65bd4c..d889c1b 100644
  #define ACTION_ECHO_QSTART add_action (ESCAPED_QSTART)
  #define ACTION_ECHO_QEND   add_action (ESCAPED_QEND)
  
-@@ -400,6 +402,7 @@ void context_member(char *, const char *);
+@@ -400,6 +402,8 @@ void context_member(char *, const char *);
                  		ctrl.do_yywrap = false;
  			}
  	meta-ecs	ctrl.usemecs = option_sense;
 +	typed-tables	ctrl.typed_tables = option_sense;
++	unicode		ctrl.unicode_dot = option_sense;
  	never-interactive	{
  			ctrl.never_interactive = option_sense;
              		ctrl.interactive = (trit)!option_sense;
-@@ -924,6 +927,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -924,6 +928,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
  			CHECK_REJECT(yytext);
          }
  		"yyreject"{OPTWS}"("{OPTWS}")" {
@@ -1241,7 +1324,7 @@ index b65bd4c..d889c1b 100644
  			add_action("]""]M4_HOOK_REJECT[""[");
  			CHECK_YYREJECT(yytext);
          }
-@@ -956,23 +960,27 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -956,23 +961,27 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
  	"{"		ACTION_ECHO; ++bracelevel;
  	"}"		ACTION_ECHO; --bracelevel;
  	yyecho\(\)|yyinput\(\)|yystart\({FUNARGS}\)|yybegin\({FUNARGS}\)|yyunput\({FUNARGS}\)|yypanic\({FUNARGS}\)|yyatbol\(\)|yysetbol\({FUNARGS}\) {
@@ -1270,7 +1353,7 @@ index b65bd4c..d889c1b 100644
  				context_member(yytext, "M4_PROPERTY_BUFFERSTACK_CONTEXT_FORMAT");
  			else
 diff --git a/src/skeletons.c b/src/skeletons.c
-index afe592e..41fd199 100644
+index afe592e..9140007 100644
 --- a/src/skeletons.c
 +++ b/src/skeletons.c
 @@ -54,6 +54,16 @@ const char *go_skel[] = {
@@ -1298,6 +1381,16 @@ index afe592e..41fd199 100644
 +    {.skel=ts_skel},
      {NULL}
  };
+ 
+@@ -126,6 +138,9 @@ void backend_by_name(const char *name)
+ 	prefix_property = skel_property("M4_PROPERTY_PREFIX");
+ 	if (prefix_property != NULL)
+ 		ctrl.prefix = xstrdup(prefix_property);
++	/* A back end that reads text rather than bytes wants `.' to be one
++	   character.  C does not, and stays the specification.  */
++	ctrl.unicode_dot = skel_property("M4_PROPERTY_UNICODE_DOT") != NULL;
+ 	flex_init_regex(ctrl.traceline_re);
+ }
  
 diff --git a/src/sym.c b/src/sym.c
 index b96ba2e..8664566 100644

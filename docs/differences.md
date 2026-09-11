@@ -171,6 +171,24 @@ asks to run before or after every action with `%option pre-action` or
 C builds `yytext` unconditionally, which is only visible to a debugger stopped
 inside an empty action.
 
+## `.` is one character, not one byte
+
+C's `.` matches a byte, since flex is a machine over the 256 byte values, so a C
+grammar that reads UTF-8 spells the shape of a character out for itself:
+
+```
+UTF8    [\x20-\x7f]|[\xc2-\xdf][\x80-\xbf]|[\xe0-\xef][\x80-\xbf]{2}|[\xf0-\xf4][\x80-\xbf]{3}
+```
+
+Here `.` compiles to that shape, so a grammar does not have to. The machine
+underneath is the same one - bytes all the way down, which is how every fast
+engine does Unicode - and only the pattern language changes. `test/differential`
+holds it to that: the JavaScript scanner writes `.`, the C scanner writes
+`{UTF8}`, and they have to agree token for token.
+
+`%option nounicode` asks for C's byte. `-7` has no byte above 127 to build a
+character from, so there the byte is the character and the option means nothing.
+
 ## A start condition is a name, not a definition
 
 C turns a start condition into a `#define`; here it becomes a binding in the
