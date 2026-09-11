@@ -126,10 +126,6 @@ $(make -s -C "$dir/src" -f Makefile -f flex-js.mk flex_js_libs \
 	| sed "s|\.\./lib/libm4\.a|$dir/lib/libm4.a|")"
 }
 
-# stage1flex is built for the build machine even in a cross build, so it takes
-# the m4 build.sh made here.
-m4_for_build=$(m4_link_flags "$here/build/m4")
-
 build_one() {
 	name=$1
 	host=$2
@@ -263,7 +259,19 @@ smoke_all() {
 	smoke_unverified=""
 	smoke_grammar
 
-	smoke_one darwin "$here/dist/flex-js-darwin-universal"
+	# A C++ scanner is no use without it, and it ships rather than being
+	# looked for on the system.
+	if [ ! -f "$here/dist/FlexLexer.h" ]; then
+		echo "  FlexLexer.h: missing from dist/"
+		smoke_failures=$((smoke_failures + 1))
+	fi
+
+	if [ -x "$here/dist/flex-js-darwin-universal" ]; then
+		smoke_one darwin "$here/dist/flex-js-darwin-universal"
+	else
+		echo "  darwin: skipped, not built"
+		smoke_unverified="$smoke_unverified darwin"
+	fi
 
 	if command -v finch >/dev/null 2>&1; then
 		smoke_one linux-arm64 finch run --rm -e TMPDIR \
@@ -318,6 +326,11 @@ if [ "$smoke_only" = yes ]; then
 	exit 0
 fi
 
+# stage1flex is built for the build machine even in a cross build, so it takes
+# the m4 build.sh made here. Asked for after the smoke-only exit, since it
+# builds in a tree a smoke test does not need.
+m4_for_build=$(m4_link_flags "$here/build/m4")
+
 # macOS, both slices, joined into one binary
 build_one mac-x64 x86_64-apple-darwin "clang -arch x86_64 -mmacosx-version-min=10.13"
 build_one mac-arm64 aarch64-apple-darwin "clang -arch arm64 -mmacosx-version-min=11.0"
@@ -340,6 +353,11 @@ cp "$work/win32-x64/src/.libs/flex.exe" "$here/dist/flex-js-win32-x64.exe"
 build_one win32-arm64 aarch64-w64-mingw32 "zig cc -target aarch64-windows-gnu" \
 	flex.exe windows
 cp "$work/win32-arm64/src/.libs/flex.exe" "$here/dist/flex-js-win32-arm64.exe"
+
+# The C++ back end's scanner includes this, and it has to be the one belonging
+# to the same flex, so it ships beside the binaries rather than being looked for
+# on the system.
+cp "$source/src/FlexLexer.h" "$here/dist/FlexLexer.h"
 
 rm -f "$here"/dist/*.pdb
 ls -l "$here/dist"

@@ -25,6 +25,11 @@ var BINARIES = {
 
 var args = process.argv.slice(2);
 
+/* Ours, not flex's, so it is answered here rather than passed on: a C++ scanner
+ * includes FlexLexer.h, and it has to be the one belonging to this flex.
+ */
+var INCLUDEDIR = '--print-includedir';
+
 function fail(message) {
   process.stderr.write(message + '\n');
   process.exit(1);
@@ -68,6 +73,22 @@ function generator() {
   return built;
 }
 
+/* On its own, so that asking for it alongside a grammar cannot answer instead
+ * of generating; anywhere else it goes to flex, which says it knows no such
+ * option.
+ */
+if (args.length === 1 && args[0] === INCLUDEDIR) {
+  var includedir = path.join(__dirname, '..', 'dist');
+
+  if (!fs.existsSync(path.join(includedir, 'FlexLexer.h'))) {
+    fail('flex-js has no headers in dist/ to point at.\n' +
+      'It can be built from source:\n' +
+      'https://github.com/sormy/flex-js#installing');
+  }
+  process.stdout.write(includedir + '\n');
+  process.exit(0);
+}
+
 var run = childProcess.spawnSync(generator(), args,
   { stdio: 'inherit', argv0: 'flex-js' });
 
@@ -82,6 +103,7 @@ if (run.signal) {
   process.exit(128 + (os.constants.signals[run.signal] || 0));
 }
 
+/* A null status with no signal and no error is not a success. */
 if (run.status !== 0) {
-  process.exit(run.status);
+  process.exit(run.status === null ? 1 : run.status);
 }

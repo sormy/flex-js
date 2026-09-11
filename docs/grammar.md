@@ -72,6 +72,12 @@ A rule can be limited to start conditions:
 <*>.                ;
 ```
 
+A start condition becomes a name in the generated scanner rather than a
+preprocessor definition, so `yy` and `YY`, which are FLEX's own, are refused.
+Anything else is yours to name, and shares a scope with the scanner's own
+bindings - so a name JavaScript keeps, or one the scanner reaches for, breaks
+the scanner the way it would in any other JavaScript.
+
 `<<EOF>>` runs when the input is exhausted, and can be given per start
 condition:
 

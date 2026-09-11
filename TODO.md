@@ -34,6 +34,37 @@ forked chain ran two m4 processes at once. Generation is already 54-72% quicker
 for not forking, so this is handing a little of that back rather than a
 regression - and handing one run two sinks is not a small change.
 
+## Reach
+
+**An incremental lexer.** What an editor wants: keep the tokens from last time
+and, on an edit, re-lex only from the last token boundary before it until the
+scanner's state matches the state it had at that point before, then reuse the
+rest. CodeMirror, TextMate grammars and tree-sitter all work this way.
+
+A generated scanner is closer to this than a hand-written one, because between
+tokens its whole state is a few plain fields - `yy_c_buf_p`, `yy_start` (start
+condition and beginning-of-line in one), `yy_at_bol_flag`, plus `yy_start_stack`
+with `%option stack`, `yy_more_flag` and `yy_more_len` with `yymore()`, and
+`yylineno` with that option. `yy_current_state` is a local, rebuilt from
+`yy_start` on each call, so it is not carried at all. Saving those and putting
+them back into a fresh scanner already resumes mid-stream correctly, including
+inside an exclusive start condition; nothing in the generator needs to change
+for it.
+
+What is missing is not state but invalidation. To know which cached tokens an
+edit destroys you need how far the matcher _read_ for each token, not where the
+token ended: trailing context, `REJECT` and `yymore()` all let a match depend on
+text past its own end. The scanner knows this - it is `yy_cp` at its high-water
+mark, before the backup rewinds it to `yy_last_accepting_cpos` - and does not
+say so.
+
+So the split is: a snapshot-and-resume pair and that high-water mark belong
+here, and are small; the token cache and the re-lex-until-it-agrees loop belong
+in a library beside flex-js, not in a FLEX back end. The constraint to write
+down first is that re-lexing replays actions, so a grammar that wants this has
+to keep its actions replayable - which is why editors keep the lexer pure and
+put the effects in the parser.
+
 ## Measured, and not worth doing
 
 Kept so the afternoon is not spent twice.

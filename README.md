@@ -33,6 +33,19 @@ flex needs m4 to write a scanner, and every generator has one linked in, so
 there is nothing to install and nothing to find on the PATH. It writes the same
 scanner on every platform.
 
+Not only a JavaScript back end, either. Each of those binaries is flex 2.6.4
+entire, so the same file writes C, C++ with `%option c++`, or Go with
+`--emit=go`, and on Windows it does so with no MSYS2, no Cygwin and no m4 beside
+it - worth having whichever language you are scanning into.
+
+C needs nothing but its own standard library. A C++ scanner includes
+`FlexLexer.h`, which has to be the one belonging to the same flex, so that ships
+as well:
+
+```sh
+c++ -I "$(npx flex-js --print-includedir)" scanner.cc
+```
+
 ## A first scanner
 
 Write a grammar, `tokens.l`:

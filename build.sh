@@ -34,10 +34,18 @@ mkdir -p "$here/build"
 # whenever the patches change.
 tarball=$here/build/m4-$m4_version.tar.gz
 
+if ! command -v shasum >/dev/null; then
+	echo "shasum is needed to check what this downloads and applies" >&2
+	exit 1
+fi
+
 if [ ! -f "$tarball" ]; then
 	echo "fetching m4 $m4_version"
 	curl -fsSL --retry 3 "https://ftp.gnu.org/gnu/m4/m4-$m4_version.tar.gz" \
 		-o "$tarball.part"
+	# Checked before it is moved into place, so a bad download is not kept
+	# and handed to every build after this one.
+	echo "$m4_sha256  $tarball.part" | shasum -a 256 -c - >/dev/null
 	mv "$tarball.part" "$tarball"
 fi
 echo "$m4_sha256  $tarball" | shasum -a 256 -c - >/dev/null
@@ -92,10 +100,7 @@ fi
 # The patches are applied to a pristine tree, so a bumped commit or an edited
 # patch takes effect on the next build rather than only after --clean.
 stamp=$src/.patches
-if ! applied=$(cat "$here"/patches/*.patch | shasum); then
-	echo "shasum is needed to tell whether the patches have changed" >&2
-	exit 1
-fi
+applied=$(cat "$here"/patches/*.patch | shasum)
 applied="$commit ${applied%% *}"
 
 if [ "$(cat "$stamp" 2>/dev/null)" != "$applied" ]; then

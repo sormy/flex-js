@@ -1299,3 +1299,23 @@ index afe592e..41fd199 100644
      {NULL}
  };
  
+diff --git a/src/sym.c b/src/sym.c
+index b96ba2e..8664566 100644
+--- a/src/sym.c
++++ b/src/sym.c
+@@ -215,6 +215,15 @@ void    scinstal (const char *str, bool sc_is_exclusive)
+ 	if (++lastsc >= current_max_scs)
+ 		scextend ();
+ 
++	/* yy and YY are flex's own namespace - %option prefix exists to move a
++	   scanner out of it - and a back end that turns a start condition into a
++	   binding would let one of those quietly take over its own.  Anything
++	   else a grammar names is its own business, as it is in C.  */
++	if (skel_property ("M4_PROPERTY_PREFIX_NAMES_A_BINDING") != NULL
++	    && (strncmp (str, "yy", 2) == 0 || strncmp (str, "YY", 2) == 0))
++		format_synerr (
++			_("start condition %s: yy and YY are flex's own"), str);
++
+ 	if (addsym(str, NULL, lastsc, sctbl, START_COND_HASH_SIZE)) {
+ 		format_pinpoint_message (
+ 			_("start condition %s declared twice"), str);

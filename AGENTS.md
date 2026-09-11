@@ -30,6 +30,19 @@ under Node, a bundler or a `<script>` tag. The TypeScript output type-checks
 under `--strict` and must not need `@types/node`: say `Uint8Array`, not
 `Buffer`.
 
+**The happy path is the work.** A grammar someone would plausibly write has to
+scan correctly, and that is where the effort goes. Guarding against a grammar
+written to break the scanner is not: there is no end of ways to write bad code,
+and each guard is a list to keep, a divergence to document, and a name taken
+away from grammars that wanted it. Guard anyway only where it is cheap - a
+handful of lines and nothing to maintain - or where the failure is silent,
+because a scanner that will not parse says so at once and a scanner that
+mis-scans does not.
+
+**A test that only reads an exit status has not tested anything.** Generating
+cleanly is not the claim; a name that breaks a scanner generates perfectly well.
+Load the scanner and run it.
+
 ## Numbers
 
 Anything published is measured, reproducible, and stated on every axis: time,

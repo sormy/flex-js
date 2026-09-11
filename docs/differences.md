@@ -171,6 +171,18 @@ asks to run before or after every action with `%option pre-action` or
 C builds `yytext` unconditionally, which is only visible to a debugger stopped
 inside an empty action.
 
+## A start condition is a name, not a definition
+
+C turns a start condition into a `#define`; here it becomes a binding in the
+generated scanner, sharing a scope with the scanner's own. `yy` and `YY` are
+FLEX's own namespace, so a start condition cannot take one - `%x YY_NL` left
+`yylineno` stuck on 1 and stopped `^` matching after a newline. C takes that
+grammar and leaves its compiler to warn, or not.
+
+Every other name is a grammar's own business, as it is in C. One that JavaScript
+keeps, or that the scanner reaches for, breaks the scanner - loudly for a
+keyword, since the file will not parse; quietly for a name like `undefined`.
+
 ## An option of this back end's own
 
 `%option typed-tables` holds the tables as numbers of one width rather than as

@@ -422,18 +422,110 @@ test('a grammar that diverts that much also gets a header', function () {
 test('a header it cannot create leaves no scanner behind', function () {
   var source = grammar();
   var output = path.join(directory, 'unpaired.js');
-  var shut = path.join(directory, 'shut');
+  /* A path under a regular file, which no user can create - permissions
+   * would not stop root, and CI often runs as one.
+   */
+  var wall = path.join(directory, 'wall');
 
-  fs.mkdirSync(shut, { recursive: true });
-  fs.chmodSync(shut, 0o500);
+  fs.writeFileSync(wall, '');
 
   var made = run(['--emit=javascript', '--noline',
-    '--header-file=' + path.join(shut, 'x.d.ts'), '-o', output, source]);
+    '--header-file=' + path.join(wall, 'x.d.ts'), '-o', output, source]);
 
   assert.notStrictEqual(made.status, 0, 'the unwritable header was accepted');
   assert.strictEqual(fs.existsSync(output), false,
     'the scanner was left behind without its header');
 });
+
+/* A start condition becomes a binding beside the scanner's own, and the one
+ * declared last answers, so one named out of flex's own yy namespace would take
+ * a scanner's binding over without a word.
+ */
+['YY_NL', 'yylex', 'YYSTATE'].forEach(function (name) {
+    test('a start condition named ' + name + ' is refused', function () {
+      var source = grammar([
+        '%option noyywrap',
+        '%x ' + name,
+        '%%',
+        '[a-z]+   { return 1; }',
+        ''
+      ].join('\n'));
+      var output = path.join(directory, 'taken' + name + '.js');
+      var made = run(['--emit=javascript', '--noline', '-o', output, source]);
+
+      assert.notStrictEqual(made.status, 0, name + ' was accepted');
+      assert.match(made.stderr, /flex's own/);
+      assert.strictEqual(fs.existsSync(output), false,
+        'a scanner was written anyway');
+    });
+  });
+
+/* Loaded and run, not just generated: a name that breaks a scanner generates
+ * perfectly well, so exit 0 says nothing on its own.
+ */
+['STRING', 'Yy', 'sc_yy', 'path', 'buffer', 'COMMENT'].forEach(function (name) {
+  test('a start condition named ' + name + ' is left alone', function () {
+    var source = grammar([
+      '%option noyywrap',
+      '%x ' + name,
+      '%%',
+      '[a-z]+   { return 1; }',
+      '.|\\n     ;',
+      ''
+    ].join('\n'));
+    var output = path.join(directory, 'fine' + name + '.js');
+    var made = run(['--emit=javascript', '--noline', '-o', output, source]);
+
+    assert.strictEqual(made.status, 0, made.stderr);
+
+    var Scanner = require(output);
+    var scanner = new Scanner('ab');
+    var tokens = [];
+
+    while (scanner.lex() !== 0) {
+      tokens.push(scanner.yytext);
+    }
+    assert.deepStrictEqual(tokens, ['ab']);
+
+    var empty = new Scanner();
+    assert.strictEqual(empty.lex(), 0);
+  });
+});
+
+/* A C++ scanner includes FlexLexer.h, which has to be the one belonging to this
+ * flex rather than whatever the system has, so the package carries it and says
+ * where. The flag is ours, so it must not reach flex.
+ */
+test('--print-includedir names where the bundled headers are', function () {
+  var dist = path.join(__dirname, '..', 'dist');
+  var shown = childProcess.spawnSync(process.execPath,
+    [path.join(__dirname, '..', 'bin', 'cli.js'), '--print-includedir'],
+    { encoding: 'utf8' });
+
+  /* dist/ is built rather than checked in, so a tree without it should say
+   * so rather than name a directory that holds nothing.
+   */
+  if (!fs.existsSync(path.join(dist, 'FlexLexer.h'))) {
+    assert.notStrictEqual(shown.status, 0,
+      'it named a directory with no header in it');
+    return;
+  }
+
+  assert.strictEqual(shown.status, 0, shown.stderr);
+  assert.strictEqual(shown.stdout.trim(), dist);
+});
+
+test('--print-includedir beside a grammar does not answer instead of generating',
+  function () {
+    var source = grammar();
+    var output = path.join(directory, 'notprinted.js');
+    var made = childProcess.spawnSync(process.execPath,
+      [path.join(__dirname, '..', 'bin', 'cli.js'), '--print-includedir',
+        '--emit=javascript', '-o', output, source], { encoding: 'utf8' });
+
+    assert.notStrictEqual(made.status, 0, 'it answered rather than refusing');
+    assert.strictEqual(fs.existsSync(output), false);
+  });
 
 test('a reentrant scanner is refused rather than quietly not made', function () {
   ['reentrant', 'bison-bridge', 'bison-locations'].forEach(function (option) {

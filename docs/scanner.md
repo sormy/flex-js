@@ -47,7 +47,8 @@ stream.on("end", function () {
 `yywrap()` is the other half: when one input runs out it can supply the next.
 
 `%option prefix="sql"` exports `sqlScanner` instead, so two scanners can share a
-page.
+page. The prefix is used as written, so `prefix="Sql"` gives `SqlScanner` - the
+capital being what reads as a type in JavaScript and TypeScript alike.
 
 ## What lex() answers
 
