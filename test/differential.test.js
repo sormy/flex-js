@@ -229,11 +229,32 @@ var WORDS = ['', 'a', 'ab', 'abc', 'a b', 'x\ny', 'aaa bbb\n', '  ', '\n\n',
 ** this hands back what a lone byte decodes to, which docs/differences.md
 ** describes and no comparison can bridge.
 */
+/* Bytes that are no character: an overlong form, half a surrogate pair, one
+** past U+10FFFF, and a lead with nothing after it.
+*/
+var MALFORMED = [
+  Buffer.from([0xe0, 0x80, 0x80, 0x61]),
+  Buffer.from([0xed, 0xa0, 0x80, 0x61]),
+  Buffer.from([0xf4, 0x90, 0x80, 0x80, 0x61]),
+  Buffer.from([0xc0, 0x80, 0x61]),
+  Buffer.from([0x61, 0xc3, 0x61]),
+  Buffer.from([0xff, 0xfe, 0x61])
+];
+
 var MULTIBYTE = ['ü', 'a ü b', 'héllo wörld', '日本 x', '😀 x', 'aü', 'üa'];
 
+/*
+** The shape of a UTF-8 character, spelled out the way a C grammar has to. The
+** lead byte decides what the first continuation may be, which is what rules out
+** an overlong form, half a surrogate pair, and anything past U+10FFFF - so this
+** is the same set `.' matches here, and can stand as the oracle for it.
+*/
 var UTF8_CLASS =
   'UTF8    [\\x20-\\x7f]|[\\xc2-\\xdf][\\x80-\\xbf]|' +
-  '[\\xe0-\\xef][\\x80-\\xbf]{2}|[\\xf0-\\xf4][\\x80-\\xbf]{3}';
+  '\\xe0[\\xa0-\\xbf][\\x80-\\xbf]|[\\xe1-\\xec][\\x80-\\xbf]{2}|' +
+  '\\xed[\\x80-\\x9f][\\x80-\\xbf]|[\\xee-\\xef][\\x80-\\xbf]{2}|' +
+  '\\xf0[\\x90-\\xbf][\\x80-\\xbf]{2}|[\\xf1-\\xf3][\\x80-\\xbf]{3}|' +
+  '\\xf4[\\x80-\\x8f][\\x80-\\xbf]{2}';
 
 test('longest match and ties', { skip: !HAVE_CC && 'no C compiler' }, function () {
   agree('%option noyywrap', [
@@ -452,14 +473,18 @@ test('whole characters, both table modes', { skip: !HAVE_CC && 'no C compiler' }
  */
 test('a dot is a whole character, against C spelling it out',
   { skip: !HAVE_CC && 'no C compiler' }, function () {
+    /* A byte that begins no character is matched singly by both sides, so
+     * bytes that are no character at all belong in the inputs.
+     */
     agree('%option noyywrap\n' + UTF8_CLASS, [
-      '[a-z]+      emit(1, yytext);',
-      '[ \\n]+     ;',
-      '{UTF8}      emit(2, yytext);'
-    ].join('\n'), MULTIBYTE, [], [
-      '[a-z]+      emit(1, yytext);',
-      '[ \\n]+     ;',
-      '.           emit(2, yytext);'
+      '[a-z]+           emit(1, yytext);',
+      '[ \\n]+          ;',
+      '{UTF8}           emit(2, yytext);',
+      '[\\x80-\\xff]     emit(2, yytext);'
+    ].join('\n'), MULTIBYTE.concat(MALFORMED), [], [
+      '[a-z]+           emit(1, yytext);',
+      '[ \\n]+          ;',
+      '.                emit(2, yytext);'
     ].join('\n'));
   });
 

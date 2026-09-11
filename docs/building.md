@@ -8,11 +8,38 @@ m4 hooks. flex-js is two more skeletons plus the lines that register them.
 ```
 skeleton/js-flex.skl    the JavaScript back end
 skeleton/ts-flex.skl    the TypeScript one, the same scanner with types
-patches/0001, 0002      fixes for flex itself, written against a pristine
+patches/flex/0001, 0002 fixes for flex itself, written against a pristine
                         checkout so they can go upstream unchanged
-patches/0003            registers both back ends with flex
+patches/flex/0003       registers both back ends with flex
 patches/m4/             lets m4 be called as a function
 ```
+
+### Writing a patch back out
+
+`build/flex` is a checkout with the patches applied on top, so editing a file
+there and running `build.sh` tries what the edit does. Writing it back out is
+where it goes wrong, because `git diff` compares against the index, and after
+`build.sh` the index holds the pristine checkout - so the diff carries 0001 and
+0002 as well, and the stack no longer applies to itself.
+
+Give the diff the baseline it needs:
+
+```sh
+cd build/flex
+git stash            # keep the edit
+git checkout -- . && git clean -fd
+git apply ../../patches/flex/0001-*.patch ../../patches/flex/0002-*.patch
+git add -A           # the index is now pristine plus the flex fixes
+git stash pop        # the edit comes back on top
+git add -N .
+git diff > ../../patches/flex/0003-js-backends-and-in-process-m4.patch
+```
+
+Then take `build/flex/.patches` away and run `build.sh`: it re-extracts and
+applies all three, which is the only proof the stack still stands.
+
+A fix to flex itself belongs in 0001 or 0002 rather than 0003, written against
+the pristine checkout so it can go upstream as it stands.
 
 The flex patch registers the back ends in `src/skeletons.c` and
 `src/Makefile.am`, and teaches `src/main.c` what a back end has to be able to

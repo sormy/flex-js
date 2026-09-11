@@ -619,6 +619,11 @@ function yy_check_7bit(yy_scanner, yy_is_wide) {
   if (yy_is_wide) {
     yy_scanner.yy_fatal_error('this scanner was built with %option 7bit,' +
       ' so the input cannot hold characters above ASCII');
+    /* Refused, so it is not wide as far as the rest is concerned. Saying
+     * otherwise would send bytes above 127 at tables 128 columns wide once
+     * yy_fatal_error is one that returns.
+     */
+    return false;
   }
   return yy_is_wide;
 }

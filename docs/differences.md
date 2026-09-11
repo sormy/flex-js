@@ -64,21 +64,13 @@ it is an error to give it something a binding cannot be called.
 
 ## UTF-8
 
-Rules are about UTF-8 bytes, so a rule written with a character matches it. `.`
-and a negated class match one **byte**; name the shape for whole characters:
-
-```
-UTF8    [\x20-\x7f]|[\xc2-\xdf][\x80-\xbf]|[\xe0-\xef][\x80-\xbf]{2}|[\xf0-\xf4][\x80-\xbf]{3}
-```
+Rules are about characters: a rule written with one matches it, and so does `.`,
+which [has a section of its own](#-is-one-character-not-one-byte).
 
 `yytext` is text; `yyleng` is `yytext.length`, so an emoji counts as two.
 `yyless(n)` keeps n characters for the same reason, where the C scanner keeps n
 bytes. `yy_c_buf_p` is a byte offset. ASCII input is neither encoded nor
 decoded.
-
-A rule that matches part of a character, `.` over a multibyte one, gets back
-what that byte alone decodes to. The C scanner hands back the byte itself. Match
-whole characters and the question does not arise.
 
 ## What a rule body sees after unput and input
 

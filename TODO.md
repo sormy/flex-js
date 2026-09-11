@@ -1,7 +1,7 @@
 # Worth doing, and worth not doing
 
 Numbers here are the SQL grammar from `benchmark/`, 491 KB and 123,000 tokens,
-`-Cf` unless another mode is named, best of a run interleaved against the
+`-Cfe` unless another mode is named, best of a run interleaved against the
 scanner it is being compared with. `npm run bench` is the same corpus.
 
 ## Speed

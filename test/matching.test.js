@@ -207,7 +207,7 @@ test('typed tables are the numbers flex sized them for', function () {
 
 /* Upstream flex closed the m4 quote for a continued rule before finish_rule()
  * had opened it, so every hook-based back end stopped with "end of file in
- * string". patches/0002 puts the two in order.
+ * string". patches/flex/0002 puts the two in order.
  */
 test('a rule can borrow the next rule\'s action with |', function () {
   var built = helper.build([

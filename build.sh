@@ -100,14 +100,14 @@ fi
 # The patches are applied to a pristine tree, so a bumped commit or an edited
 # patch takes effect on the next build rather than only after --clean.
 stamp=$src/.patches
-applied=$(cat "$here"/patches/*.patch | shasum)
+applied=$(cat "$here"/patches/flex/*.patch | shasum)
 applied="$commit ${applied%% *}"
 
 if [ "$(cat "$stamp" 2>/dev/null)" != "$applied" ]; then
 	git -C "$src" checkout -q --force "$commit"
 	git -C "$src" clean -qfdx
-	for patch in "$here"/patches/*.patch; do
-		echo "applying $(basename "$patch")"
+	for patch in "$here"/patches/flex/*.patch; do
+		echo "applying flex/$(basename "$patch")"
 		git -C "$src" apply "$patch"
 	done
 	if ! (cd "$src" && ./autogen.sh && ./configure --quiet >/dev/null) \

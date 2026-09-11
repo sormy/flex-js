@@ -26,10 +26,16 @@ var MEMORY_ROUNDS = 3;
 var GENERATOR = process.env.FLEX_JS ||
   path.join(__dirname, '..', 'build', 'flex', 'src', 'flex');
 
+/* Not installed is a reason to leave a lexer out of the table. Installed and
+ * broken is not: that would publish a comparison quietly missing an entrant.
+ */
 function optional(name) {
   try {
     return require(name);
   } catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') {
+      throw error;
+    }
     return null;
   }
 }
@@ -37,7 +43,10 @@ function optional(name) {
 var LegacyLexer = optional('flex-js');
 var moo = optional('moo');
 var peggy = optional('peggy');
-var chevrotain = optional('chevrotain/lib/src/api.js') || optional('chevrotain');
+/* The package entry, not a path inside it: ./lib/src/api.js stopped being
+ * exported and the fallback was quietly carrying every run.
+ */
+var chevrotain = optional('chevrotain');
 var JisonLex = optional('jison-lex');
 
 /* lezer ships as ES modules only, so it arrives through import() before
@@ -45,9 +54,11 @@ var JisonLex = optional('jison-lex');
  */
 var lezerBuild = null;
 
-/* Empty asks for flex's own default tables, which name no option at all. */
+/* What the README recommends and publishes numbers for, so `npm run bench`
+ * reproduces them. Empty asks for flex's own default tables instead.
+ */
 var TABLES = (process.env.FLEX_JS_TABLES === undefined
-  ? '-Cf'
+  ? '-Cfe'
   : process.env.FLEX_JS_TABLES).split(' ').filter(Boolean);
 
 var directory = fs.mkdtempSync(path.join(os.tmpdir(), 'flex-js-bench-'));
@@ -184,7 +195,7 @@ var JISON = {
     '%%',
     '[ \\t\\n]+                 /* skip */',
     '"SELECT"|"FROM"|"WHERE"|"AND"|"OR"|"NOT"|"IN"  return "kw";',
-    "\"'\"[^']*\"'\"              return \"str\";",
+    '"\'"[^\']*"\'"              return "str";',
     '[0-9]+                    return "int";',
     '[a-zA-Z_][a-zA-Z0-9_]*    return "id";',
     '"<="|">="|"<>"            return "punct";',
@@ -230,7 +241,7 @@ var LEZER = {
     '@skip { space }',
     '@tokens {',
     '  space { $[ \\t\\n]+ }',
-    "  Str { \"'\" ![']* \"'\" }",
+    '  Str { "\'" ![\']* "\'" }',
     '  Int { $[0-9]+ }',
     '  identifier { $[a-zA-Z_] $[a-zA-Z0-9_]* }',
     '  Punct { "<=" | ">=" | "<>" | "=" | "<" | ">" | "+" | "-" | "*" | "/" | "(" | ")" | "," | ";" }',
@@ -244,7 +255,7 @@ var WORKLOADS = [
   {
     name: 'expression rules',
     grammar: 'expr',
-    source: corpus.expressions(LINES),
+    corpus: function () { return corpus.expressions(LINES); },
     legacy: function (lexer) {
       lexer.addRule(/[ \t\n]+/);
       lexer.addRule(/\/\/[^\n]*/);
@@ -283,7 +294,7 @@ var WORKLOADS = [
   {
     name: 'string rules',
     grammar: 'keywords',
-    source: corpus.keywords(LINES),
+    corpus: function () { return corpus.keywords(LINES); },
     legacy: function (lexer) {
       lexer.addRule(/[ \t\n]+/);
       PUNCTUATION.forEach(function (text) { lexer.addRule(text, token('punct')); });
@@ -316,7 +327,7 @@ var WORKLOADS = [
   {
     name: 'keyword rules',
     grammar: 'sql',
-    source: corpus.sql(LINES),
+    corpus: function () { return corpus.sql(LINES); },
     legacy: function (lexer) {
       lexer.addRule(/[ \t\n]+/);
       SQL_KEYWORDS.forEach(function (word) { lexer.addRule(word, token('kw')); });
@@ -511,6 +522,10 @@ function measure(runners) {
 function reportMemory(workload, name) {
   var runner = buildRunners(workload, name)[0];
 
+  if (!runner) {
+    throw new Error(name + ' is not among the lexers this run can measure');
+  }
+
   for (var round = 0; round < MEMORY_ROUNDS; round++) {
     runner.run();
   }
@@ -545,10 +560,20 @@ function report(workload) {
   });
 }
 
+/* The text is built here rather than where the workload is declared: every
+ * child process loads this file, and building all three would charge the
+ * memory figure for two corpora the measured engine never reads.
+ */
 function selected() {
-  return WORKLOADS.filter(function (workload) {
-    return workload.name === process.argv[2];
+  var workload = WORKLOADS.filter(function (candidate) {
+    return candidate.name === process.argv[2];
   })[0];
+
+  if (!workload) {
+    throw new Error('no such workload: ' + process.argv[2]);
+  }
+  workload.source = workload.corpus();
+  return workload;
 }
 
 // one process per workload, so the shapes of one grammar do not leave the
@@ -596,7 +621,10 @@ import('@lezer/generator')
   .then(function (lezer) {
     lezerBuild = lezer.buildParser;
   })
-  .catch(function () {
-    /* not installed: it drops out of the table the way the others do */
+  .catch(function (error) {
+    /* As optional(): absent is fine, broken is not. */
+    if (error.code !== 'ERR_MODULE_NOT_FOUND') {
+      throw error;
+    }
   })
   .then(main);
