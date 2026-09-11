@@ -1,0 +1,261 @@
+--- a/src/m4.c	2021-05-12 10:01:58
++++ b/src/m4.c	2026-09-09 02:33:03
+@@ -21,6 +21,8 @@
+ 
+ #include "m4.h"
+ 
++#include <setjmp.h>
++
+ #include <getopt.h>
+ #include <limits.h>
+ #include <signal.h>
+@@ -80,6 +82,20 @@
+ /* Global catchall for any errors that should affect final error status, but
+    where we try to continue execution in the meantime.  */
+ int retcode;
++
++/* Where m4exit goes.  A library cannot end the process it was called in, so
++   the builtin hands control back to main_m4 instead.  */
++static jmp_buf m4_exit_jmp;
++static bool m4_exit_catchable;
++
++void
++m4_exit_now (int status)
++{
++  if (m4_exit_catchable)
++    longjmp (m4_exit_jmp, status + 1);
++
++  exit (status);
++}
+ 
+ struct macro_definition
+ {
+@@ -400,7 +416,8 @@
+ #endif
+ 
+ int
+-main (int argc, char *const *argv)
++main_m4 (int argc, char *const *argv,
++         const char *m4_in, size_t m4_inlen, char **m4_out, size_t *m4_outlen)
+ {
+   struct sigaction act;
+   macro_definition *head;       /* head of deferred argument list */
+@@ -416,12 +433,13 @@
+   const char *frozen_file_to_write = NULL;
+   const char *macro_sequence = "";
+ 
+-  set_program_name (argv[0]);
++  /* left to the caller: set_program_name (argv[0]); */
+   retcode = EXIT_SUCCESS;
+-  setlocale (LC_ALL, "");
++  optind = 0;                   /* rescan, since this may be a second call */
++  /* left to the caller: setlocale (LC_ALL, ""); */
+   bindtextdomain (PACKAGE, LOCALEDIR);
+   textdomain (PACKAGE);
+-  atexit (close_stdin);
++  /* left to the caller: atexit (close_stdin); */
+ 
+   include_init ();
+   debug_init ();
+@@ -703,7 +721,28 @@
+   /* Handle remaining input files.  Each file is pushed on the input,
+      and the input read.  Wrapup text is handled separately later.  */
+ 
+-  if (optind == argc && !seen_file)
++  {
++    int jumped = setjmp (m4_exit_jmp);
++
++    m4_exit_catchable = true;
++    if (jumped)
++      {
++        retcode = jumped - 1;
++        goto finished;
++      }
++  }
++
++  if (m4_in != NULL)
++    {
++      /* The whole source as one string, which is what the input stack
++         already carries for macro expansion.  */
++      struct obstack *st = push_string_init ();
++
++      obstack_grow (st, m4_in, m4_inlen);
++      push_string_finish ();
++      expand_input ();
++    }
++  else if (optind == argc && !seen_file)
+     process_file ("-");
+   else
+     for (; optind < argc; optind++)
+@@ -726,7 +765,12 @@
+       make_diversion (0);
+       undivert_all ();
+     }
++ finished:
++  m4_exit_catchable = false;
++  if (m4_out != NULL)
++    m4_collected_output (m4_out, m4_outlen);
++
+   output_exit ();
+   free_macro_sequence ();
+-  exit (retcode);
++  return retcode;
+ }
+--- a/src/m4.h	2021-05-07 17:42:02
++++ b/src/m4.h	2026-09-09 02:33:03
+@@ -336,6 +336,11 @@
+ extern int output_current_line;
+ 
+ extern void output_init (void);
++
++/* Handing the output back rather than writing it (flex-js).  */
++extern bool m4_collect_output;
++extern void m4_collected_output (char **text, size_t *length);
++extern void m4_exit_now (int status);
+ extern void output_exit (void);
+ extern void output_text (const char *, int);
+ extern void shipout_text (struct obstack *, const char *, int, int);
+--- a/src/output.c	2021-05-10 17:30:01
++++ b/src/output.c	2026-09-09 02:54:54
+@@ -99,6 +99,9 @@
+    output_diversion->size is 0.  */
+ static FILE *output_file;
+ 
++/* Set by a caller that wants the output handed back rather than written.  */
++bool m4_collect_output = false;
++
+ /* Cache of output_diversion->u.buffer + output_diversion->used, only
+    valid when output_diversion->size is non-zero.  */
+ static char *output_cursor;
+@@ -373,9 +376,32 @@
+ {
+   diversion_table = gl_oset_create_empty (GL_AVLTREE_OSET, cmp_diversion_CB,
+                                           NULL);
+-  div0.u.file = stdout;
++  current_diversion = 0;
++  output_current_line = 0;
++  free_list = NULL;
++  total_buffer_size = 0;
+   output_diversion = &div0;
+-  output_file = stdout;
++  div0.used = 0;
++
++  if (m4_collect_output)
++    {
++      /* A buffer from the outset, since a zero size with no file is the
++         shape make_diversion recycles.  */
++      div0.size = INITIAL_BUFFER_SIZE;
++      div0.u.buffer = xcharalloc ((size_t) div0.size);
++      total_buffer_size = div0.size;
++      output_file = NULL;
++      output_cursor = div0.u.buffer;
++      output_unused = div0.size;
++    }
++  else
++    {
++      div0.size = 0;
++      div0.u.file = stdout;
++      output_file = stdout;
++      output_cursor = NULL;
++      output_unused = 0;
++    }
+   obstack_init (&diversion_storage);
+ }
+ 
+@@ -441,11 +467,21 @@
+       selected_diversion = output_diversion;
+       selected_used = output_diversion->used + length;
+ 
++      /* What the caller is owed cannot be flushed away to a file.  */
++      if (m4_collect_output && output_diversion == &div0)
++        {
++          selected_diversion = NULL;
++          selected_used = 0;
++        }
++
+       iter = gl_oset_iterator (diversion_table);
+       while (gl_oset_iterator_next (&iter, &elt))
+         {
+           diversion = (m4_diversion *) elt;
+-          if (diversion->used > selected_used)
++          /* Only a diversion still held in memory has a buffer to flush.  A
++             file-backed one has used == 1, which the floor above used to be
++             what ruled it out.  */
++          if (diversion->size && diversion->used > selected_used)
+             {
+               selected_diversion = diversion;
+               selected_used = diversion->used;
+@@ -459,25 +495,28 @@
+          m4_tmpfile), so that the atexit handler doesn't try to close
+          a garbage pointer as a file.  */
+ 
+-      selected_buffer = selected_diversion->u.buffer;
+-      total_buffer_size -= selected_diversion->size;
+-      selected_diversion->size = 0;
+-      selected_diversion->u.file = NULL;
+-      selected_diversion->u.file = m4_tmpfile (selected_diversion->divnum);
+-
+-      if (selected_diversion->used > 0)
++      if (selected_diversion)
+         {
+-          count = fwrite (selected_buffer, (size_t) selected_diversion->used,
+-                          1, selected_diversion->u.file);
+-          if (count != 1)
+-            m4_failure (errno,
+-                        _("ERROR: cannot flush diversion to temporary file"));
+-        }
++          selected_buffer = selected_diversion->u.buffer;
++          total_buffer_size -= selected_diversion->size;
++          selected_diversion->size = 0;
++          selected_diversion->u.file = NULL;
++          selected_diversion->u.file = m4_tmpfile (selected_diversion->divnum);
+ 
+-      /* Reclaim the buffer space for other diversions.  */
++          if (selected_diversion->used > 0)
++            {
++              count = fwrite (selected_buffer, (size_t) selected_diversion->used,
++                              1, selected_diversion->u.file);
++              if (count != 1)
++                m4_failure (errno,
++                            _("ERROR: cannot flush diversion to temporary file"));
++            }
+ 
+-      free (selected_buffer);
+-      selected_diversion->used = 1;
++          /* Reclaim the buffer space for other diversions.  */
++
++          free (selected_buffer);
++          selected_diversion->used = 1;
++        }
+     }
+ 
+   /* Reload output_file, just in case the flushed diversion was current.  */
+@@ -1002,3 +1041,17 @@
+   if (saved_number != last_inserted)
+     xfprintf (file, "D%d,0\n\n", saved_number);
+ }
++
++/* What diversion 0 gathered, once main_m4 has finished.  */
++void
++m4_collected_output (char **text, size_t *length)
++{
++  if (output_diversion == &div0)
++    div0.used = div0.size - output_unused;
++
++  *text = div0.u.buffer;
++  *length = (size_t) div0.used;
++  div0.u.buffer = NULL;
++  div0.size = 0;
++  div0.used = 0;
++}
+--- a/src/builtin.c	2021-05-10 17:33:22
++++ b/src/builtin.c	2026-09-09 02:33:03
+@@ -1566,7 +1566,7 @@
+   /* Propagate non-zero status to atexit handlers.  */
+   if (exit_code != EXIT_SUCCESS)
+     exit_failure = exit_code;
+-  exit (exit_code);
++  m4_exit_now (exit_code);
+ }
+ 
+ /*------------------------------------------------------------------.

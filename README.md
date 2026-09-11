@@ -24,14 +24,14 @@ That brings a prebuilt generator:
 | -------- | ------------- | ------------------------------------------------------------ |
 | macOS    | x86_64, arm64 | one universal binary, back to 10.13                          |
 | Linux    | x86_64, arm64 | statically linked against musl, so no glibc version to match |
-| Windows  | x86_64, arm64 | ships GNU M4 beside it, since flex needs one                 |
+| Windows  | x86_64, arm64 | no MSYS2 or Cygwin needed                                    |
 
 Generated scanners run anywhere; only the generator is platform-specific, and
 only at build time.
 
-On Windows, `flex-js` runs m4 itself rather than letting flex fork it, and the
-m4 it runs is shipped in `dist/`. Nothing to install; `M4` names a different one
-if you would rather. Same scanner either way.
+flex needs m4 to write a scanner, and every generator has one linked in, so
+there is nothing to install and nothing to find on the PATH. It writes the same
+scanner on every platform.
 
 ## A first scanner
 
@@ -232,5 +232,9 @@ The old line is on the
 
 ## License
 
-flex's: BSD with the Berkeley clause, see [LICENSE](LICENSE). Generated scanners
-carry no requirement of their own.
+This repository is flex's: BSD with the Berkeley clause, see [LICENSE](LICENSE).
+Generated scanners carry no requirement of their own.
+
+The prebuilt generators in `dist/` have GNU M4 linked in, so those binaries are
+GPL-3.0-or-later as wholes - see [LICENSE.m4](LICENSE.m4). That reaches the
+generator, not the scanners it writes.

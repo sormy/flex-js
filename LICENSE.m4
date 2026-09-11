@@ -1,13 +1,16 @@
-GNU M4 is shipped in dist/ for Windows only, as m4-win32-*.exe.
+GNU M4 is linked into every generator in dist/.
 
-flex needs m4 to write a scanner, and Windows has no m4 of its own. It is a
-separate program, run as a child process, not linked into anything here: the
-two are an aggregate, so this remains BSD-licensed and m4 remains GPL-licensed.
+flex needs m4 to write a scanner, and calls it in its own process rather than
+forking one, which Windows has no way to do. m4 is GPL-3.0-or-later, so each of
+those binaries is covered by the GPL as a whole and may be redistributed only
+under its terms. What the generator writes is not covered: running a program
+puts no licence on its output, and flex claims none over a scanner either.
 
-m4 1.4.19 is unmodified but for one added definition of __mempcpy_chk, in
-compat/win32/mempcpy_chk.c, which mingw does not provide. Its source is at
-https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.gz and can also be had from
-https://www.gnu.org/software/m4/.
+m4 1.4.19 is modified. The changes let it be called as a function, taking its
+input from memory and handing its output back, and are in patches/m4/ in this
+repository; compat/win32/mempcpy_chk.c adds the one definition mingw lacks. The
+unmodified source is at https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.gz, pinned by
+digest in build.sh, and can also be had from https://www.gnu.org/software/m4/.
 
 The GNU General Public License, version 3, follows.
 

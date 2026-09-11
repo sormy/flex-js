@@ -9,13 +9,14 @@ m4 hooks. flex-js is two more skeletons plus the lines that register them.
 skeleton/js-flex.skl    the JavaScript back end
 skeleton/ts-flex.skl    the TypeScript one, the same scanner with types
 patches/                registers both back ends with flex
+patches/m4/             lets m4 be called as a function
 ```
 
-The patch touches four files: `src/skeletons.c` and `src/Makefile.am` to
-register the back ends, `src/main.c` for what a back end has to be able to say
-about itself - the character set its tables cover, whether it has a fast-scanner
-matcher, whether the tables ended up 7-bit - and for saying where it wrote when
-a wrapper is running m4, which `src/flexdef.h` declares.
+The flex patch registers the back ends in `src/skeletons.c` and
+`src/Makefile.am`, and teaches `src/main.c` what a back end has to be able to
+say about itself - the character set its tables cover, whether it has a
+fast-scanner matcher, whether the tables ended up 7-bit. It also replaces
+`src/filter.c`, which is where flex forks m4; see "Running m4" below.
 
 Both skeletons are written by hand. `test/skeletons.test.js` strips the types
 from the TypeScript one and compares it with the JavaScript one, so the matcher
@@ -32,15 +33,49 @@ is what the drift test checks.
 ## Building
 
 ```sh
-./build.sh          # fetch flex, apply the patches, build it
+./build.sh          # fetch flex and m4, apply the patches, build them
 ./build.sh --clean  # start over
 npm test            # the test suite, against what was just built
 ```
 
 Fetches flex at a pinned commit from
-[github.com/westes/flex](https://github.com/westes/flex). Needs git, autoconf,
-automake, libtool, bison, m4 and gettext, whose autopoint the bootstrap runs.
-The generator lands at `build/flex/src/flex`, which `FLEX_JS` points at.
+[github.com/westes/flex](https://github.com/westes/flex) and m4 1.4.19 from
+ftp.gnu.org, pinned by digest. Needs git, curl, patch, autoconf, automake,
+libtool, bison, m4 and gettext, whose autopoint the bootstrap runs. m4 is built
+first, since flex links against it. The generator lands at
+`build/flex/src/flex`, which `FLEX_JS` points at.
+
+## Running m4
+
+flex reaches its output through m4, and upstream runs it as the middle link of a
+chain of three forked filters: `filter_tee_header`, then `m4 -P`, then
+`filter_fix_linedirs`. Windows has no `fork`, so that chain cannot run there at
+all.
+
+m4 is linked in instead and called as a function, on every platform. The patch
+in `patches/m4/` gives `main_m4` an input buffer and an output buffer, since
+mingw has no `open_memstream`, `fmemopen` or `fopencookie` to make a
+memory-backed `FILE *` out of. Three things that patch has to get right:
+
+- diversion 0 is the caller's result, so it is a buffer from the outset and is
+  never the one flushed to a temporary file when m4 runs short of memory. What
+  is flushed instead has to be a diversion still held in memory: m4 only ruled
+  out an already-flushed one by where its search started, which exempting
+  diversion 0 moved
+- the file-scope state m4 leaves behind has to be reset, or a second call reuses
+  a freed pointer and parses no options at all
+- `m4exit` has to hand control back rather than end the process, which is what
+  the header branch of `js-flex.skl` calls to stop reading the skeleton
+
+flex writes the m4 source to a scratch file under `TMPDIR` and reads it back,
+since its output goes through `stdout` and there are 20-odd places that write
+there. Everything after that is in memory. `--header-file` expands the same
+source a second time with `M4_YY_IN_HEADER` set, which is the second forked
+pipeline upstream builds and the second call to `main_m4` here.
+
+Linking the two together needed one collision settled: gnulib's `xstrdup` and
+flex's are the same function, so flex's is dropped in favour of the one m4
+brings. `--preproc=NUM` is gone, since it chose how many filters to fork.
 
 ## Building what is shipped
 
@@ -54,21 +89,18 @@ The generator lands at `build/flex/src/flex`, which `FLEX_JS` points at.
 | Linux    | `zig cc`     | static against musl                                         |
 | Windows  | `zig cc`     | needs `compat/win32/`                                       |
 
-`bin/cli.js` picks the binary for the platform it runs on. Windows also gets an
-m4, since it has none: flex cannot write a scanner without one. `--no-m4` leaves
-it out.
+m4 is cross-built for each target and linked into that target's generator, so
+`bin/cli.js` only has to pick a binary for the platform it runs on.
 
-Windows lacks POSIX regex, `sys/wait.h` and the byte-swapping macros;
-`compat/win32/` stands in. flex wants them for renumbering line directives and
-forking m4, and does neither there. `FLEX_JS_M4_OUT` names a file for flex to
-write what m4 reads, and `FLEX_JS_M4_ABOUT` one for it to say where the
-expansion belongs; the shim runs m4 and the filters over that.
-`FLEX_JS_PIPE_M4=1` takes that path anywhere, which is how it is tested.
+Windows lacks the byte-swapping macros, which `compat/win32/` stands in for, and
+`__mempcpy_chk`, which it defines. It has no POSIX regex either; flex wants one
+to renumber line directives, and gets gnulib's out of m4 rather than a stub that
+never matches, which is what it used to have.
 
 After building, each binary generates the same grammar and its output is
 compared against the host's, natively, in a Linux container through finch, and
-under Wine, along with the m4 shipped for Windows. `--no-smoke` skips it,
-`--smoke-only` runs it against what is already in `dist/`.
+under Wine. `--no-smoke` skips it, `--smoke-only` runs it against what is
+already in `dist/`.
 
 ## Tests
 
@@ -81,7 +113,7 @@ test/lineno.test.js        yylineno
 test/eof.test.js           <<EOF>> rules and yywrap
 test/unicode.test.js       UTF-8
 test/typescript.test.js    the TypeScript back end
-test/cli.test.js           what bin/cli.js writes, and the m4-in-a-pipe path
+test/cli.test.js           what flex writes beside a scanner, through the shim
 test/examples.test.js      the grammars under examples/
 test/skeletons.test.js     the two skeletons saying the same thing
 test/differential.test.js  the same grammar through both back ends

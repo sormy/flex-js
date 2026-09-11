@@ -16,9 +16,10 @@ source=$here/build/flex
 
 smoke=yes
 smoke_only=no
-m4=yes
+
+# m4 is linked into every generator, from the tree build.sh fetched and patched.
 m4_version=1.4.19
-m4_sha256=3be4a26d825ffdfda52a56fc43246456989a3630093cced3fbddf4771ee58a70
+m4_src=$here/build/m4-$m4_version
 
 # WINE names it; otherwise look where the app bundles and the package managers
 # put it. The bundles' own MacOS/wine is a launcher that drops arguments, so
@@ -57,12 +58,11 @@ wine=$(find_wine)
 for argument in "$@"; do
 	case $argument in
 		--no-smoke) smoke=no ;;
-		--no-m4) m4=no ;;
 		--smoke-only) smoke_only=yes ;;
 	esac
 done
 
-if [ ! -x "$source/src/flex" ]; then
+if [ ! -x "$source/src/flex" ] || [ ! -x "$m4_src/configure" ]; then
 	echo "run ./build.sh first" >&2
 	exit 1
 fi
@@ -81,12 +81,64 @@ if [ "$smoke_only" = no ]; then
 		"$source/" "$work/source/"
 fi
 
+# m4 goes into the generator, so it is cross-built for the same target first.
+# Its own binary has no main to link any more; the objects are what flex wants,
+# and flex linking against them is what says they all arrived.
+build_m4() {
+	name=$1
+	host=$2
+	compiler=$3
+
+	# The archiver has to understand the target's objects: Apple's ar makes an
+	# archive with nothing in it out of ELF or COFF ones, and says nothing.
+	case $compiler in
+		"zig cc"*) archiver="zig ar"; indexer="zig ranlib" ;;
+		*)         archiver=ar;       indexer=ranlib ;;
+	esac
+
+	echo "building m4 for $name"
+	rm -rf "$work/m4-$name"
+	mkdir -p "$work/m4-$name"
+	(
+		cd "$work/m4-$name"
+		if ! CC="$compiler" AR="$archiver" RANLIB="$indexer" \
+				CFLAGS="-O2 -g0" "$m4_src/configure" \
+				--host="$host" --quiet >"$work/m4-$name.log" 2>&1; then
+			cat "$work/m4-$name.log" >&2
+			exit 1
+		fi
+		make >>"$work/m4-$name.log" 2>&1 || true
+		if [ -z "$(find src -name 'output.o' -o -name 'output.obj')" ]; then
+			cat "$work/m4-$name.log" >&2
+			exit 1
+		fi
+	)
+}
+
+# What linking m4 in takes: its objects, then whatever its own build says it
+# needs, asked of that build rather than guessed at here.
+m4_link_flags() {
+	dir=$1
+
+	printf 'flex_js_libs:\n\t@echo $(LDADD)\n' > "$dir/src/flex-js.mk"
+	echo "$(find "$dir/src" -name '*.o' -o -name '*.obj' | sort | tr '\n' ' ') \
+$(make -s -C "$dir/src" -f Makefile -f flex-js.mk flex_js_libs \
+	| sed "s|\.\./lib/libm4\.a|$dir/lib/libm4.a|")"
+}
+
+# stage1flex is built for the build machine even in a cross build, so it takes
+# the m4 build.sh made here.
+m4_for_build=$(m4_link_flags "$here/build/m4")
+
 build_one() {
 	name=$1
 	host=$2
 	compiler=$3
 	target=${4:-flex}
 	windows=$5
+
+	build_m4 "$name" "$host" "$compiler"
+	m4_flags=$(m4_link_flags "$work/m4-$name")
 
 	echo "building $name"
 	rm -rf "$work/$name"
@@ -95,19 +147,22 @@ build_one() {
 		cd "$work/$name"
 
 		if [ "$windows" = windows ]; then
-			# Windows has no POSIX regex, no fork and no byte-swapping
-			# header; compat/win32 stands in, and the shim runs m4 itself
-			# rather than asking flex to fork it.
-			CPPFLAGS="-I$here/compat/win32"
+			# Windows has no POSIX regex and no byte-swapping header. The
+			# regex comes from the gnulib m4 brings with it, which is the
+			# same one everywhere else; compat/win32 stands in for the rest.
+			CPPFLAGS="-I$here/compat/win32 -I$m4_src/lib"
 			ac_cv_header_regex_h=yes
-			ac_cv_header_sys_wait_h=yes
 			ac_cv_header_netinet_in_h=yes
 			ac_cv_func_regcomp=yes
-			ac_cv_func_fork=yes
 			ac_cv_func_dup2=yes
-			export CPPFLAGS ac_cv_header_regex_h ac_cv_header_sys_wait_h \
-				ac_cv_header_netinet_in_h ac_cv_func_regcomp \
-				ac_cv_func_fork ac_cv_func_dup2
+			export CPPFLAGS ac_cv_header_regex_h \
+				ac_cv_header_netinet_in_h ac_cv_func_regcomp ac_cv_func_dup2
+
+			# glibc's fortified headers name this and mingw has none; bcrypt
+			# is what gnulib draws randomness from there.
+			$compiler -O2 -c -o "$work/m4-$name/mempcpy_chk.o" \
+				"$here/compat/win32/mempcpy_chk.c"
+			m4_flags="$m4_flags $work/m4-$name/mempcpy_chk.o -lbcrypt"
 		fi
 
 		CC="$compiler" CFLAGS="-O2 -g0" "$work/source/configure" \
@@ -115,12 +170,15 @@ build_one() {
 		# flex builds its own scanner with itself, and a cross build cannot run
 		# what it just built. Building that stage first, then putting the
 		# host's copy of its output in place, leaves make with nothing to run.
-		make -C src "stage1flex${target#flex}" >/dev/null 2>&1 || true
+		make -C src "stage1flex${target#flex}" FLEX_JS_M4="$m4_flags" \
+			FLEX_JS_M4_FOR_BUILD="$m4_for_build" >/dev/null 2>&1 || true
 		cp "$source/src/stage1scan.c" src/stage1scan.c
 		touch src/stage1scan.c
 		# Kept rather than shown, since a working build is loud about
 		# warnings; a failing one has nothing else to say for itself.
-		if ! make -C src "$target" >"$work/$name.log" 2>&1; then
+		if ! make -C src "$target" FLEX_JS_M4="$m4_flags" \
+				FLEX_JS_M4_FOR_BUILD="$m4_for_build" \
+				>"$work/$name.log" 2>&1; then
 			cat "$work/$name.log" >&2
 			exit 1
 		fi
@@ -128,9 +186,7 @@ build_one() {
 }
 
 # Every binary writes the same scanner from the same grammar, so the one built
-# here is the reference and the others have to match it. The reference is the
-# host generator with a forked m4; each other binary goes through bin/cli.js
-# and the m4 pipe, so this doubles as a fork-against-pipe comparison.
+# here is the reference and the others have to match it.
 smoke_grammar() {
 	cat > "$work/smoke.l" <<'GRAMMAR'
 %option noyywrap yylineno
@@ -153,9 +209,8 @@ GRAMMAR
 		> "$work/smoke-reference.js"
 }
 
-# Each generator is driven the way a user drives it: through bin/cli.js, with
-# the m4 pipe on, which is the only path Windows has. FLEX_JS names one
-# program, so a runner that needs arguments gets a wrapper.
+# Each generator is driven the way a user drives it: through bin/cli.js.
+# FLEX_JS names one program, so a runner that needs arguments gets a wrapper.
 smoke_one() {
 	name=$1
 	shift
@@ -173,8 +228,9 @@ smoke_one() {
 	# cleared, or a run that writes nothing is compared against the last one
 	rm -rf "$work/out-$name"
 	mkdir -p "$work/out-$name"
-	# The scratch the pipe uses has to be somewhere a container can see
-	if ! TMPDIR="$work" FLEX_JS="$runner" FLEX_JS_PIPE_M4=1 node "$here/bin/cli.js" \
+	# The scratch flex writes the m4 source to has to be somewhere a container
+	# can see, which is what TMPDIR names.
+	if ! TMPDIR="$work" FLEX_JS="$runner" node "$here/bin/cli.js" \
 			--emit=javascript -o "$work/out-$name/scanner.js" "$work/smoke.l" \
 			>/dev/null 2>&1; then
 		echo "  $name: failed to run"
@@ -208,14 +264,11 @@ smoke_all() {
 	smoke_one darwin "$here/dist/flex-js-darwin-universal"
 
 	if command -v finch >/dev/null 2>&1; then
-		# -e forwards what the shim sets, which the container would not see
-		smoke_one linux-arm64 finch run --rm \
-			-e FLEX_JS_M4_OUT -e FLEX_JS_M4_ABOUT \
+		smoke_one linux-arm64 finch run --rm -e TMPDIR \
 			-v "$here:$here" -w "$work" --platform linux/arm64 \
 			public.ecr.aws/docker/library/alpine:latest \
 			"$here/dist/flex-js-linux-arm64"
-		smoke_one linux-x64 finch run --rm \
-			-e FLEX_JS_M4_OUT -e FLEX_JS_M4_ABOUT \
+		smoke_one linux-x64 finch run --rm -e TMPDIR \
 			-v "$here:$here" -w "$work" --platform linux/amd64 \
 			public.ecr.aws/docker/library/alpine:latest \
 			"$here/dist/flex-js-linux-x64"
@@ -227,20 +280,17 @@ smoke_all() {
 	if [ -x "$wine" ]; then
 		smoke_one win32-x64 "$wine" "$here/dist/flex-js-win32-x64.exe"
 
-		# the m4 shipped for Windows has to agree with the host's, so the
-		# same run is made again with that one doing the expanding
-		if [ -f "$here/dist/m4-win32-x64.exe" ]; then
-			printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' \
-				"$wine" "$here/dist/m4-win32-x64.exe" > "$work/run-m4"
-			chmod +x "$work/run-m4"
-
-			M4=$work/run-m4
-			export M4
-			smoke_one m4-win32-x64 "$wine" "$here/dist/flex-js-win32-x64.exe"
-			unset M4
+		# An x86_64 wine loads no arm64 binary, and every build of it for
+		# macOS is one so far. Asking is what says whether this one is.
+		if "$wine" "$here/dist/flex-js-win32-arm64.exe" --version \
+				>/dev/null 2>&1; then
+			smoke_one win32-arm64 "$wine" \
+				"$here/dist/flex-js-win32-arm64.exe"
+		else
+			# win32 itself is covered by the x64 run above, so this is
+			# said rather than counted against the build.
+			echo "  win32-arm64: skipped, this wine runs no arm64 binary"
 		fi
-
-		echo "  win32-arm64: skipped, wine runs no arm64 Windows binary here"
 	else
 		echo "  win32: skipped, no wine"
 		smoke_unverified="$smoke_unverified win32"
@@ -279,50 +329,6 @@ cp "$work/linux-x64/src/flex" "$here/dist/flex-js-linux-x64"
 build_one linux-arm64 aarch64-linux-musl "zig cc -target aarch64-linux-musl"
 cp "$work/linux-arm64/src/flex" "$here/dist/flex-js-linux-arm64"
 
-# Windows has no m4 of its own, and flex cannot write a scanner without one.
-# It is shipped beside flex rather than linked into it: separate programs are
-# an aggregate, so m4 stays GPL and flex-js stays BSD.
-build_m4() {
-	name=$1
-	host=$2
-	compiler=$3
-
-	# kept beside the work directory rather than in it, which is wiped each
-	# run; configure is what the extraction writes, so a half one is redone
-	source_dir=$here/build/m4-$m4_version
-	if [ ! -x "$source_dir/configure" ]; then
-		rm -rf "$source_dir"
-		echo "fetching m4 $m4_version"
-		curl -fsSL --retry 3 "https://ftp.gnu.org/gnu/m4/m4-$m4_version.tar.gz" \
-			-o "$here/build/m4.tar.gz"
-		# The binary built from this ships; everything else the build reads is
-		# pinned by commit, so this is pinned by digest.
-		echo "$m4_sha256  $here/build/m4.tar.gz" | shasum -a 256 -c - >/dev/null
-		tar xzf "$here/build/m4.tar.gz" -C "$here/build"
-		rm -f "$here/build/m4.tar.gz"
-	fi
-
-	echo "building m4 for $name"
-	rm -rf "$work/m4-$name"
-	mkdir -p "$work/m4-$name"
-	(
-		cd "$work/m4-$name"
-		if ! CC="$compiler" CFLAGS="-O2 -g0" "$source_dir/configure" \
-				--host="$host" --quiet >"$work/m4-$name.log" 2>&1; then
-			cat "$work/m4-$name.log" >&2
-			exit 1
-		fi
-		# the final link fails without the pieces below, the objects do not
-		make >>"$work/m4-$name.log" 2>&1 || true
-		if ! $compiler -O2 -o m4.exe src/*.obj lib/*.obj lib/*/*.obj \
-				"$here/compat/win32/mempcpy_chk.c" -lbcrypt; then
-			# the link says only what it could not find; make said why
-			cat "$work/m4-$name.log" >&2
-			exit 1
-		fi
-	)
-}
-
 build_one win32-x64 x86_64-w64-mingw32 "zig cc -target x86_64-windows-gnu" \
 	flex.exe windows
 # libtool leaves a wrapper where the binary is expected; the real one is
@@ -332,14 +338,6 @@ cp "$work/win32-x64/src/.libs/flex.exe" "$here/dist/flex-js-win32-x64.exe"
 build_one win32-arm64 aarch64-w64-mingw32 "zig cc -target aarch64-windows-gnu" \
 	flex.exe windows
 cp "$work/win32-arm64/src/.libs/flex.exe" "$here/dist/flex-js-win32-arm64.exe"
-
-if [ "$m4" = yes ]; then
-	build_m4 win32-x64 x86_64-w64-mingw32 "zig cc -target x86_64-windows-gnu"
-	cp "$work/m4-win32-x64/m4.exe" "$here/dist/m4-win32-x64.exe"
-
-	build_m4 win32-arm64 aarch64-w64-mingw32 "zig cc -target aarch64-windows-gnu"
-	cp "$work/m4-win32-arm64/m4.exe" "$here/dist/m4-win32-arm64.exe"
-fi
 
 rm -f "$here"/dist/*.pdb
 ls -l "$here/dist"

@@ -137,11 +137,8 @@ never be anything but ASCII - it is no quicker than the 8-bit one.
 Prebuilt generators are shipped for macOS, Linux and Windows, on x86_64 and
 arm64. Nothing about a generated scanner is platform-specific.
 
-On Windows, flex cannot fork, so it cannot pipe its output through m4 there.
-`flex-js` runs m4 instead, from the copy shipped in `dist/`, and does the work
-of the filters flex wraps around it; the output is byte for byte what a forked
-m4 produces. flex writes what m4 reads and names the files the expansion belongs
-in, so every option works as it does anywhere - `-o`, `-t`, `--header-file`,
-`%option outfile`, and whichever spelling flex accepts for them.
-
-`--version` and `--help` work as they do anywhere.
+flex reaches its output through m4, which upstream forks. Windows cannot fork,
+so every generator has m4 linked into it and calls it in its own process
+instead, on every platform alike. The output is byte for byte what a forked m4
+produces, and there is no m4 to find on the PATH or install. `docs/building.md`
+says how.

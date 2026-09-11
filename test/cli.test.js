@@ -1,7 +1,7 @@
 'use strict';
 
 /*
-** bin/cli.js: what it writes beside a scanner, and the path Windows takes.
+** bin/cli.js: the generator it picks, and what flex writes beside a scanner.
 */
 
 var test = require('node:test');
@@ -98,47 +98,18 @@ test('the options that drop a method drop it from the types too', function () {
   assert.doesNotMatch(types, /m4_/, 'm4 reached the declaration file');
 });
 
-test('the C header the pipe writes is the one flex writes', function () {
+test('a C header is written beside the C scanner', function () {
   var source = grammar();
+  var scanner = path.join(directory, 'c-header', 'scanner.c');
+  var header = path.join(directory, 'c-header', 'scanner.h');
 
-  function build(name, environment) {
-    var scanner = path.join(directory, name, 'scanner.c');
-    var header = path.join(directory, name, 'scanner.h');
+  fs.mkdirSync(path.dirname(scanner), { recursive: true });
+  var made = run(['--header-file=' + header, '-o', scanner, source]);
 
-    fs.mkdirSync(path.dirname(scanner), { recursive: true });
-    var made = run(['--header-file=' + header, '-o', scanner, source], environment);
-
-    assert.strictEqual(made.status, 0, made.stderr);
-    return {
-      /* The directives name the file each run wrote, which is all that differs. */
-      scanner: fs.readFileSync(scanner, 'utf8').split(scanner).join('X'),
-      header: fs.readFileSync(header, 'utf8').split(header).join('X')
-    };
-  }
-
-  var piped = build('c-piped', { FLEX_JS_PIPE_M4: '1' });
-  var forked = build('c-forked', {});
-
-  assert.strictEqual(piped.header, forked.header);
-  assert.strictEqual(piped.scanner, forked.scanner);
-});
-
-test('the pipe writes the same header as a forked m4', function () {
-  function build(name, environment) {
-    var source = grammar();
-    var output = path.join(directory, name, 'scanner.js');
-    var header = path.join(directory, name, 'scanner.d.ts');
-
-    fs.mkdirSync(path.dirname(output), { recursive: true });
-    var made = run(['--emit=javascript', '--noline', '--header-file=' + header,
-      '-o', output, source], environment);
-
-    assert.strictEqual(made.status, 0, made.stderr);
-    return fs.readFileSync(header, 'utf8');
-  }
-
-  assert.strictEqual(build('h-piped', { FLEX_JS_PIPE_M4: '1' }),
-    build('h-forked', {}));
+  assert.strictEqual(made.status, 0, made.stderr);
+  assert.match(fs.readFileSync(header, 'utf8'), /yy_buffer_state/);
+  assert.match(fs.readFileSync(scanner, 'utf8'), /yy_buffer_state/);
+  assert.doesNotMatch(fs.readFileSync(header, 'utf8'), /m4_/);
 });
 
 test('TypeScript describes itself, so it is refused a header', function () {
@@ -161,80 +132,52 @@ test('emits C when no target is named, as any other flex does', function () {
   assert.strictEqual(fs.existsSync(output.replace(/\.c$/, '.d.ts')), false);
 });
 
-test('running m4 here gives the same scanner as letting flex fork it', function () {
-  var source = grammar();
-  var forked = source.replace(/\.l$/, '-forked.js');
-  var piped = source.replace(/\.l$/, '-piped.js');
-
-  assert.strictEqual(
-    run(['--emit=javascript', '--noline', '-o', forked, source]).status, 0);
-  var second = run(['--emit=javascript', '--noline', '-o', piped, source],
-    { FLEX_JS_PIPE_M4: '1' });
-  assert.strictEqual(second.status, 0, second.stderr);
-
-  assert.strictEqual(fs.readFileSync(piped, 'utf8'), fs.readFileSync(forked, 'utf8'));
-});
-
-test('an option whose value holds a t still runs through the pipe', function () {
+test('an option whose value holds a t is not mistaken for -t', function () {
   var source = grammar();
   var output = source.replace(/\.l$/, '.js');
-  var made = run(['--emit=javascript', '-Dtest', '--noline', '-o', output, source],
-    { FLEX_JS_PIPE_M4: '1' });
+  var made = run(['--emit=javascript', '-Dtest', '--noline', '-o', output, source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
   assert.match(fs.readFileSync(output, 'utf8'), /module\.exports = Scanner;/);
 });
 
-/* No --noline: the directives are what the pipe has to renumber, and with
- * them suppressed neither that nor the blank-line squeezing is exercised.
+/* No --noline: the directives are what has to be renumbered, and with them
+ * suppressed neither that nor the blank-line squeezing is exercised.
  */
-test('the pipe writes to stdout when flex was told to', function () {
+test('-t writes the scanner to stdout, named as <stdout>', function () {
   var source = grammar();
-  var piped = run(['--emit=javascript', '-t', source], { FLEX_JS_PIPE_M4: '1' });
-  var forked = run(['--emit=javascript', '-t', source]);
+  var made = run(['--emit=javascript', '-t', source]);
 
-  assert.strictEqual(piped.status, 0, piped.stderr);
-  assert.strictEqual(forked.status, 0, forked.stderr);
-  assert.match(piped.stdout, /module\.exports = Scanner;/);
-  assert.match(piped.stdout, /#line [0-9]+ "<stdout>"/);
-  assert.strictEqual(piped.stdout, forked.stdout);
+  assert.strictEqual(made.status, 0, made.stderr);
+  assert.match(made.stdout, /module\.exports = Scanner;/);
+  assert.match(made.stdout, /#line [0-9]+ "<stdout>"/);
 });
 
 test('-t names the directives after -o, and still writes to stdout', function () {
   var source = grammar();
   var named = source.replace(/\.l$/, '.js');
-  var piped = run(['--emit=javascript', '-t', '-o', named, source],
-    { FLEX_JS_PIPE_M4: '1' });
-  var forked = run(['--emit=javascript', '-t', '-o', named, source]);
+  var made = run(['--emit=javascript', '-t', '-o', named, source]);
 
-  assert.strictEqual(piped.status, 0, piped.stderr);
-  assert.strictEqual(piped.stdout, forked.stdout);
-  assert.match(piped.stdout, /module\.exports = Scanner;/);
-  assert.doesNotMatch(piped.stdout, /"<stdout>"/);
+  assert.strictEqual(made.status, 0, made.stderr);
+  assert.match(made.stdout, /module\.exports = Scanner;/);
+  assert.strictEqual(fs.existsSync(named), false, '-o was written as well');
+  assert.doesNotMatch(made.stdout, /"<stdout>"/);
 });
 
-test('a C header with --noline ends where flex ends one', function () {
+test('--noline writes a C header with no directives in it', function () {
   var source = grammar();
+  var scanner = path.join(directory, 'noline', 'noline.c');
+  var header = path.join(directory, 'noline', 'noline.h');
 
-  function build(name, environment) {
-    var scanner = path.join(directory, name, 'noline.c');
-    var header = path.join(directory, name, 'noline.h');
+  fs.mkdirSync(path.dirname(scanner), { recursive: true });
+  var made = run(['--noline', '--header-file=' + header, '-o', scanner, source]);
 
-    fs.mkdirSync(path.dirname(scanner), { recursive: true });
-    var made = run(['--noline', '--header-file=' + header, '-o', scanner, source],
-      environment);
-
-    assert.strictEqual(made.status, 0, made.stderr);
-    return fs.readFileSync(header, 'utf8').split(header).join('X');
-  }
-
-  var piped = build('nl-piped', { FLEX_JS_PIPE_M4: '1' });
-
-  assert.doesNotMatch(piped, /#line/, 'a directive was written under --noline');
-  assert.strictEqual(piped, build('nl-forked', {}));
+  assert.strictEqual(made.status, 0, made.stderr);
+  assert.doesNotMatch(fs.readFileSync(header, 'utf8'), /#line/,
+    'a directive was written under --noline');
 });
 
-test('a grammar cannot name a file for the pipe to write', function () {
+test('a grammar cannot name a file for flex to write', function () {
   var forged = path.join(directory, 'forged.d.ts');
   var source = grammar([
     '%top{',
@@ -250,12 +193,11 @@ test('a grammar cannot name a file for the pipe to write', function () {
     ''
   ].join('\n'));
   var output = source.replace(/\.l$/, '.js');
-  var made = run(['--emit=javascript', '--noline', '-o', output, source],
-    { FLEX_JS_PIPE_M4: '1' });
+  var made = run(['--emit=javascript', '--noline', '-o', output, source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
   assert.strictEqual(fs.existsSync(forged), false,
-    'the grammar named a file and the pipe wrote it');
+    'the grammar named a file and it was written');
   assert.match(fs.readFileSync(output, 'utf8'), /module\.exports = Scanner;/);
 });
 
@@ -264,7 +206,7 @@ test('a name with an accent in it is the name that gets written', function () {
   var output = path.join(directory, 'scann\u00e9.js');
   var header = path.join(directory, 'h\u00e9ader.d.ts');
   var made = run(['--emit=javascript', '--noline', '--header-file=' + header,
-    '-o', output, source], { FLEX_JS_PIPE_M4: '1' });
+    '-o', output, source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
   assert.ok(fs.existsSync(output), 'the scanner landed under another name');
@@ -274,25 +216,10 @@ test('a name with an accent in it is the name that gets written', function () {
 test('a scanner named - is a file, not stdout', function () {
   var source = grammar();
   var output = path.join(directory, '-');
-  var made = run(['--emit=javascript', '--noline', '-o', output, source],
-    { FLEX_JS_PIPE_M4: '1' });
+  var made = run(['--emit=javascript', '--noline', '-o', output, source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
   assert.match(fs.readFileSync(output, 'utf8'), /module\.exports = Scanner;/);
-});
-
-['FLEX_JS_M4_OUT', 'FLEX_JS_M4_ABOUT'].forEach(function (named) {
-  test('a stray ' + named + ' does not divert the scanner', function () {
-    var source = grammar();
-    var output = source.replace(/\.l$/, '.js');
-    var stray = {};
-
-    stray[named] = path.join(directory, 'stray-' + named);
-    var made = run(['--emit=javascript', '--noline', '-o', output, source], stray);
-
-    assert.strictEqual(made.status, 0, made.stderr);
-    assert.match(fs.readFileSync(output, 'utf8'), /module\.exports = Scanner;/);
-  });
 });
 
 /* flex resolves these, so the shim never reads them: the spellings it accepts
@@ -302,27 +229,26 @@ test('a scanner named - is a file, not stdout', function () {
   ['an abbreviated --outfil=', ['--outfil=']],
   ['-o on its own', ['-o']]
 ].forEach(function (spelling) {
-  test('the pipe writes where ' + spelling[0] + ' says', function () {
+  test('the scanner is written where ' + spelling[0] + ' says', function () {
     var source = grammar();
     var output = source.replace(/\.l$/, '.js');
     var named = spelling[1][0];
     var args = named.charAt(named.length - 1) === '='
       ? ['--emit=javascript', '--noline', named + output, source]
       : ['--emit=javascript', '--noline', named, output, source];
-    var made = run(args, { FLEX_JS_PIPE_M4: '1' });
+    var made = run(args);
 
     assert.strictEqual(made.status, 0, made.stderr);
     assert.match(fs.readFileSync(output, 'utf8'), /module\.exports = Scanner;/);
   });
 });
 
-test('the pipe writes where %option header-file says', function () {
+test('a header is written where %option header-file says', function () {
   var header = path.join(directory, 'by-option.d.ts');
   var source = grammar(GRAMMAR.replace('%option noyywrap',
     '%option noyywrap header-file="' + header.replace(/\\/g, '\\\\') + '"'));
   var output = source.replace(/\.l$/, '.js');
-  var made = run(['--emit=javascript', '--noline', '-o', output, source],
-    { FLEX_JS_PIPE_M4: '1' });
+  var made = run(['--emit=javascript', '--noline', '-o', output, source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
   assert.match(fs.readFileSync(header, 'utf8'), /interface Scanner \{/);
@@ -332,19 +258,18 @@ test('a header is written even when the scanner goes to stdout', function () {
   var source = grammar();
   var header = source.replace(/\.l$/, '.d.ts');
   var made = run(['--emit=javascript', '--noline', '--header-file=' + header,
-    '-t', source], { FLEX_JS_PIPE_M4: '1' });
+    '-t', source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
   assert.match(made.stdout, /module\.exports = Scanner;/);
   assert.match(fs.readFileSync(header, 'utf8'), /export = Scanner;/);
 });
 
-test('the pipe writes where %option outfile says', function () {
+test('the scanner is written where %option outfile says', function () {
   var output = path.join(directory, 'by-option.js');
   var source = grammar(GRAMMAR.replace('%option noyywrap',
     '%option noyywrap outfile="' + output.replace(/\\/g, '\\\\') + '"'));
-  var made = run(['--emit=javascript', '--noline', source],
-    { FLEX_JS_PIPE_M4: '1' });
+  var made = run(['--emit=javascript', '--noline', source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
   assert.match(fs.readFileSync(output, 'utf8'), /module\.exports = Scanner;/);
@@ -352,8 +277,8 @@ test('the pipe writes where %option outfile says', function () {
 
 
 
-test('running m4 in a pipe gives what forking it gives', function () {
-  var grammar = path.join(directory, 'both-ways.l');
+test('no m4 macro survives into the scanner', function () {
+  var grammar = path.join(directory, 'expanded.l');
   fs.writeFileSync(grammar, [
     '%option noyywrap',
     '%%',
@@ -369,26 +294,28 @@ test('running m4 in a pipe gives what forking it gives', function () {
     ''
   ].join('\n'));
 
-  function build(name, environment) {
-    var output = path.join(directory, name, 'scanner.js');
-    fs.mkdirSync(path.dirname(output), { recursive: true });
+  var output = path.join(directory, 'expanded', 'scanner.js');
 
-    var made = run(['--emit=javascript', '-o', output, grammar], environment);
-    assert.strictEqual(made.status, 0, made.stderr);
+  fs.mkdirSync(path.dirname(output), { recursive: true });
+  var made = run(['--emit=javascript', '-o', output, grammar]);
+  assert.strictEqual(made.status, 0, made.stderr);
 
-    // the directives name the file they are in, which is the only difference
-    return fs.readFileSync(output, 'utf8').split(path.dirname(output)).join('X');
-  }
+  var written = fs.readFileSync(output, 'utf8');
 
-  var forked = build('forked', {});
-  var piped = build('piped', { FLEX_JS_PIPE_M4: '1' });
-
-  assert.doesNotMatch(piped, /M4_YY_OUTFILE_NAME/,
-    'the piped run left an m4 macro in the output');
-  assert.strictEqual(piped, forked);
+  /* flex writes the mode switches it chose as comments, so what says the
+   * expansion ran is a macro that should have been substituted away.
+   */
+  assert.doesNotMatch(written, /M4_YY_OUTFILE_NAME/,
+    'an unexpanded m4 macro reached the output');
+  assert.doesNotMatch(written, /m4_ifdef/, 'an m4 conditional reached the output');
+  /* The blank lines between the rules are squeezed, and the ones in the user
+   * code below the second %% are left alone.
+   */
+  assert.match(written, /var a = 1;\n\n\nvar b = 2;/);
+  assert.strictEqual(require(output).extra(), 3);
 });
 
-test('a grammar written with CRLF comes back the same either way', function () {
+test('a grammar written with CRLF is scanned as written', function () {
   var source = path.join(directory, 'crlf.l');
   fs.writeFileSync(source, [
     '%option noyywrap',
@@ -400,19 +327,14 @@ test('a grammar written with CRLF comes back the same either way', function () {
     ''
   ].join('\r\n'));
 
-  function build(name, environment) {
-    var output = path.join(directory, name + '-crlf.js');
-    var made = run(['--emit=javascript', '--noline', '-o', output, source],
-      environment);
+  var output = path.join(directory, 'crlf.js');
+  var made = run(['--emit=javascript', '--noline', '-o', output, source]);
 
-    assert.strictEqual(made.status, 0, made.stderr);
-    return fs.readFileSync(output, 'utf8');
-  }
-
-  assert.strictEqual(build('piped', { FLEX_JS_PIPE_M4: '1' }), build('forked', {}));
+  assert.strictEqual(made.status, 0, made.stderr);
+  assert.match(fs.readFileSync(output, 'utf8'), /var kept = "a\\r\\nb";/);
 });
 
-test('a grammar too big for one buffer still comes back through the pipe',
+test('a scanner larger than m4 keeps in memory still comes back whole',
   function () {
     var rules = [];
     for (var index = 0; index < 900; index++) {
@@ -427,19 +349,44 @@ test('a grammar too big for one buffer still comes back through the pipe',
       '.|\\n     ;',
       ''
     ].join('\n'));
-    var piped = path.join(directory, 'big-piped.js');
-    var forked = path.join(directory, 'big-forked.js');
+    var output = path.join(directory, 'big.js');
 
-    // m4 writes well over a megabyte here, which is where a default pipe ends
-    var one = run(['--emit=javascript', '-Cf', '--noline', '-o', piped, source],
-      { FLEX_JS_PIPE_M4: '1' });
-    assert.strictEqual(one.status, 0, one.stderr);
+    /* Well over a megabyte, which is past the point where m4 would flush a
+     * diversion to a file rather than keep it.
+     */
+    var made = run(['--emit=javascript', '-Cf', '--noline', '-o', output, source]);
+    assert.strictEqual(made.status, 0, made.stderr);
+    assert.ok(fs.statSync(output).size > 1048576, 'the grammar was not big enough');
 
-    var two = run(['--emit=javascript', '-Cf', '--noline', '-o', forked, source]);
-    assert.strictEqual(two.status, 0, two.stderr);
+    var Scanner = require(output);
 
-    assert.ok(fs.statSync(piped).size > 1048576, 'the grammar was not big enough');
-    assert.strictEqual(fs.readFileSync(piped, 'utf8'), fs.readFileSync(forked, 'utf8'));
+    assert.strictEqual(new Scanner('KEYWORD5').lex(), 5);
+    assert.strictEqual(new Scanner('KEYWORD899').lex(), 899);
+  });
+
+/* %top{} goes through m4 as it stands, so a grammar can divert. Enough of it
+ * is flushed to a file rather than kept, which is the path diversion 0 is
+ * exempt from and this one is not.
+ */
+test('a grammar that diverts more than m4 keeps in memory still works',
+  function () {
+    var diverted = new Array(600 * 1024).join('z');
+    var source = grammar([
+      '%top{',
+      'm4_divert(1)' + diverted,
+      'm4_divert(0)',
+      '}',
+      '%option noyywrap',
+      '%%',
+      '[a-z]+   { return 1; }',
+      ''
+    ].join('\n'));
+    var output = path.join(directory, 'diverted.js');
+    var made = run(['--emit=javascript', '--noline', '-o', output, source]);
+
+    assert.strictEqual(made.status, 0, made.stderr);
+    assert.ok(fs.readFileSync(output, 'utf8').indexOf(diverted) !== -1,
+      'what the grammar diverted did not come back');
   });
 
 test('a reentrant scanner is refused rather than quietly not made', function () {

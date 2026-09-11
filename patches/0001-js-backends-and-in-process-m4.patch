@@ -1,0 +1,1048 @@
+diff --git a/configure.ac b/configure.ac
+index 1288ac5..918f49c 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -156,7 +156,7 @@ AC_PATH_PROG([INDENT], indent)
+ 
+ # checks for headers
+ 
+-AC_CHECK_HEADERS([regex.h strings.h sys/wait.h unistd.h], [],
++AC_CHECK_HEADERS([regex.h strings.h unistd.h], [],
+   [AC_MSG_ERROR(required header not found on your system)])
+ 
+ AC_CHECK_HEADERS([inttypes.h libintl.h limits.h locale.h malloc.h netinet/in.h])
+diff --git a/src/Makefile.am b/src/Makefile.am
+index b9ead07..86f5b69 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -31,7 +31,9 @@ nodist_stage1flex_SOURCES = \
+ 	$(SKELINCLUDES)
+ 
+ if CROSS
+-stage1flex_LDADD =
++# stage1flex runs on the build machine, so the m4 linked into it is the one
++# built for the build machine rather than for the target.
++stage1flex_LDADD = $(FLEX_JS_M4_FOR_BUILD)
+ stage1flex_SOURCES += \
+ 		      ../lib/malloc.c \
+ 		      ../lib/realloc.c
+@@ -91,7 +93,8 @@ COMMON_SOURCES = \
+ 	version.h \
+ 	yylex.c
+ 
+-LDADD = $(LIBOBJS) @LIBINTL@
++# m4 is linked in rather than forked; build.sh names the objects.
++LDADD = $(LIBOBJS) @LIBINTL@ $(FLEX_JS_M4)
+ 
+ $(LIBOBJS): $(LIBOBJDIR)$(am__dirstamp)
+ 
+@@ -102,6 +105,8 @@ EXTRA_DIST = \
+ 	c99-flex.skl \
+ 	cpp-flex.skl \
+ 	go-flex.skl \
++	js-flex.skl \
++	ts-flex.skl \
+ 	mkskel.sh \
+ 	gettext.h \
+ 	chkskel.sh
+@@ -117,7 +122,9 @@ CLEANFILES = stage1flex$(EXEEXT)
+ SKELINCLUDES = \
+ 	cpp-flex.h \
+ 	c99-flex.h \
+-	go-flex.h
++	go-flex.h \
++	js-flex.h \
++	ts-flex.h
+ 
+ cpp-flex.h: cpp-flex.skl mkskel.sh flexint_shared.h tables_shared.h tables_shared.c
+ 	$(SHELL) $(srcdir)/mkskel.sh cpp $(srcdir) $(m4) $(VERSION) > $@.tmp
+@@ -134,6 +141,16 @@ go-flex.h: go-flex.skl mkskel.sh
+ 	$(SHELL) $(srcdir)/chkskel.sh $@.tmp
+ 	mv -f $@.tmp $@
+ 
++js-flex.h: js-flex.skl mkskel.sh
++	$(SHELL) $(srcdir)/mkskel.sh js $(srcdir) $(m4) $(VERSION) > $@.tmp
++	$(SHELL) $(srcdir)/chkskel.sh $@.tmp
++	mv -f $@.tmp $@
++
++ts-flex.h: ts-flex.skl mkskel.sh
++	$(SHELL) $(srcdir)/mkskel.sh ts $(srcdir) $(m4) $(VERSION) > $@.tmp
++	$(SHELL) $(srcdir)/chkskel.sh $@.tmp
++	mv -f $@.tmp $@
++
+ # The input and output file names are fixed for deterministic scanner
+ # generation. If scan.l is not modified by builders, stage1scan.c should
+ # be bit-identical to the scan.c pregenerated on release.
+diff --git a/src/filter.c b/src/filter.c
+index 9482736..d175ccb 100644
+--- a/src/filter.c
++++ b/src/filter.c
+@@ -24,294 +24,128 @@
+ /*  PURPOSE. */
+ 
+ #include "flexdef.h"
++
++#ifdef _WIN32
++#include <fcntl.h>
++#include <io.h>
++#endif
+ static const char * check_4_gnu_m4 =
+     "m4_dnl ifdef(`__gnu__', ,"
+     "`errprint(Flex requires GNU M4. Set the PATH or set the M4 environment variable to its path name.)"
+     " m4exit(2)')\n";
+ 
+ 
+-/** global chain. */
+-struct filter *output_chain = NULL;
+-
+-/* Allocate and initialize an external filter.
+- * @param chain the current chain or NULL for new chain
+- * @param cmd the command to execute.
+- * @param ... a NULL terminated list of (const char*) arguments to command,
+- *            not including argv[0].
+- * @return newest filter in chain
++/* Where flex writes the m4 source, and the console when the scanner is bound
++ * for it rather than for a file of its own. Both are opened as bytes, since
++ * Windows would otherwise end every line with a byte the other platforms do
++ * not write.
+  */
+-struct filter *filter_create_ext (struct filter *chain, const char *cmd,
+-				  ...)
+-{
+-	struct filter *f;
+-	int     max_args;
+-	const char *s;
+-	va_list ap;
+-
+-	/* allocate and initialize new filter */
+-	f = calloc(sizeof(struct filter), 1);
+-	if (!f)
+-		flexerror(_("calloc failed (f) in filter_create_ext"));
+-	f->filter_func = NULL;
+-	f->extra = NULL;
+-	f->next = NULL;
+-	f->argc = 0;
+-
+-	if (chain != NULL) {
+-		/* append f to end of chain */
+-		while (chain->next)
+-			chain = chain->next;
+-		chain->next = f;
+-	}
+-
+-
+-	/* allocate argv, and populate it with the argument list. */
+-	max_args = 8;
+-	f->argv = malloc(sizeof(char *) * (size_t) (max_args + 1));
+-	if (!f->argv)
+-		flexerror(_("malloc failed (f->argv) in filter_create_ext"));
+-	f->argv[f->argc++] = cmd;
+-
+-	va_start (ap, cmd);
+-	while ((s = va_arg (ap, const char *)) != NULL) {
+-		if (f->argc >= max_args) {
+-			max_args += 8;
+-			f->argv = realloc(f->argv, sizeof(char*) * (size_t) (max_args + 1));
+-		}
+-		f->argv[f->argc++] = s;
+-	}
+-	f->argv[f->argc] = NULL;
+-
+-	va_end (ap);
+-	return f;
+-}
++static char m4_source_name[MAXLINE];
++static FILE *console;
+ 
+-/* Allocate and initialize an internal filter.
+- * @param chain the current chain or NULL for new chain
+- * @param filter_func The function that will perform the filtering.
+- *        filter_func should return 0 if successful, and -1
+- *        if an error occurs -- or it can simply exit().
+- * @param extra optional user-defined data to pass to the filter.
+- * @return newest filter in chain
++/* However flex ends, and it has several ways, the scratch file does not
++ * outlive it.
+  */
+-struct filter *filter_create_int (struct filter *chain,
+-				  int (*filter_func) (struct filter *),
+-				  void *extra)
++static void remove_m4_source (void)
+ {
+-	struct filter *f;
+-
+-	/* allocate and initialize new filter */
+-	f = calloc(sizeof(struct filter), 1);
+-	if (!f)
+-		flexerror(_("calloc failed in filter_create_int"));
+-	f->next = NULL;
+-	f->argc = 0;
+-	f->argv = NULL;
+-
+-	f->filter_func = filter_func;
+-	f->extra = extra;
+-
+-	if (chain != NULL) {
+-		/* append f to end of chain */
+-		while (chain->next)
+-			chain = chain->next;
+-		chain->next = f;
+-	}
+-
+-	return f;
++	if (m4_source_name[0] != '\0')
++		remove (m4_source_name);
+ }
+ 
+-/** Fork and exec entire filter chain.
+- *  @param chain The head of the chain.
+- *  @return true on success.
++/* flex writes the m4 source the way it writes everything, through stdout, so
++ * that is what is pointed at a file of our own until m4 has read it back.
+  */
+-bool filter_apply_chain (struct filter * chain)
++void open_m4_source (void)
+ {
+-	int     pid, pipes[2];
++	const char *dir;
++	int     fd;
+ 
++	if (env.use_stdout) {
++		int     kept = dup (fileno (stdout));
+ 
+-	/* Tricky recursion, since we want to begin the chain
+-	 * at the END. Why? Because we need all the forked processes
+-	 * to be children of the main flex process.
+-	 */
+-	if (chain)
+-		filter_apply_chain (chain->next);
+-	else
+-		return true;
++		if (kept == -1 || (console = fdopen (kept, "wb")) == NULL)
++			flexfatal (_("dup(1) failed"));
+ 
+-	/* Now we are the right-most unprocessed link in the chain.
+-	 */
++#ifdef _WIN32
++		/* Asking for bytes says how the stream behaves; the descriptor
++		 * under it goes on ending lines its own way until it is told.
++		 */
++		_setmode (kept, _O_BINARY);
++#endif
++	}
+ 
+-	fflush (stdout);
+-	fflush (stderr);
+-
+-
+-	if (pipe (pipes) == -1)
+-		flexerror (_("pipe failed"));
+-
+-	if ((pid = fork ()) == -1)
+-		flexerror (_("fork failed"));
+-
+-	if (pid == 0) {
+-		/* child */
+-
+-        /* We need stdin (the FILE* stdin) to connect to this new pipe.
+-         * There is no portable way to set stdin to a new file descriptor,
+-         * as stdin is not an lvalue on some systems (BSD).
+-         * So we dup the new pipe onto the stdin descriptor and use a no-op fseek
+-         * to sync the stream. This is a Hail Mary situation. It seems to work.
+-         */
+-		close (pipes[1]);
+-		clearerr(stdin);
+-		if (dup2 (pipes[0], fileno (stdin)) == -1)
+-			flexfatal (_("dup2(pipes[0],0)"));
+-		close (pipes[0]);
+-		fseek (stdin, 0, SEEK_CUR);
+-		ungetc(' ', stdin); /* still an evil hack, but one that works better */
+-		(void)fgetc(stdin); /* on NetBSD than the fseek attempt does */
+-
+-		/* run as a filter, either internally or by exec */
+-		if (chain->filter_func) {
+-			int     r;
+-
+-			if ((r = chain->filter_func (chain)) == -1)
+-				flexfatal (_("filter_func failed"));
+-			FLEX_EXIT (0);
+-		}
+-		else {
+-			execvp (chain->argv[0],
+-				(char **const) (chain->argv));
+-			lerr_fatal ( _("exec of %s failed"),
+-				     chain->argv[0]);
+-		}
++	if ((dir = getenv ("TMPDIR")) == NULL || *dir == '\0')
++		if ((dir = getenv ("TEMP")) == NULL || *dir == '\0')
++			if ((dir = getenv ("TMP")) == NULL || *dir == '\0')
++				dir = "/tmp";
+ 
+-		FLEX_EXIT (1);
+-	}
++	snprintf (m4_source_name, sizeof m4_source_name, "%s/flexXXXXXX", dir);
++	if ((fd = mkstemp (m4_source_name)) == -1)
++		lerr (_("could not create %s"), m4_source_name);
++	close (fd);
+ 
+-	/* Parent */
+-	close (pipes[0]);
+-	if (dup2 (pipes[1], fileno (stdout)) == -1)
+-		flexfatal (_("dup2(pipes[1],1)"));
+-	close (pipes[1]);
+-	fseek (stdout, 0, SEEK_CUR);
++	if (freopen (m4_source_name, "w+b", stdout) == NULL)
++		lerr (_("could not create %s"), m4_source_name);
+ 
+-	return true;
++	atexit (remove_m4_source);
+ }
+ 
+-/** Truncate the chain to max_len number of filters.
+- * @param chain the current chain.
+- * @param max_len the maximum length of the chain.
+- * @return the resulting length of the chain.
+- */
+-int filter_truncate (struct filter *chain, int max_len)
++/* What flex wrote, read back whole. */
++static void read_m4_source (struct Buf *source)
+ {
+-	int     len = 1;
++	char    chunk[BUFSIZ];
++	size_t  got;
+ 
+-	if (!chain)
+-		return 0;
++	fflush (stdout);
++	if (ferror (stdout))
++		lerr (_("error writing output file %s"), m4_source_name);
+ 
+-	while (chain->next && len < max_len) {
+-		chain = chain->next;
+-		++len;
+-	}
++	rewind (stdout);
++	buf_init (source, 1);
++	while ((got = fread (chunk, 1, sizeof chunk, stdout)) > 0)
++		buf_append (source, chunk, (int) got);
+ 
+-	chain->next = NULL;
+-	return len;
++	if (ferror (stdout))
++		lerr (_("input error reading %s"), m4_source_name);
+ }
+ 
+-/** Splits the chain in order to write to a header file.
+- *  Similar in spirit to the 'tee' program.
+- *  The header file name is in extra.
+- *  @return 0 (zero) on success, and -1 on failure.
++/* What flex says before the skeleton, and M4_YY_IN_HEADER for the branch
++ * that writes declarations rather than a scanner.
+  */
+-int filter_tee_header (struct filter *chain)
++static void prologue (struct Buf *input, const char *named, bool for_header)
+ {
+-	/* This function reads from stdin and writes to both the C file and the
+-	 * header file at the same time.
+-	 */
+-
+-	char    buf[512];
+-	int     to_cfd = -1;
+-	FILE   *to_c = NULL, *to_h = NULL;
+-	bool    write_header;
+-
+-	write_header = (chain->extra != NULL);
+-
+-	/* Store a copy of the stdout pipe, which is already piped to C file
+-	 * through the running chain. Then create a new pipe to the H file as
+-	 * stdout, and fork the rest of the chain again.
+-	 */
+-
+-	if ((to_cfd = dup (1)) == -1)
+-		flexfatal (_("dup(1) failed"));
+-	to_c = fdopen (to_cfd, "w");
+-
+-	if (write_header) {
+-		if (freopen ((char *) chain->extra, "w", stdout) == NULL)
+-			flexfatal (_("freopen(headerfilename) failed"));
+-
+-		filter_apply_chain (chain->next);
+-		to_h = stdout;
+-	}
+-
+-	/* Now to_c is a pipe to the C branch, and to_h is a pipe to the H branch.
+-	 */
+-
+-	if (write_header) {
+-		fputs (check_4_gnu_m4, to_h);
+-		fputs ("m4_changecom`'m4_dnl\n", to_h);
+-		fputs ("m4_changequote`'m4_dnl\n", to_h);
+-	fputs ("m4_changequote([[,]])[[]]m4_dnl\n", to_h);
+-		fputs ("m4_define([[M4_YY_NOOP]])[[]]m4_dnl\n", to_h);
+-		fputs ("m4_define([[M4_YY_IN_HEADER]],[[]])m4_dnl\n", to_h);
+-		fprintf (to_h,
+-			 "m4_define( [[M4_YY_OUTFILE_NAME]],[[%s]])m4_dnl\n",
+-			 env.headerfilename != NULL ? env.headerfilename : "<stdout>");
+-	}
+-
+-	fputs (check_4_gnu_m4, to_c);
+-	fputs ("m4_changecom`'m4_dnl\n", to_c);
+-	fputs ("m4_changequote`'m4_dnl\n", to_c);
+-	fputs ("m4_changequote([[,]])[[]]m4_dnl\n", to_c);
+-	fputs ("m4_define([[M4_YY_NOOP]])[[]]m4_dnl\n", to_c);
+-	fprintf (to_c, "m4_define( [[M4_YY_OUTFILE_NAME]],[[%s]])m4_dnl\n",
+-		 env.outfilename != NULL ? env.outfilename : "<stdout>");
+-
+-	while (fgets (buf, sizeof buf, stdin)) {
+-		fputs (buf, to_c);
+-		if (write_header)
+-			fputs (buf, to_h);
+-	}
++	buf_strappend (input, check_4_gnu_m4);
++	buf_strappend (input, "m4_changecom`'m4_dnl\n");
++	buf_strappend (input, "m4_changequote`'m4_dnl\n");
++	buf_strappend (input, "m4_changequote([[,]])[[]]m4_dnl\n");
++	buf_strappend (input, "m4_define([[M4_YY_NOOP]])[[]]m4_dnl\n");
++	if (for_header)
++		buf_strappend (input, "m4_define([[M4_YY_IN_HEADER]],[[]])m4_dnl\n");
++	buf_prints (input, "m4_define( [[M4_YY_OUTFILE_NAME]],[[%s]])m4_dnl\n",
++		    named);
++}
+ 
+-	if (write_header) {
+-		fprintf (to_h, "\n");
++/* fgets over what is already in memory, so a line is measured the way the
++ * forked filter measured it and the numbering comes out the same.
++ */
++static char *mem_gets (char *dst, int size, const char **cursor,
++		       const char *end)
++{
++	const char *from = *cursor;
++	int     n = 0;
+ 
+-		/* write a fake line number. It will get fixed by the linedir filter. */
+-		if (ctrl.gen_line_dirs)
+-			line_directive_out (to_h, NULL, 4000);
+-		fflush (to_h);
+-		if (ferror (to_h))
+-			lerr (_("error writing output file %s"),
+-				(char *) chain->extra);
++	if (from >= end)
++		return NULL;
+ 
+-		else if (fclose (to_h))
+-			lerr (_("error closing output file %s"),
+-				(char *) chain->extra);
++	while (n < size - 1 && from < end) {
++		dst[n++] = *from;
++		if (*from++ == '\n')
++			break;
+ 	}
+ 
+-	fflush (to_c);
+-	if (ferror (to_c))
+-		lerr (_("error writing output file %s"),
+-			env.outfilename != NULL ? env.outfilename : "<stdout>");
+-
+-	else if (fclose (to_c))
+-		lerr (_("error closing output file %s"),
+-			env.outfilename != NULL ? env.outfilename : "<stdout>");
+-
+-	while (wait (0) > 0) ;
+-
+-	FLEX_EXIT (0);
+-	return 0;
++	dst[n] = '\0';
++	*cursor = from;
++	return dst;
+ }
+ 
+ static bool is_blank_line (const char *str)
+@@ -327,19 +161,17 @@ static bool is_blank_line (const char *str)
+  * not user code. This also happens to be a good place to squeeze multiple
+  * blank lines into a single blank line.
+  */
+-int filter_fix_linedirs (struct filter *chain)
++static void fix_linedirs (struct Buf *out, const char *text, size_t length)
+ {
+-	char   buf[4096];
+-	const char *cp;
++	char    buf[4096];
+ 	const size_t readsz = sizeof buf;
++	const char *cursor = text;
++	const char *end = text + length;
+ 	int     lineno = 1;
+ 	bool    in_gen = true;	/* in generated code */
+ 	bool    last_was_blank = false;
+ 
+-	if (!chain)
+-		return 0;
+-
+-	while (fgets (buf, (int) readsz, stdin)) {
++	while (mem_gets (buf, (int) readsz, &cursor, end)) {
+ 
+ 		regmatch_t m[10];
+ 
+@@ -409,19 +241,96 @@ int filter_fix_linedirs (struct filter *chain)
+ 			last_was_blank = false;
+ 		}
+ 
+-		fputs (buf, stdout);
++		buf_strappend (out, buf);
+ 		lineno++;
+ 	}
+-	fflush (stdout);
+-	if (ferror (stdout))
+-		lerr (_("error writing output file %s"),
+-			env.outfilename != NULL ? env.outfilename : "<stdout>");
++}
++
++/* One pass of what the forked chain did: the source through m4, and the
++ * directives naming what flex writes renumbered over the expansion.
++ */
++static void expand (struct Buf *out, const struct Buf *source,
++		    const char *named, bool for_header)
++{
++	char   *argv[] = { (char *) "m4", (char *) "-P", NULL };
++	struct Buf input;
++	char   *text = NULL;
++	size_t  length = 0;
+ 
+-	else if (fclose (stdout))
+-		lerr (_("error closing output file %s"),
+-			env.outfilename != NULL ? env.outfilename : "<stdout>");
++	buf_init (&input, 1);
++	prologue (&input, named, for_header);
++	buf_append (&input, source->elts, source->nelts);
++
++	if (for_header) {
++		buf_strappend (&input, "\n");
++
++		/* a fake line number, renumbered along with the rest */
++		if (ctrl.gen_line_dirs) {
++			char    directive[MAXLINE * 2];
++
++			line_directive_text (directive, sizeof directive,
++					     NULL, 4000);
++			buf_strappend (&input, directive);
++		}
++	}
++
++	m4_collect_output = true;
++	if (main_m4 (2, argv, (const char *) input.elts, (size_t) input.nelts,
++		     &text, &length) != 0)
++		lerr (_("error writing output file %s"), named);
++
++	buf_destroy (&input);
++	buf_init (out, 1);
++	fix_linedirs (out, text, length);
++	free (text);
++}
++
++/* The expansion, to the file it names or to the console. */
++static void land (const char *named, FILE *where, const struct Buf *text)
++{
++	FILE   *out = where;
++
++	if (out == NULL && (out = fopen (named, "wb")) == NULL)
++		lerr (_("could not create %s"), named);
++
++	fwrite (text->elts, 1, (size_t) text->nelts, out);
++	fflush (out);
++
++	if (ferror (out))
++		lerr (_("error writing output file %s"), named);
++	else if (where == NULL && fclose (out))
++		lerr (_("error closing output file %s"), named);
++}
++
++/* What the forked chain did: the source through m4 once for the scanner and
++ * again for the declarations, each renumbered and landed where it belongs.
++ */
++void expand_m4_source (void)
++{
++	const char *scanner = env.outfilename != NULL
++		? env.outfilename : "<stdout>";
++	struct Buf source, expanded, declared;
++
++	read_m4_source (&source);
++
++	expand (&expanded, &source, scanner, false);
++	if (env.headerfilename != NULL)
++		expand (&declared, &source, env.headerfilename, true);
++
++	buf_destroy (&source);
++
++	/* Nothing lands until both have expanded, so a grammar m4 rejects
++	 * leaves no half-written scanner behind.
++	 */
++	land (scanner, console, &expanded);
++	buf_destroy (&expanded);
++
++	if (env.headerfilename != NULL) {
++		land (env.headerfilename, NULL, &declared);
++		buf_destroy (&declared);
++	}
+ 
+-	return 0;
++	fclose (stdout);
+ }
+ 
+ /* vim:set expandtab cindent tabstop=4 softtabstop=4 shiftwidth=4 textwidth=0: */
+diff --git a/src/flexdef.h b/src/flexdef.h
+index adf4fd0..d45754e 100644
+--- a/src/flexdef.h
++++ b/src/flexdef.h
+@@ -68,8 +68,6 @@
+ #ifdef HAVE_SYS_PARAMS_H
+ #include <sys/params.h>
+ #endif
+-/* Required: wait() in <sys/wait.h> */
+-#include <sys/wait.h>
+ #ifdef HAVE_STDBOOL_H
+ #include <stdbool.h>
+ #elif !defined(__cplusplus) && (!defined(__STDC_VERSION__) || \
+@@ -889,6 +887,7 @@ extern void lerr_fatal(const char *, ...)
+ 
+ /* Spit out a "#line" statement. */
+ extern void line_directive_out(FILE *, char *, int);
++extern void line_directive_text(char *, size_t, char *, int);
+ 
+ /* Mark the current position in the action array as the end of the section 1
+  * user defs.
+@@ -1137,28 +1136,15 @@ bool range_covers_case (int c1, int c2);
+  *  From "filter.c"
+  */
+ 
+-/** A single stdio filter to execute.
+- *  The filter may be external, such as "sed", or it
+- *  may be internal, as a function call.
++/* m4 is linked in rather than forked, which Windows has no way to do.
++ * docs/building.md says how.
+  */
+-struct filter {
+-    int    (*filter_func)(struct filter*); /**< internal filter function */
+-    void * extra;         /**< extra data passed to filter_func */
+-	int     argc;         /**< arg count */
+-	const char ** argv;   /**< arg vector, \0-terminated */
+-    struct filter * next; /**< next filter or NULL */
+-};
++extern bool m4_collect_output;
++extern int main_m4 (int argc, char *const *argv, const char *in, size_t inlen,
++		    char **out, size_t *outlen);
+ 
+-/* output filter chain */
+-extern struct filter * output_chain;
+-extern struct filter *filter_create_ext (struct filter * chain, const char *cmd, ...);
+-struct filter *filter_create_int(struct filter *chain,
+-				  int (*filter_func) (struct filter *),
+-                  void *extra);
+-extern bool filter_apply_chain(struct filter * chain);
+-extern int filter_truncate(struct filter * chain, int max_len);
+-extern int filter_tee_header(struct filter *chain);
+-extern int filter_fix_linedirs(struct filter *chain);
++extern void open_m4_source (void);
++extern void expand_m4_source (void);
+ 
+ 
+ /*
+diff --git a/src/main.c b/src/main.c
+index ef48e7a..13e2a81 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -123,19 +123,14 @@ static const char tablesfile_template[] = "lex.%s.tables";
+ extern FILE* yyout;
+ 
+ static char outfile_path[MAXLINE];
+-static int outfile_created = 0;
+-static int _stdout_closed = 0; /* flag to prevent double-fclose() on stdout. */
+ const char *escaped_qstart = "]]M4_YY_NOOP[M4_YY_NOOP[M4_YY_NOOP[[";
+ const char *escaped_qend   = "]]M4_YY_NOOP]M4_YY_NOOP]M4_YY_NOOP[[";
+ 
+-/* For debugging. The max number of filters to apply to skeleton. */
+-static int preproc_level = 1000;
+-
+ int flex_main (int argc, char *argv[]);
+ 
+ int flex_main (int argc, char *argv[])
+ {
+-	int     i, exit_status, child_status;
++	int     i, exit_status;
+ 	int	did_eof_rule = false;
+ 
+ 	/* Set a longjmp target. Yes, I know it's a hack, but it gets worse: The
+@@ -146,23 +141,8 @@ int flex_main (int argc, char *argv[])
+ 	 * exit(n);
+ 	 */
+ 	exit_status = setjmp (flex_main_jmp_buf);
+-	if (exit_status){
+-		if (stdout && !_stdout_closed && !ferror(stdout)){
+-			fflush(stdout);
+-			fclose(stdout);
+-		}
+-		while (wait(&child_status) > 0){
+-			if (!WIFEXITED (child_status)
+-			    || WEXITSTATUS (child_status) != 0){
+-				/* report an error of a child
+-				 */
+-				if( exit_status <= 1 )
+-					exit_status = 2;
+-
+-			}
+-		}
++	if (exit_status)
+ 		return exit_status - 1;
+-	}
+ 
+ 	flexinit (argc, argv);
+ 
+@@ -291,29 +271,29 @@ int main (int argc, char *argv[])
+ 	return flex_main (argc, argv);
+ }
+ 
+-/* Set up the output filter chain. */
++/* check_options - check user-specified options */
+ 
+-void initialize_output_filters(void)
++/* Whether a prefix can stand in the name a back end binds its scanner to. */
++static bool prefix_names_a_binding (const char *prefix)
+ {
+-	const char * m4 = NULL;
++	const char *cp;
+ 
+-	output_chain = filter_create_int(NULL, filter_tee_header, env.headerfilename);
+-	if ( !(m4 = getenv("M4"))) {
+-		m4 = M4;
+-	}
+-	filter_create_ext(output_chain, m4, "-P", (char *) 0);
+-	filter_create_int(output_chain, filter_fix_linedirs, NULL);
++	if (prefix == NULL || *prefix == '\0')
++		return false;
+ 
+-	/* For debugging, only run the requested number of filters. */
+-	if (preproc_level > 0) {
+-		filter_truncate(output_chain, preproc_level);
+-		filter_apply_chain(output_chain);
++	/* No $: the name is built by m4, which reads $1 in a macro body as an
++	 * argument and would drop it.
++	 */
++	for (cp = prefix; *cp != '\0'; cp++) {
++		if (isalpha ((unsigned char) *cp) || *cp == '_')
++			continue;
++		if (cp > prefix && isdigit ((unsigned char) *cp))
++			continue;
++		return false;
+ 	}
++	return true;
+ }
+ 
+-
+-/* check_options - check user-specified options */
+-
+ void check_options (void)
+ {
+ 	int     i;
+@@ -343,7 +323,14 @@ void check_options (void)
+ #endif
+ 
+ 	if (ctrl.csize == trit_unspecified) {
+-		if ((ctrl.fulltbl || ctrl.fullspd) && !ctrl.useecs)
++		const char *charset = skel_property("M4_PROPERTY_CHARACTER_SET");
++
++		/* A back end that scans bytes wants tables covering all of them,
++		 * whichever table mode is asked for.
++		 */
++		if (charset != NULL && strcmp(charset, "8bit") == 0)
++			ctrl.csize = CSIZE;
++		else if ((ctrl.fulltbl || ctrl.fullspd) && !ctrl.useecs)
+ 			ctrl.csize = DEFAULT_CSIZE;
+ 		else
+ 			ctrl.csize = CSIZE;
+@@ -356,7 +343,35 @@ void check_options (void)
+ 			ctrl.interactive = trit_true;
+ 	}
+ 
++	if (skel_property("M4_PROPERTY_NO_REENTRANT") != NULL
++	    && (ctrl.reentrant || ctrl.bison_bridge_lval
++		|| ctrl.bison_bridge_lloc))
++		/* Every scanner this back end writes is an object of its own. */
++		flexerror (_
++			   ("this back end has no reentrant mode, so --reentrant and the bison bridge are not supported"));
++
++	if (skel_property("M4_PROPERTY_NO_YYDECL") != NULL && ctrl.yydecl != NULL)
++		/* The scanner is a method, so its name and signature are fixed. */
++		flexerror (_
++			   ("this back end names the scanner itself, so %option yydecl is not supported"));
++
++	if (skel_property("M4_PROPERTY_NO_HEADER") != NULL
++	    && env.headerfilename != NULL)
++		/* Nothing of the scanner is declared separately from it. */
++		flexerror (_
++			   ("this back end writes no header, so --header-file is not supported"));
++
++	if (skel_property("M4_PROPERTY_PREFIX_NAMES_A_BINDING") != NULL
++	    && !prefix_names_a_binding (ctrl.prefix))
++		flexerror (_
++			   ("this back end names the scanner after the prefix, so it has to be a name a binding can take"));
++
+ 	if (ctrl.fulltbl || ctrl.fullspd) {
++		if (ctrl.fullspd
++		    && skel_property("M4_PROPERTY_NO_FULLSPD") != NULL)
++			flexerror (_
++				   ("this back end has no fast-scanner tables, so -F/-CF is not supported"));
++
+ 		if (ctrl.usemecs)
+ 			flexerror (_
+ 				   ("-Cf/-CF and -Cm don't make sense together"));
+@@ -412,23 +427,17 @@ void check_options (void)
+ 		}
+ 	}
+ 
+-	if (!env.use_stdout) {
+-		FILE   *prev_stdout;
+-
+-		if (!env.did_outfilename) {
+-			snprintf (outfile_path, sizeof(outfile_path), outfile_template,
+-				  ctrl.prefix, suffix());
+-
+-			env.outfilename = outfile_path;
+-		}
+-
+-		prev_stdout = freopen (env.outfilename, "w+", stdout);
+-
+-		if (prev_stdout == NULL)
+-			lerr (_("could not create %s"), env.outfilename);
++	if (!env.use_stdout && !env.did_outfilename) {
++		snprintf (outfile_path, sizeof(outfile_path), outfile_template,
++			  ctrl.prefix, suffix());
+ 
+-		outfile_created = 1;
++		env.outfilename = outfile_path;
+ 	}
++
++	/* The m4 source goes to a file of flex's own, and what it expands to
++	 * lands where the command line said once flex has finished writing it.
++	 */
++	open_m4_source ();
+ }
+ 
+ /* flexend - terminate flex
+@@ -458,19 +467,8 @@ void flexend (int exit_status)
+ 				env.skelname);
+ 	}
+ 
+-	if (exit_status != 0 && outfile_created) {
+-		if (ferror (stdout))
+-			lerr (_("error writing output file %s"),
+-				env.outfilename);
+-
+-		else if ((_stdout_closed = 1) && fclose (stdout))
+-			lerr (_("error closing output file %s"),
+-				env.outfilename);
+-
+-		else if (unlink (env.outfilename))
+-			lerr (_("error deleting output file %s"),
+-				env.outfilename);
+-	}
++	if (exit_status == 0)
++		expand_m4_source ();
+ 
+ 
+ 	if (env.backing_up_report && ctrl.backing_up_file) {
+@@ -854,10 +852,6 @@ void flexinit (int argc, char **argv)
+ 			ctrl.posix_compat = true;
+ 			break;
+ 
+-		    case OPT_PREPROC_LEVEL:
+-			preproc_level = (int) strtol(arg,NULL,0);
+-			break;
+-
+ 		    case OPT_MAIN:
+ 			ctrl.do_yywrap = false;
+ 			ctrl.do_main = trit_true;
+@@ -1186,6 +1180,12 @@ void flexinit (int argc, char **argv)
+ 	 */
+ 	lastprot = 1;
+ 
++	/* Chosen here rather than in readin(), because check_options() runs
++	 * while the grammar is parsed and asks the skeleton what character set
++	 * it wants. %option emit chooses again from the grammar.
++	 */
++	backend_by_name(ctrl.emit);
++
+ 	set_up_initial_allocations ();
+ }
+ 
+@@ -1206,16 +1206,6 @@ void readin (void)
+ 	if (syntaxerror)
+ 		flexend (1);
+ 
+-	/* On --emit, -e, or change backends This is where backend
+-	 * properties are collected, which means they can't be set
+-	 * from a custom skelfile.  Note: might have been called sooner
+-	 * when %option emit was evaluated; this catches command-line
+-	 * optiins and the default case.
+-	 */
+-	backend_by_name(ctrl.emit);
+-
+-	initialize_output_filters();
+-
+ 	yyout = stdout;
+ 
+ 	if (tablesext)
+@@ -1276,19 +1266,23 @@ void readin (void)
+ 	/* Place a bogus line directive, it will be fixed in the filter. */
+ 	line_directive_out(NULL, NULL, 0);
+ 
++	/* Every value below is quoted, or m4 reads a comma in one as another
++	 * argument and drops everything after it.
++	 */
++
+ 	/* User may want to set the scanner prototype */
+ 	if (ctrl.yydecl != NULL) {
+-		out_str ("M4_HOOK_SET_YY_DECL(%s)\n", ctrl.yydecl);
++		out_str ("M4_HOOK_SET_YY_DECL([[%s]])\n", ctrl.yydecl);
+ 	}
+ 
+ 	if (ctrl.userinit != NULL) {
+-		out_str ("M4_HOOK_SET_USERINIT(%s)\n", ctrl.userinit);
++		out_str ("M4_HOOK_SET_USERINIT([[%s]])\n", ctrl.userinit);
+ 	}
+ 	if (ctrl.preaction != NULL) {
+-		out_str ("M4_HOOK_SET_PREACTION(%s)\n", ctrl.preaction);
++		out_str ("M4_HOOK_SET_PREACTION([[%s]])\n", ctrl.preaction);
+ 	}
+ 	if (ctrl.postaction != NULL) {
+-		out_str ("M4_HOOK_SET_POSTACTION(%s)\n", ctrl.postaction);
++		out_str ("M4_HOOK_SET_POSTACTION([[%s]])\n", ctrl.postaction);
+ 	}
+ 
+ 	/* This has to be a straight textual substitution rather
+@@ -1598,6 +1592,11 @@ void readin (void)
+ 	if (ctrl.bufsize != 0)
+ 	    visible_define_int("M4_MODE_YY_BUFSIZE", ctrl.bufsize);
+ 
++	if (ctrl.csize == CSIZE)
++		visible_define ("M4_MODE_NO_7BIT");
++	else
++		visible_define ("M4_MODE_7BIT");
++
+ 	if (ctrl.yyterminate != NULL)
+ 	    visible_define_str("M4_MODE_YYTERMINATE", ctrl.yyterminate);
+ 	
+diff --git a/src/misc.c b/src/misc.c
+index 68ce745..99216a7 100644
+--- a/src/misc.c
++++ b/src/misc.c
+@@ -132,15 +132,6 @@ unsigned char clower (int c)
+ }
+ 
+ 
+-char *xstrdup(const char *s)
+-{
+-	char *s2;
+-
+-	if ((s2 = strdup(s)) == NULL)
+-		flexfatal (_("memory allocation failure in xstrdup()"));
+-
+-	return s2;
+-}
+ 
+ 
+ /* cclcmp - compares two characters for use by qsort with '\0' sorting last. */
+@@ -246,15 +237,12 @@ void lerr_fatal (const char *msg, ...)
+ 
+ 
+ /* line_directive_out - spit out a "#line" statement or equivalent */
+-void line_directive_out (FILE *output_file, char *path, int linenum)
++void line_directive_text (char *dst, size_t size, char *path, int linenum)
+ {
+ 	char	*trace_fmt = "m4_ifdef([[M4_HOOK_TRACE_LINE_FORMAT]], [[M4_HOOK_TRACE_LINE_FORMAT([[%d]], [[%s]])]])";
+-	char    directive[MAXLINE*2], filename[MAXLINE];
++	char    filename[MAXLINE];
+ 	char   *s1, *s2, *s3;
+ 
+-	if (!ctrl.gen_line_dirs)
+-		return;
+-
+ 	s1 = (path != NULL) ? path : "M4_YY_OUTFILE_NAME";
+ 
+ 	if ((path != NULL) && !s1)
+@@ -273,11 +261,17 @@ void line_directive_out (FILE *output_file, char *path, int linenum)
+ 
+ 	*s2 = '\0';
+ 
+-	if (path != NULL)
+-		snprintf (directive, sizeof(directive), trace_fmt, linenum, filename);
+-	else {
+-		snprintf (directive, sizeof(directive), trace_fmt, 0, filename);
+-	}
++	snprintf (dst, size, trace_fmt, path != NULL ? linenum : 0, filename);
++}
++
++void line_directive_out (FILE *output_file, char *path, int linenum)
++{
++	char    directive[MAXLINE*2];
++
++	if (!ctrl.gen_line_dirs)
++		return;
++
++	line_directive_text (directive, sizeof directive, path, linenum);
+ 
+ 	/* If output_file is nil then we should put the directive in
+ 	 * the accumulated actions.
+diff --git a/src/options.c b/src/options.c
+index 7be3000..b92a6d7 100644
+--- a/src/options.c
++++ b/src/options.c
+@@ -139,8 +139,6 @@ optspec_t flexopts[] = {
+ 	,
+ 	{"--posix-compat", OPT_POSIX_COMPAT, 0}
+ 	,			/* Maximal compatibility with POSIX lex. */
+-        {"--preproc=NUM", OPT_PREPROC_LEVEL, 0}
+-        ,
+ 	{"-L", OPT_NO_LINE, 0}
+ 	,			/* Suppress #line directives in scanner. */
+ 	{"--noline", OPT_NO_LINE, 0}
+diff --git a/src/options.h b/src/options.h
+index a2d3786..913c17b 100644
+--- a/src/options.h
++++ b/src/options.h
+@@ -114,7 +114,6 @@ enum flexopt_flag_t {
+ 	OPT_POINTER,
+ 	OPT_PREFIX,
+ 	OPT_PREPROCDEFINE,
+-	OPT_PREPROC_LEVEL,
+ 	OPT_READ,
+ 	OPT_REENTRANT,
+ 	OPT_REJECT,
+diff --git a/src/skeletons.c b/src/skeletons.c
+index afe592e..41fd199 100644
+--- a/src/skeletons.c
++++ b/src/skeletons.c
+@@ -54,6 +54,16 @@ const char *go_skel[] = {
+     0,
+ };
+ 
++const char *js_skel[] = {
++#include "js-flex.h"
++    0,
++};
++
++const char *ts_skel[] = {
++#include "ts-flex.h"
++    0,
++};
++
+ /* END digested skeletons */
+ 
+ /* Method table describing a language-specific back end.
+@@ -69,6 +79,8 @@ static struct flex_backend_t backends[] = {
+     {.skel=cpp_skel},
+     {.skel=c99_skel},
+     {.skel=go_skel},
++    {.skel=js_skel},
++    {.skel=ts_skel},
+     {NULL}
+ };
+ 

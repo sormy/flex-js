@@ -47,6 +47,9 @@ The JavaScript and TypeScript back ends in skeleton/, the patches in patches/,
 the compatibility headers in compat/, and the scripts and tests around them are
 Copyright (c) 2017-2026 Artem Butusov, and are released under the same terms.
 
-The Windows distribution also carries GNU M4, which is under the GNU General
-Public License and stays that way. It is a separate program, run as a child
-process, not linked into anything here. See LICENSE.m4.
+Every generator in dist/ has GNU M4 linked into it, which flex needs to write a
+scanner. m4 is under the GNU General Public License version 3, so those binaries
+are covered by it as wholes and can be redistributed only under its terms. The
+sources in this repository are unaffected, and so are the scanners the generator
+writes - running a program puts no licence on its output, and flex claims none
+over a scanner. See LICENSE.m4.
