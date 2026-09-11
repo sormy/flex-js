@@ -30,6 +30,9 @@ var args = process.argv.slice(2);
  */
 var INCLUDEDIR = '--print-includedir';
 
+var BUILD_IT = 'It can be built from source:\n' +
+  'https://github.com/sormy/flex-js#installing';
+
 function fail(message) {
   process.stderr.write(message + '\n');
   process.exit(1);
@@ -65,9 +68,9 @@ function generator() {
         ? 'flex-js has no generator in dist/ to run.'
         : 'flex-js ships no generator for ' + platform + '.') + '\n' +
       (process.platform === 'win32' && !binary
-        ? 'On Windows, run it under WSL or build from source under MSYS2:'
-        : 'It can be built from source:') + '\n' +
-      'https://github.com/sormy/flex-js#installing');
+        ? 'On Windows, run it under WSL or build from source under MSYS2:\n' +
+          'https://github.com/sormy/flex-js#installing'
+        : BUILD_IT));
   }
 
   return built;
@@ -81,9 +84,7 @@ if (args.length === 1 && args[0] === INCLUDEDIR) {
   var includedir = path.join(__dirname, '..', 'dist');
 
   if (!fs.existsSync(path.join(includedir, 'FlexLexer.h'))) {
-    fail('flex-js has no headers in dist/ to point at.\n' +
-      'It can be built from source:\n' +
-      'https://github.com/sormy/flex-js#installing');
+    fail('flex-js has no headers in dist/ to point at.\n' + BUILD_IT);
   }
   process.stdout.write(includedir + '\n');
   process.exit(0);

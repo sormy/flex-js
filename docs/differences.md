@@ -3,19 +3,36 @@
 A grammar written for FLEX works here once its rule bodies are JavaScript. What
 follows is everything else.
 
-## Three names take parentheses
+## Going back to a buffer set aside
 
-C expands `ECHO`, `REJECT` and `YY_START` with its preprocessor, and JavaScript
-has none, so they are functions:
+`yypush_buffer_state(text)` takes the text here, where C takes a buffer it made
+with `yy_scan_string`. `yypop_buffer_state()` then goes back to what was set
+aside, from a rule body or from outside the scanner.
 
-| FLEX       | here         |
-| ---------- | ------------ |
-| `ECHO;`    | `ECHO();`    |
-| `REJECT;`  | `REJECT();`  |
-| `YY_START` | `YY_START()` |
+C cannot do that from a rule body: it frees the buffer it is reading from and
+carries on reading it, which crashes. So the differential suite cannot hold this
+one to C, and `test/states.test.js` asserts what the scanner should do instead.
 
-`yyterminate()`, `yyless(n)`, `yymore()`, `unput()`, `input()` and `BEGIN()` are
-written exactly as they are in FLEX.
+## The names FLEX writes as macros
+
+C expands `ECHO`, `REJECT`, `YY_START` and `YY_AT_BOL` with its preprocessor,
+and JavaScript has none, so they are functions in the generated scanner. A
+grammar writes them the way FLEX writes them either way - FLEX hands the
+spelling to the back end and the back end writes the call:
+
+```
+[a-z]+   ECHO;
+"ab"     { REJECT; }
+"s"      { return YY_START; }
+```
+
+`ECHO()`, `REJECT()` and `yyreject()` are accepted as well. What a name cannot
+do is be passed around: `var f = ECHO;` holds a function rather than the value
+C's macro would have given.
+
+`BEGIN(sc)`, `yyless(n)`, `unput(text)`, `yymore()`, `input()` and
+`yyterminate()` take arguments or take none in C as well, so they are written
+exactly as they are in FLEX.
 
 ## The input is held, not read
 
@@ -173,8 +190,14 @@ inside an empty action.
 
 ## `.` is one character, not one byte
 
-C's `.` matches a byte, since flex is a machine over the 256 byte values, so a C
-grammar that reads UTF-8 spells the shape of a character out for itself:
+C's `.` matches a byte, and there that is coherent: `yytext` is a `char *`, so a
+rule is handed bytes whatever it matched. Here `yytext` is a string, and half a
+character is not one - it decodes to a replacement character and the byte is
+gone. Everything else the scanner offers is already text: `yytext` is text,
+`yyleng` counts its length. `.` was the one place bytes reached a rule.
+
+Since flex is a machine over the 256 byte values, a C grammar that reads UTF-8
+spells the shape of a character out for itself:
 
 ```
 UTF8    [\x20-\x7f]|[\xc2-\xdf][\x80-\xbf]|[\xe0-\xef][\x80-\xbf]{2}|[\xf0-\xf4][\x80-\xbf]{3}
@@ -185,6 +208,10 @@ underneath is the same one - bytes all the way down, which is how every fast
 engine does Unicode - and only the pattern language changes. `test/differential`
 holds it to that: the JavaScript scanner writes `.`, the C scanner writes
 `{UTF8}`, and they have to agree token for token.
+
+`.` stays the catch-all it is in C: where the bytes are not a character - a
+stray continuation byte, a `\xff` - it matches one of them, since a whole
+character is the longer match wherever there is one.
 
 `%option nounicode` asks for C's byte. `-7` has no byte above 127 to build a
 character from, so there the byte is the character and the option means nothing.
@@ -203,15 +230,15 @@ keyword, since the file will not parse; quietly for a name like `undefined`.
 
 ## An option of this back end's own
 
-`%option typed-tables` holds the tables as numbers of one width rather than as
-arrays of them, and the full table as one run rather than a row per state, so
-the matcher reaches an entry with a single indexed load. The width is the one
-FLEX picked for the C table, `flex_int16_t` or `flex_int32_t`.
+`%option typed` holds the tables as numbers of one width rather than as arrays
+of them, and the full table as one run rather than a row per state, so the
+matcher reaches an entry with a single indexed load. The width is the one FLEX
+picked for the C table, `flex_int16_t` or `flex_int32_t`.
 
 Nothing about the scanning changes, and neither does the size of what is
-shipped. What changes is the floor a scanner runs on: typed arrays are ES2015
-where the rest of the generated code is ES5. That is why it is off unless a
-grammar asks for it. `%option notyped-tables` says so explicitly.
+shipped. What changes is the floor a scanner runs on: it asks the engine for
+`Int16Array`, which browsers have had since about 2011. `%option notyped` gives
+plain arrays back.
 
 ## Platforms
 

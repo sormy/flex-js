@@ -72,7 +72,7 @@ c++ -I "$(npx flex-js --print-includedir)" scanner.cc
 Write a grammar, `tokens.l`:
 
 ```
-%option noyywrap typed-tables
+%option noyywrap
 %%
 [0-9]+          return { kind: 'number', value: parseInt(yytext, 10) };
 [a-z]+          return { kind: 'word', value: yytext };
@@ -88,11 +88,13 @@ Generate a scanner from it:
 npx flex-js --emit=javascript -Cfe --header-file=tokens.d.ts -o tokens.js tokens.l
 ```
 
-Those two are what to reach for unless you know otherwise: `-Cfe` is within
-noise of the quickest table mode at under a third of its size, and
-`%option typed-tables` is worth a seventh to a fifth more. It needs typed
-arrays, so leave it out for an engine older than about 2011. Both are measured
-under [Performance](#performance).
+`-Cfe` is what to reach for unless you know otherwise: within noise of the
+quickest table mode at under a third of its size, measured under
+[Performance](#performance).
+
+Typed arrays hold the tables unless you say otherwise, which is worth a seventh
+to a fifth. `%option notyped` gives plain arrays back, for an engine without
+`Int16Array` - roughly, older than about 2011.
 
 `--header-file` is flex's own, the way a `.c` gets a `.h`; without it only
 `tokens.js` is written.
@@ -217,24 +219,24 @@ winning.
 and returning the same number of them. flex-js and moo answer one token per
 call, the way FLEX's `yylex()` does; chevrotain and peggy take the whole input
 and loop inside. SQL, 491 KB and 123,000 tokens, MacBook Pro (M1 Max), macOS
-26.6.2, Node 24.20.0. `typed` is `%option typed-tables`, and a row with no table
-mode named is the one FLEX builds unasked. Three are worth reaching for, in
-bold: `-Cfe` typed is the balance [A first scanner](#a-first-scanner) uses,
-`-Cf` typed is the quickest that still reads UTF-8, and `-Cfe` on its own is
-that balance in ES5, for an engine too old for typed arrays:
+26.6.2, Node 24.20.0. `plain` is `%option notyped`, and a row with no table mode
+named is the one FLEX builds unasked. Three are worth reaching for, in bold:
+`-Cfe` is the balance [A first scanner](#a-first-scanner) uses, `-Cf` is the
+quickest that still reads UTF-8, and `-Cfe plain` is that balance without typed
+arrays:
 
 | scanner                     | time    | peak memory | raw    | minified | gzipped | dependencies |
 | --------------------------- | ------- | ----------- | ------ | -------- | ------- | ------------ |
-| **flex-js 2, `-Cf` typed**  | 6.6 ms  | ~110 MB     | 107 KB | 54 KB    | 3.2 KB  | none         |
-| flex-js 2, `-7 -Cf` typed   | 6.6 ms  | ~110 MB     | 64 KB  | 29 KB    | 3.1 KB  | none         |
-| **flex-js 2, `-Cfe` typed** | 6.8 ms  | ~110 MB     | 33 KB  | 12 KB    | 2.7 KB  | none         |
+| **flex-js 2, `-Cf`**        | 6.6 ms  | ~110 MB     | 107 KB | 54 KB    | 3.2 KB  | none         |
+| flex-js 2, `-7 -Cf`         | 6.6 ms  | ~110 MB     | 64 KB  | 29 KB    | 3.1 KB  | none         |
+| **flex-js 2, `-Cfe`**       | 6.8 ms  | ~110 MB     | 33 KB  | 12 KB    | 2.7 KB  | none         |
 | chevrotain 13.2.0           | 7.3 ms  | 108 MB      | 240 KB | 111 KB   | 30.5 KB | 5 packages   |
-| flex-js 2, `-7 -Cf`         | 7.7 ms  | ~110 MB     | 64 KB  | 29 KB    | 3.1 KB  | none         |
-| flex-js 2, `-Cf`            | 7.8 ms  | ~110 MB     | 107 KB | 54 KB    | 3.2 KB  | none         |
-| flex-js 2 typed             | 8.0 ms  | ~110 MB     | 24 KB  | 7.5 KB   | 2.5 KB  | none         |
-| **flex-js 2, `-Cfe`**       | 8.1 ms  | ~110 MB     | 33 KB  | 12 KB    | 2.7 KB  | none         |
+| flex-js 2, `-7 -Cf` plain   | 7.7 ms  | ~110 MB     | 64 KB  | 29 KB    | 3.1 KB  | none         |
+| flex-js 2, `-Cf` plain      | 7.8 ms  | ~110 MB     | 107 KB | 54 KB    | 3.2 KB  | none         |
+| flex-js 2                   | 8.0 ms  | ~110 MB     | 24 KB  | 7.5 KB   | 2.5 KB  | none         |
+| **flex-js 2, `-Cfe` plain** | 8.1 ms  | ~110 MB     | 33 KB  | 12 KB    | 2.7 KB  | none         |
 | flex-js 1.x                 | 8.9 ms  | 99 MB       | 37 KB  | 14 KB    | 4.8 KB  | none         |
-| flex-js 2                   | 9.8 ms  | ~110 MB     | 24 KB  | 7.4 KB   | 2.5 KB  | none         |
+| flex-js 2 plain             | 9.8 ms  | ~110 MB     | 24 KB  | 7.4 KB   | 2.5 KB  | none         |
 | moo 0.5.3                   | 16.2 ms | 163 MB      | 18 KB  | 8.5 KB   | 3.2 KB  | none         |
 | peggy 5.1.0                 | 51.2 ms | 168 MB      | 20 KB  | 6 KB     | 2.4 KB  | none         |
 
@@ -250,8 +252,7 @@ say. What the table does say is that typed tables are worth more than the choice
 between the three full ones, and that compressed tables are slower than all of
 them.
 
-The other two grammars, same conditions, flex-js with `-Cf` and
-`%option typed-tables`:
+The other two grammars, same conditions, flex-js with `-Cf`:
 
 | scanner     | expression rules | keywords as strings |
 | ----------- | ---------------- | ------------------- |
@@ -273,11 +274,11 @@ by less than the spread between runs.
 | `-7 -Cf` | ASCII only, and refuses anything above it | half, no UTF-8             |
 | none     | compressed, what FLEX builds unasked      | smallest, a quarter slower |
 
-`%option typed-tables` is what the `typed` rows above ask for. It holds the
-tables as numbers of one width rather than as arrays of them, and a full table
-as one run rather than a row per state. Nothing about the scanning or the size
-changes. It needs typed arrays, which are ES2015 where the rest of a generated
-scanner is ES5.
+Typed arrays are what the rows without `plain` above use, and they are the
+default. They hold the tables as numbers of one width rather than as arrays of
+them, and a full table as one run rather than a row per state. Nothing about the
+scanning or the size changes. `%option notyped` gives plain arrays back, for an
+engine without `Int16Array`.
 
 Every row already leaves the text of a match unbuilt where the rule that matched
 reads none of it - a rule whose action is empty. That asks for no option, and is

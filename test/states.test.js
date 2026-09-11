@@ -216,3 +216,22 @@ test('the start condition a rule chose survives a buffer being popped', function
   assert.strictEqual(scanner.yypop_buffer_state(), true);
   assert.strictEqual(scanner.lex(), 'sc:abc');
 });
+
+/* C is not the oracle here: it deletes the buffer it is reading from and
+ * carries on reading it, which segfaults. This is asserted against what the
+ * scanner should do rather than against what C does.
+ */
+test('a rule can go back to the buffer it set aside', function () {
+  var built = helper.build([
+    '%option noyywrap',
+    '%%',
+    '"#inc"    { yypush_buffer_state("x!"); }',
+    '"!"       { yypop_buffer_state(); }',
+    '[a-z]     return "L:" + yytext;',
+    '.|\\n      return "O:" + yytext;',
+    '%%'
+  ].join('\n'));
+
+  assert.deepStrictEqual(helper.lexAll(built.Scanner, '#inc t'),
+    ['L:x', 'O: ', 'L:t']);
+});

@@ -36,6 +36,14 @@ regression - and handing one run two sinks is not a small change.
 
 ## Reach
 
+**Decide what a generated scanner is allowed to use.** The output is written to
+ES5 today, and the rule is repeated in enough places - `AGENTS.md`,
+`docs/scanner.md`, both skeleton headers - that raising it later means finding
+them all. Two things are worth separating first: syntax, which is what ES5 means
+here, and the constructors a scanner reaches for, which is what `Int16Array` is
+and which no syntax level decides. Whichever way it goes, say it once and point
+at it.
+
 **An incremental lexer.** What an editor wants: keep the tokens from last time
 and, on an edit, re-lex only from the last token boundary before it until the
 scanner's state matches the state it had at that point before, then reuse the
@@ -84,10 +92,10 @@ already a byte read, so converting to bytes first is paid for nothing.
 
 ## Defaults
 
-`%option typed-tables` is off, and `-Cfe` is not asked for, though the README
-names both as the best buy. Either as a default changes what every existing
-grammar emits: typed tables move a scanner from ES5 to ES2015, and `-Cfe` is not
-the table mode FLEX builds. Worth deciding rather than drifting into.
+`%option typed` is off, and `-Cfe` is not asked for, though the README names
+both as the best buy. Either as a default changes what every existing grammar
+emits: typed tables ask the engine for Int16Array, and `-Cfe` is not the table
+mode FLEX builds. Worth deciding rather than drifting into.
 
 ## Known, and left
 

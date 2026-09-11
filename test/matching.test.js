@@ -139,14 +139,14 @@ test('the fast-scanner tables have no matcher here, so they are refused', functi
 
     var untyped = scanned('');
 
-    assert.deepStrictEqual(scanned(' typed-tables'), untyped);
+    assert.deepStrictEqual(scanned(' notyped'), untyped);
     assert.ok(untyped.length > 0, 'the grammar matched nothing');
   });
 });
 
 test('typed tables are the numbers flex sized them for', function () {
   var built = helper.build([
-    '%option noyywrap typed-tables',
+    '%option noyywrap',
     '%%',
     '[a-z]+   return "word";',
     '.|\\n     ;',
@@ -167,24 +167,24 @@ test('typed tables are the numbers flex sized them for', function () {
     '"a"        return "a";',
     '[b-z]+     return "word";',
     '[ \\t\\n]+   ;'
-  ], 'a bb a  c'],
+  ], 'a bb a  c', ['a', 'word', 'a', 'word']],
   ['^ rules, which read the text to track it', [
     '^"a"       return "bol";',
     '"a"        return "a";',
     '[b-z]+     return "word";',
     '[ \\t\\n]+   ;'
-  ], 'a b\na c'],
+  ], 'a b\na c', ['bol', 'word', 'bol', 'word']],
   ['REJECT, which runs a rule again', [
-    '"ab"       { REJECT; }',
+    '"ab"       { REJECT(); }',
     '"a"        return "a";',
     '[a-z]      return "one";',
     '[ \\t\\n]+   ;'
-  ], 'ab a b'],
+  ], 'ab a b', ['a', 'one', 'a', 'one']],
   ['yymore, which keeps the text for the next match', [
     '"a"        { yymore(); }',
     '"b"        return yytext;',
     '[ \\t\\n]+   ;'
-  ], 'ab b']
+  ], 'ab b', ['ab', 'b']]
 ].forEach(function (grammar) {
   test('an unread match is not missed with ' + grammar[0], function () {
     function scanned(options) {
@@ -197,8 +197,38 @@ test('typed tables are the numbers flex sized them for', function () {
         { args: args }).Scanner, grammar[2]);
     }
 
-    assert.deepStrictEqual(scanned(' typed-tables'), scanned(''));
+    /* Against the tokens themselves, not just against each other: two runs
+     * of the same broken grammar agree perfectly.
+     */
+    assert.deepStrictEqual(scanned(''), grammar[3]);
+    assert.deepStrictEqual(scanned(' notyped'), grammar[3]);
   });
+});
+
+/* An <<EOF>> rule is given its rule number back after it is parsed, so its
+ * action arrives while the count points at the rule before it.
+ */
+test('an <<EOF>> rule does not spend the rule before it', function () {
+  var withEof = helper.build([
+    '%option noyywrap',
+    '%%',
+    '[a-z]+     return "word";',
+    '[ \\n]+     ;',
+    '<<EOF>>    return "end";',
+    '%%'
+  ].join('\n'), { args: [] });
+  var source = fs.readFileSync(withEof.path, 'utf8');
+
+  assert.match(source, /switch \(yy_act\) \{\n\s*case 0: case 2: break;/,
+    'the spacing rule lost its place in the switch');
+
+  /* Counted rather than run to exhaustion: an <<EOF>> action that returns is
+   * asked again on the next call, which is FLEX's own behaviour.
+   */
+  var scanner = new withEof.Scanner('ab cd');
+  assert.deepStrictEqual(
+    [scanner.lex(), scanner.lex(), scanner.lex()],
+    ['word', 'word', 'end']);
 });
 
 /* Vanilla defaults as well, since naming the rules costs nothing a table of
@@ -254,7 +284,7 @@ test('typed tables are the numbers flex sized them for', function () {
         return written.join('');
       }
 
-      assert.strictEqual(echoed(' typed-tables'), echoed(''));
+      assert.strictEqual(echoed(' notyped'), echoed(''));
       assert.strictEqual(echoed(''), which[2]);
     });
 });

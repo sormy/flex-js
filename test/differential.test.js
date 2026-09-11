@@ -86,7 +86,6 @@ function spell(rules, javascript) {
     .replace(/@PUSH\(([^)]*)\)@/g, javascript
       ? 'yypush_buffer_state($1)'
       : 'yypush_buffer_state(yy_scan_string($1))')
-    .replace(/@POP@/g, 'yypop_buffer_state()')
     .replace(/@LINENO@/g, 'yylineno')
     .replace(/@EAT_TO_HASH@/g, javascript
       ? 'var c; while ((c = input()) !== "" && c !== "#") { }'
@@ -130,11 +129,11 @@ function show(input) {
 }
 
 /** Runs both scanners over every input and returns their traces. */
-function compare(options, rules, inputs, extra, typed, jsRules) {
+function compare(options, rules, inputs, extra, plain, jsRules) {
   var name = 'case' + (++counter);
   var args = extra || [];
   /* Only this back end has the option, so only this side is asked for it. */
-  var jsOptions = spell(options, true) + (typed ? '\n%option typed-tables' : '');
+  var jsOptions = spell(options, true) + (plain ? '\n%option notyped' : '');
 
   var cFile = generate(name + 'c', spell(options, false), spell(rules, false),
     C_PROLOGUE, C_DRIVER, args);
@@ -175,7 +174,7 @@ function compare(options, rules, inputs, extra, typed, jsRules) {
 var TABLE_MODES = [[], ['-C'], ['-Cm'], ['-Cf'], ['-Cfe']];
 
 /*
-** %option typed-tables changes what the scanner holds its tables in, so it has
+** %option notyped changes what the scanner holds its tables in, so it has
 ** to be answered for against C too. Three shapes matter: a compressed table, a
 ** full one, and a full one over equivalence classes, where the flat index has
 ** to land inside its own row and NUL's column is folded onto 0. Crossing it
@@ -205,15 +204,15 @@ function agree(options, rules, inputs, extra, jsRules) {
     var ways = TYPED_MODES.indexOf(mode.join(' ')) === -1
       ? [false] : [false, true];
 
-    ways.forEach(function (typed) {
-      compare(options, rules, inputs, args, typed, jsRules)
+    ways.forEach(function (plain) {
+      compare(options, rules, inputs, args, plain, jsRules)
         .forEach(function (result) {
         assert.strictEqual(result.cError, '', result.cError);
         assert.strictEqual(result.jsError, '', result.jsError);
         assert.strictEqual(result.js, result.c,
           'disagreed on ' + show(result.input) +
           ' with ' + (args.length ? args.join(' ') : 'the default tables') +
-          (typed ? ' and typed tables' : '') +
+          (plain ? ' and plain arrays' : '') +
           (result.jsError ? '\nJavaScript wrote: ' + result.jsError : ''));
       });
     });
@@ -382,6 +381,18 @@ test('switching buffers from a rule that does not return',
       '[A-Za-z]+   emit(1, yytext);',
       '.|\\n      emit(2, yytext);'
     ].join('\n'), ['#inc tail', 'a #inc b', '#inc']);
+  });
+
+/* ECHO writes to the same stream the harness compares, so C says whether it
+ * wrote the same bytes - and the bare spelling has to mean what C means by it.
+ */
+test('ECHO writes what C writes, parenthesised or not',
+  { skip: !HAVE_CC && 'no C compiler' }, function () {
+    agree('%option noyywrap', [
+      '"q"         { @ECHO@; }',
+      '[a-z]+      emit(1, yytext);',
+      '.|\\n      ECHO;'
+    ].join('\n'), ['q', 'aq b', 'q!q', '!']);
   });
 
 test('yylineno with trailing context', { skip: !HAVE_CC && 'no C compiler' }, function () {

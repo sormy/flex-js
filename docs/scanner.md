@@ -80,9 +80,9 @@ input, as FLEX's `yylex` does, so `0` is the one value a rule must not return.
 | `yytext`, `yyleng`, `yylineno`                          | the current match                                         |
 | `yy`                                                    | what the caller left on the scanner                       |
 | `BEGIN(sc)`                                             | switch start condition                                    |
-| `YY_START()`                                            | the start condition in force                              |
-| `ECHO()`                                                | write the match to `yyout`                                |
-| `REJECT()`                                              | give this match up for the next rule that matched here    |
+| `YY_START`, `YY_START()`                                | the start condition in force                              |
+| `ECHO;`, `ECHO()`                                       | write the match to `yyout`                                |
+| `REJECT;`, `REJECT()`                                   | give this match up for the next rule that matched here    |
 | `yymore()`                                              | add the next match to this one                            |
 | `yyless(n)`                                             | keep the first n characters, return the rest to the input |
 | `unput(text)`                                           | put text in front of the scanner                          |

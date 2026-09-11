@@ -45,6 +45,9 @@ m4_define([[M4_PROPERTY_NO_REENTRANT]], [[yes]])
 m4_define([[M4_PROPERTY_NO_YYDECL]], [[yes]])
 %# The prefix names the scanner, so it has to read as one.
 m4_define([[M4_PROPERTY_PREFIX_NAMES_A_BINDING]], [[yes]])
+%# Typed arrays hold the tables, so this asks the engine for Int16Array, which
+%# browsers had from about 2011. %option notyped asks for plain arrays.
+m4_define([[M4_PROPERTY_TYPED_TABLES]], [[yes]])
 %# yytext is text here, so `.' is one character rather than one byte.
 %# %option nounicode asks for the byte, which is what C does.
 m4_define([[M4_PROPERTY_UNICODE_DOT]], [[yes]])
@@ -88,6 +91,12 @@ m4_define([[M4_HOOK_EOF_STATE_CASE_FALLTHROUGH]], [[/* fallthrough */]])
 m4_define([[M4_HOOK_EOF_STATE_CASE_TERMINATE]], [[yyterminate();
 ]])
 m4_define([[M4_HOOK_ECHO]], [[yy_scanner.yy_echo(yytext);]])
+%# flex spells REJECT yyreject() for a back end of its own, and hands the
+%# spelling here rather than writing one.
+m4_define([[M4_HOOK_REJECT]], [[REJECT()]])
+%# Value macros in C, functions here, so flex hands over the spelling.
+m4_define([[M4_HOOK_YY_START]], [[YY_START()]])
+m4_define([[M4_HOOK_YY_AT_BOL]], [[YY_AT_BOL()]])
 m4_define([[M4_HOOK_FATAL_ERROR]], [[yy_scanner.yy_fatal_error($1);]])
 
 m4_define([[M4_HOOK_RELEASE_YYTEXT]], [[]])
@@ -268,7 +277,7 @@ m4_ifdef([[M4_MODE_USEECS]], [[m4_define([[M4_EC]], [[yy_ec[$1] ]])]])
 m4_ifdef([[M4_MODE_NO_USEECS]], [[m4_define([[M4_EC]], [[$1]])]])
 
 %# How a table of numbers is written: as one the engine holds at a fixed width,
-%# which is what %option typed-tables asks for and needs typed arrays to do, or
+%# which is what %option typed asks for and needs typed arrays to do, or
 %# as a plain array.
 m4_ifdef([[M4_MODE_TYPED_TABLES]],
   [[m4_define([[M4_TABLE_OPEN]], [[new $1[[]]Array([ 0,]])m4_dnl
@@ -654,13 +663,14 @@ function yy_unsigned_view(view) {
   return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 }
 
+/* What apply() can be handed before it overflows the stack. */
+var YY_APPLY_CEILING = 4096;
+
 function yy_bytes_to_string(bytes) {
   var text = '';
-  /* In pieces: apply overflows the stack on a long array. A subarray is a
-   * view of the same bytes, where slicing would copy them.
-   */
-  for (var at = 0; at < bytes.length; at += 4096) {
-    var chunk = bytes.subarray(at, at + 4096);
+  /* A subarray is a view of the same bytes, where slicing would copy them. */
+  for (var at = 0; at < bytes.length; at += YY_APPLY_CEILING) {
+    var chunk = bytes.subarray(at, at + YY_APPLY_CEILING);
     text += String.fromCharCode.apply(null, chunk);
   }
   return text;
@@ -968,10 +978,7 @@ YYScanner.prototype.yy_pop_state = function () {
   var depth = this.yy_start_stack.length;
   if (!depth) {
     this.yy_fatal_error('start-condition stack underflow');
-    /* Looks unreachable, and is until a caller replaces yy_fatal_error with
-     * one that returns, which docs/scanner.md says it may. yy_less_to takes
-     * the same care.
-     */
+    /* Reachable once yy_fatal_error is one that returns. */
     return this;
   }
   this.yy_start = this.yy_start_stack[depth - 1];

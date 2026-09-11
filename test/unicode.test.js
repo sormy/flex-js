@@ -320,13 +320,16 @@ test('a 7-bit table is half the width of an 8-bit one', function () {
     '%%'
   ].join('\n');
 
+  /* The tables are one flat run, so the width is the stride the matcher
+   * multiplies the state by rather than the length of a row.
+   */
   function width(args) {
     var source = require('fs').readFileSync(
       helper.build(grammar, { args: args }).path, 'utf8');
-    var table = source.slice(source.indexOf('var yy_nxt ='));
+    var stride = source.match(/yy_nxt\[yy_current_state \* (\d+)/);
 
-    return table.slice(0, table.indexOf('];')).match(/\[[^[\]]*\]/)[0]
-      .split(',').length;
+    assert.ok(stride, 'the matcher does not index a flat table');
+    return Number(stride[1]);
   }
 
   assert.strictEqual(width(['-Cf']), 256);

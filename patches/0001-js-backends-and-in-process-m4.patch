@@ -637,7 +637,7 @@ index 9482736..938b811 100644
  
  /* vim:set expandtab cindent tabstop=4 softtabstop=4 shiftwidth=4 textwidth=0: */
 diff --git a/src/flexdef.h b/src/flexdef.h
-index adf4fd0..58c8001 100644
+index adf4fd0..11641aa 100644
 --- a/src/flexdef.h
 +++ b/src/flexdef.h
 @@ -68,8 +68,6 @@
@@ -653,24 +653,27 @@ index adf4fd0..58c8001 100644
  	bool spprdflt;		// (-s) suppress the default rule
  	bool useecs;		// (-Ce flag) use equivalence classes 
  	bool usemecs;		// (-Cm flag), use meta-equivalence classes 
-+	bool typed_tables;	// (%option typed-tables) tables a back end can hold
++	bool typed_tables;	// (%option notyped) turns these off
 +	bool unicode_dot;	// (%option unicode) `.' is a character, not a byte
 +				// as numbers of one width rather than as arrays
  	bool use_read;		// (-f, -F, or -Cr) use read() for scanner input 
         				// otherwise, use fread(). 
  	char *yyclass;		// yyFlexLexer subclass to use for YY_DECL
-@@ -549,6 +550,10 @@ extern int *rule_type, *rule_linenum;
+@@ -549,6 +550,13 @@ extern int *rule_type, *rule_linenum;
  /* rule_useful[], rule_has_nl[] and ccl_has_nl[] are boolean arrays,
   * but allocated as char arrays for size. */
  extern char *rule_useful, *rule_has_nl, *ccl_has_nl;
 +/* rule_no_action[] - true where a rule's action is empty, so what it
 + * matched is never looked at and need not be made into a string. */
 +extern char *rule_no_action;
++/* An <<EOF>> rule's action is scanned after its rule number is given
++ * back, so it must not be charged to the rule before it. */
++extern bool in_eof_action;
 +extern void note_rule_text (const char *text);
  extern int nlch;
  extern size_t footprint;
  
-@@ -889,6 +894,7 @@ extern void lerr_fatal(const char *, ...)
+@@ -889,6 +897,7 @@ extern void lerr_fatal(const char *, ...)
  
  /* Spit out a "#line" statement. */
  extern void line_directive_out(FILE *, char *, int);
@@ -678,7 +681,7 @@ index adf4fd0..58c8001 100644
  
  /* Mark the current position in the action array as the end of the section 1
   * user defs.
-@@ -1137,28 +1143,15 @@ bool range_covers_case (int c1, int c2);
+@@ -1137,28 +1146,15 @@ bool range_covers_case (int c1, int c2);
   *  From "filter.c"
   */
  
@@ -1070,10 +1073,10 @@ index ef48e7a..866d8e0 100644
  	current_max_scs = INITIAL_MAX_SCS;
  	scset = allocate_integer_array (current_max_scs);
 diff --git a/src/misc.c b/src/misc.c
-index 68ce745..a3120ba 100644
+index 68ce745..315be19 100644
 --- a/src/misc.c
 +++ b/src/misc.c
-@@ -36,6 +36,21 @@
+@@ -36,6 +36,26 @@
  #include "tables.h"
  
  /* Append "new_text" to the running buffer. */
@@ -1081,9 +1084,14 @@ index 68ce745..a3120ba 100644
 + * puts around it: a rule whose own text is only spacing and semicolons
 + * looks at nothing it matched.
 + */
++bool in_eof_action = false;
++
 +void note_rule_text (const char *text)
 +{
 +	const char *cp;
++
++	if (in_eof_action)
++		return;
 +
 +	for (cp = text; *cp != '\0'; cp++)
 +		if (!isspace ((unsigned char) *cp) && *cp != ';') {
@@ -1095,7 +1103,7 @@ index 68ce745..a3120ba 100644
  void add_action (const char *new_text)
  {
  	int     len = (int) strlen (new_text);
-@@ -132,15 +147,6 @@ unsigned char clower (int c)
+@@ -132,15 +152,6 @@ unsigned char clower (int c)
  }
  
  
@@ -1111,7 +1119,7 @@ index 68ce745..a3120ba 100644
  
  
  /* cclcmp - compares two characters for use by qsort with '\0' sorting last. */
-@@ -246,15 +252,12 @@ void lerr_fatal (const char *msg, ...)
+@@ -246,15 +257,12 @@ void lerr_fatal (const char *msg, ...)
  
  
  /* line_directive_out - spit out a "#line" statement or equivalent */
@@ -1129,7 +1137,7 @@ index 68ce745..a3120ba 100644
  	s1 = (path != NULL) ? path : "M4_YY_OUTFILE_NAME";
  
  	if ((path != NULL) && !s1)
-@@ -273,11 +276,17 @@ void line_directive_out (FILE *output_file, char *path, int linenum)
+@@ -273,11 +281,17 @@ void line_directive_out (FILE *output_file, char *path, int linenum)
  
  	*s2 = '\0';
  
@@ -1198,10 +1206,10 @@ index a2d3786..913c17b 100644
  	OPT_REENTRANT,
  	OPT_REJECT,
 diff --git a/src/parse.y b/src/parse.y
-index 80e7f09..92965cb 100644
+index 80e7f09..a682fc9 100644
 --- a/src/parse.y
 +++ b/src/parse.y
-@@ -76,6 +76,63 @@ int *scon_stk;
+@@ -76,6 +76,70 @@ int *scon_stk;
  int scon_stk_ptr;
  
  static int madeany = false;  /* whether we've made the '.' character class */
@@ -1260,12 +1268,19 @@ index 80e7f09..92965cb 100644
 +
 +	three = mkor (three, four);
 +	two = mkor (two, three);
++
++	/* A byte that begins no character still has to be matched, or `.' stops
++	   being the catch-all it is in C and malformed input falls through to
++	   the default rule.  A whole character is longer, so it still wins.  */
++	part = mkbyteclass (0x80, 0xff, -1);
++	two = mkor (two, part);
++
 +	return mkor (ascii, two);
 +}
  static int ccldot, cclany;
  int previous_continued_action;	/* whether the previous rule's action was '|' */
  
-@@ -139,6 +196,9 @@ goal		:  initlex sect1 sect1end sect2 initforrule
+@@ -139,6 +203,9 @@ goal		:  initlex sect1 sect1end sect2 initforrule
  
  			add_action("]]");
  
@@ -1275,7 +1290,7 @@ index 80e7f09..92965cb 100644
  			if ( ctrl.spprdflt )
  				add_action(
  				"M4_HOOK_FATAL_ERROR(\"flex scanner jammed\")");
-@@ -739,7 +799,15 @@ singleton	:  singleton '*'
+@@ -739,7 +806,15 @@ singleton	:  singleton '*'
  
  			++rulelen;
  
@@ -1292,8 +1307,16 @@ index 80e7f09..92965cb 100644
                  $$ = mkstate( -cclany );
              else
                  $$ = mkstate( -ccldot );
+@@ -1010,6 +1085,7 @@ void build_eof_action(void)
+ 	 */
+ 	--num_rules;
+ 	++num_eof_rules;
++	in_eof_action = true;
+ 	}
+ 
+ 
 diff --git a/src/scan.l b/src/scan.l
-index b65bd4c..4126863 100644
+index b65bd4c..1239ddc 100644
 --- a/src/scan.l
 +++ b/src/scan.l
 @@ -49,7 +49,9 @@ extern const char *escaped_qstart, *escaped_qend;
@@ -1311,20 +1334,106 @@ index b65bd4c..4126863 100644
                  		ctrl.do_yywrap = false;
  			}
  	meta-ecs	ctrl.usemecs = option_sense;
-+	typed-tables	ctrl.typed_tables = option_sense;
++	typed	ctrl.typed_tables = option_sense;
 +	unicode		ctrl.unicode_dot = option_sense;
  	never-interactive	{
  			ctrl.never_interactive = option_sense;
              		ctrl.interactive = (trit)!option_sense;
-@@ -924,6 +928,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -919,13 +923,83 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+ 	<ACTION>"/*"		ACTION_ECHO; yy_push_state( CODE_COMMENT );
+ 
+ 	<CODEBLOCK,ACTION>{
++		"yy_start"{OPTWS}"("{OPTWS}")"|"yy_at_bol"{OPTWS}"("{OPTWS}")" {
++			if (ctrl.rewrite && isupper((unsigned char) yytext[0])) {
++				ACTION_NOTE;
++				if (yytext[3] == 'S' || yytext[3] == 's')
++					add_action("]""]M4_HOOK_YY_START[""[");
++				else
++					add_action("]""]M4_HOOK_YY_AT_BOL[""[");
++			}
++			else
++				ACTION_ECHO;
++        }
++		"yy_start"|"yy_at_bol" {
++			/* Value macros in C, so a back end that has functions
++			   instead is handed the spelling and writes the call.
++			   {NAME} matches any longer word, so only these on their
++			   own reach here. */
++			/* The first letter, not all of them: all_upper turns down
++			   the underscore these names carry. */
++			if (ctrl.rewrite && isupper((unsigned char) yytext[0])) {
++				ACTION_NOTE;
++				if (yytext[3] == 'S' || yytext[3] == 's')
++					add_action("]""]M4_HOOK_YY_START[""[");
++				else
++					add_action("]""]M4_HOOK_YY_AT_BOL[""[");
++			}
++			else
++				ACTION_ECHO;
++        }
++		"echo"{OPTWS}"("{OPTWS}")" {
++			if (ctrl.rewrite) {
++				ACTION_NOTE;
++				add_action("]""]M4_HOOK_ECHO[""[");
++			}
++			else
++				ACTION_ECHO;
++        }
++		"echo" {
++			/* As with REJECT: a macro in C, and bare here it would be
++			   a statement that writes nothing.  {NAME} below matches
++			   any longer word, so only ECHO on its own reaches this. */
++			if (ctrl.rewrite && all_upper(yytext)) {
++				ACTION_NOTE;
++				add_action("]""]M4_HOOK_ECHO[""[");
++			}
++			else
++				ACTION_ECHO;
++        }
++		"reject"{OPTWS}"("{OPTWS}")" {
++			/* The first letter, not the whole match: all_upper is
++			   turned down by the parentheses. */
++			if (isupper((unsigned char) yytext[0]))
++				reject = true;
++			if (ctrl.rewrite) {
++				ACTION_NOTE;
++				add_action("]""]M4_HOOK_REJECT[""[");
++			}
++			else
++				ACTION_ECHO;
++        }
+ 		"reject" {
+-			ACTION_ECHO;
  			CHECK_REJECT(yytext);
++			/* A back end of its own is handed the spelling the way
++			   yyreject() is: REJECT is a macro in C, and written bare
++			   here it would be a statement that does nothing. */
++			if (ctrl.rewrite && all_upper(yytext)) {
++				ACTION_NOTE;
++				add_action("]""]M4_HOOK_REJECT[""[");
++			}
++			else
++				ACTION_ECHO;
          }
  		"yyreject"{OPTWS}"("{OPTWS}")" {
 +			ACTION_NOTE;
  			add_action("]""]M4_HOOK_REJECT[""[");
- 			CHECK_YYREJECT(yytext);
+-			CHECK_YYREJECT(yytext);
++			/* The name, not the match: yytext carries the parentheses
++			   too, and all_lower turns them down. */
++			CHECK_YYREJECT("yyreject");
          }
-@@ -956,23 +961,27 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+ 		"yymore"{OPTWS}"("{OPTWS}")" {
+ 			yymore_used = true;
+@@ -945,6 +1019,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+                 add_action( "\t]""]M4_HOOK_STATE_CASE_BREAK\n" );
+ 
+             doing_rule_action = doing_codeblock = false;
++            in_eof_action = false;
+             BEGIN(SECT2);
+         }
+     }
+@@ -956,23 +1031,27 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
  	"{"		ACTION_ECHO; ++bracelevel;
  	"}"		ACTION_ECHO; --bracelevel;
  	yyecho\(\)|yyinput\(\)|yystart\({FUNARGS}\)|yybegin\({FUNARGS}\)|yyunput\({FUNARGS}\)|yypanic\({FUNARGS}\)|yyatbol\(\)|yysetbol\({FUNARGS}\) {
@@ -1352,8 +1461,16 @@ index b65bd4c..4126863 100644
  			if (ctrl.rewrite)
  				context_member(yytext, "M4_PROPERTY_BUFFERSTACK_CONTEXT_FORMAT");
  			else
+@@ -991,6 +1070,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+                       add_action( "\t]""]M4_HOOK_STATE_CASE_BREAK\n" );
+ 
+                    doing_rule_action = false;
++                   in_eof_action = false;
+                    BEGIN(SECT2);
+                 }
+              }
 diff --git a/src/skeletons.c b/src/skeletons.c
-index afe592e..9140007 100644
+index afe592e..f395437 100644
 --- a/src/skeletons.c
 +++ b/src/skeletons.c
 @@ -54,6 +54,16 @@ const char *go_skel[] = {
@@ -1382,13 +1499,16 @@ index afe592e..9140007 100644
      {NULL}
  };
  
-@@ -126,6 +138,9 @@ void backend_by_name(const char *name)
+@@ -126,6 +138,12 @@ void backend_by_name(const char *name)
  	prefix_property = skel_property("M4_PROPERTY_PREFIX");
  	if (prefix_property != NULL)
  		ctrl.prefix = xstrdup(prefix_property);
 +	/* A back end that reads text rather than bytes wants `.' to be one
 +	   character.  C does not, and stays the specification.  */
 +	ctrl.unicode_dot = skel_property("M4_PROPERTY_UNICODE_DOT") != NULL;
++	/* Likewise a back end that can hold its tables as numbers of one width
++	   rather than as arrays of them.  */
++	ctrl.typed_tables = skel_property("M4_PROPERTY_TYPED_TABLES") != NULL;
  	flex_init_regex(ctrl.traceline_re);
  }
  

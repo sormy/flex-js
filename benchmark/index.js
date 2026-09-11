@@ -276,8 +276,8 @@ function generatedRunner(workload) {
   return scannerRunner(generated(workload.grammar), workload);
 }
 
-function typedRunner(workload) {
-  return scannerRunner(generated(workload.grammar, 'typed-tables'), workload);
+function plainRunner(workload) {
+  return scannerRunner(generated(workload.grammar, 'notyped'), workload);
 }
 
 function legacyRunner(workload) {
@@ -334,7 +334,7 @@ function chevrotainRunner(workload) {
 function candidates(workload) {
   return [
     ['flex-js 2', true, generatedRunner],
-    ['flex-js 2 typed', true, typedRunner],
+    ['flex-js 2 plain', true, plainRunner],
     ['flex-js 1.x', LegacyLexer, legacyRunner],
     ['moo', moo, mooRunner],
     ['peggy', peggy && PEGGY[workload.name], peggyRunner],

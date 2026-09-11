@@ -281,7 +281,7 @@ test('every mode switch type-checks too', { timeout: 180000 }, function () {
         '%{',
         'function emit(kind: string, text: string) { console.log(kind + text); }',
         '%}',
-        '%option noyywrap typed-tables',
+        '%option noyywrap',
         '%%',
         '[ \\t\\n]+        ;',
         '[a-z]+           emit("word", yytext);',

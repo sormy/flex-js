@@ -85,6 +85,5 @@ module.exports = {
   build: build,
   lexAll: lexAll,
   sink: sink,
-  directory: directory,
   tempDirectory: tempDirectory
 };

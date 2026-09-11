@@ -6,10 +6,18 @@ first.
 
 ## The rules that matter here
 
-**Match flex.** When the C skeleton does something a particular way, do the same
-thing rather than a better idea. The C back end is the specification, and a
-divergence is a bug unless it is written down in
-[docs/differences.md](docs/differences.md) with the reason.
+**Match flex, unless there is a reason not to.** When the C skeleton does
+something a particular way, do the same rather than a better idea: the C back
+end is the specification, and an accidental divergence is a bug.
+
+A deliberate one is fine where it is scoped and the reason is good. FLEX is old
+and large, its edge cases are not all handled well, and its bug tracker is not
+empty - a divergence that is C being wrong, or C answering a question JavaScript
+asks differently, is worth taking. `.` matching a character rather than a byte
+is one. Scoped means it changes one thing, is switchable where that costs
+little, and does not spread. Write it down in
+[docs/differences.md](docs/differences.md) with the reason, and where the
+differential suite can no longer be the oracle, say what is.
 
 **Prove it against C.** `test/differential.test.js` generates a C scanner and a
 JavaScript scanner from the same rules and requires identical traces. Every
