@@ -156,23 +156,6 @@ instead of reading past the end of a row the way C does. `-Cfe` is smaller still
 and keeps UTF-8, so reach for 7bit only to halve a full table for input that can
 never be anything but ASCII - it is no quicker than the 8-bit one.
 
-## A rule cannot borrow the next rule's action
-
-```
-"a"   |
-"b"   return SAME;
-```
-
-FLEX takes that - `|` says "the action is the next rule's" - and the C back end
-it has always had still does. The back ends that reach their output through m4
-hooks do not: flex 2.6.4 quotes a continued rule's action unevenly, and the
-generator stops with `ERROR: end of file in string` having written nothing.
-
-It is not this back end's doing. `--emit=c99` and `--emit=go`, which are FLEX's
-own, fail on the same grammar in the same way; only the C back end that predates
-the hooks is unaffected. Until it is fixed upstream, write the action out twice
-or send both rules to one function.
-
 ## A match no rule reads is not built
 
 A rule whose action is empty looks at nothing it matched, so the scanner does

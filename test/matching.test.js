@@ -205,6 +205,42 @@ test('typed tables are the numbers flex sized them for', function () {
   });
 });
 
+/* Upstream flex closed the m4 quote for a continued rule before finish_rule()
+ * had opened it, so every hook-based back end stopped with "end of file in
+ * string". patches/0002 puts the two in order.
+ */
+test('a rule can borrow the next rule\'s action with |', function () {
+  var built = helper.build([
+    '%option noyywrap',
+    '%%',
+    '"a"      |',
+    '"b"      return "ab";',
+    '[c-z]    return "other";',
+    '%%'
+  ].join('\n'));
+
+  assert.deepStrictEqual(helper.lexAll(built.Scanner, 'abz'),
+    ['ab', 'ab', 'other']);
+});
+
+/* A continued rule looks like it reads nothing - its own action is empty - but
+ * it runs the next rule's, so it must not be named among the rules that are
+ * handed the match before them.
+ */
+test('a continued rule is handed the text it matched', function () {
+  var built = helper.build([
+    '%option noyywrap',
+    '%%',
+    '"a"      |',
+    '"b"      return yytext;',
+    '[ \\n]+   ;',
+    '%%'
+  ].join('\n'));
+
+  assert.deepStrictEqual(helper.lexAll(built.Scanner, 'b a b'),
+    ['b', 'a', 'b']);
+});
+
 /* An <<EOF>> rule is given its rule number back after it is parsed, so its
  * action arrives while the count points at the rule before it.
  */

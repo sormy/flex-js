@@ -1,0 +1,50 @@
+Switch REJECT on when a grammar spells it yyreject()
+
+A grammar that uses flex's own back-end-neutral spelling gets a scanner
+that does not compile:
+
+    %option noyywrap
+    %%
+    "ab"    { yyreject(); }
+    "a"     { printf("a\n"); }
+    [a-z]   { printf("one\n"); }
+
+    $ flex --emit=c99 -o scan.c reject.l && cc -c scan.c
+    error: no member named 'yy_full_match' in 'struct yyguts_t'
+    error: no member named 'yy_lp' in 'struct yyguts_t'
+
+The REJECT expansion is emitted but the scanner has none of the state it
+needs, because `reject' was never set. scan.l's arm matches the call
+including its parentheses:
+
+    "yyreject"{OPTWS}"("{OPTWS}")" {
+            add_action("]""]M4_HOOK_REJECT[""[");
+            CHECK_YYREJECT(yytext);
+    }
+
+and CHECK_YYREJECT tests all_lower(), which any parenthesis turns down.
+So the branch never fires. Writing REJECT instead of yyreject() in the
+same grammar emits the state and compiles.
+
+Passing the name rather than the match is enough.
+
+Applies to flex master as of 4fcc714. --emit=c99 and --emit=go are both
+affected; the C/C++ skeleton is too, in that yyreject() there has the
+same silent effect.
+---
+diff --git a/src/scan.l b/src/scan.l
+index b65bd4c..6b41251 100644
+--- a/src/scan.l
++++ b/src/scan.l
+@@ -925,7 +925,10 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+         }
+ 		"yyreject"{OPTWS}"("{OPTWS}")" {
+ 			add_action("]""]M4_HOOK_REJECT[""[");
+-			CHECK_YYREJECT(yytext);
++			/* The name, not the match: yytext carries the parentheses
++			   too, and all_lower turns them down, so REJECT was never
++			   switched on for a grammar that spells it yyreject(). */
++			CHECK_YYREJECT("yyreject");
+         }
+ 		"yymore"{OPTWS}"("{OPTWS}")" {
+ 			yymore_used = true;

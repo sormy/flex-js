@@ -8,7 +8,9 @@ m4 hooks. flex-js is two more skeletons plus the lines that register them.
 ```
 skeleton/js-flex.skl    the JavaScript back end
 skeleton/ts-flex.skl    the TypeScript one, the same scanner with types
-patches/                registers both back ends with flex
+patches/0001, 0002      fixes for flex itself, written against a pristine
+                        checkout so they can go upstream unchanged
+patches/0003            registers both back ends with flex
 patches/m4/             lets m4 be called as a function
 ```
 

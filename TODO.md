@@ -99,50 +99,6 @@ mode FLEX builds. Worth deciding rather than drifting into.
 
 ## Known, and left
 
-**A rule cannot borrow the next rule's action with `|`.** FLEX 2.6.4 quotes a
-continued action unevenly and the generator stops with
-`ERROR: end of file in string`; `--emit=c99` and `--emit=go` fail the same way,
-so it is upstream's and not ours. Written up in `docs/differences.md`. It is an
-ordering bug: `scan.l` writes the closing `]]` for a continued action before the
-parser has reduced the rule, so `finish_rule` opens two quotes against one
-close. When it is fixed, the switch naming the rules that read nothing needs a
-continued rule handled: it looks like it reads nothing while its case arm falls
-into the next rule's action, which does. No test can cover it while the grammar
-will not build.
-
-**`%option debug` traces an extra `--scanner backing up` with a full table.**
-Only in `-Cf` and `-Cfe`: the matcher leaves its loop on the end of the input
-with no rule chosen, so the backup arm runs where C, which stops on a sentinel,
-has already accepted. The tokens are the same and the compressed modes trace the
-same as C; only the trace differs, and `docs/differences.md` does not say so
-yet.
-
-**`--tables-file` and `--tables-verify` are not refused.** The skeletons have no
-table loader, so a scanner built with either has empty tables and throws
-`no action found` on the first token. Every other thing the back ends cannot do
-is refused through `skel_property`; these two should be.
-
-**The scratch file is reopened by name.** `open_m4_source` closes what `mkstemp`
-opened and reopens the name, because `stdout` needs a read-and-write mode that
-only `freopen` can give it. Anything that can write the temp directory can put
-something else at that name in between. A temp directory of its own, made with
-`mkdtemp`, would close the window; whether Windows has one to use wants checking
-first.
-
-**Windows can leave the scratch file behind on an error.** `atexit` handlers run
-before C closes what is still open, and Windows keeps a name while a handle on
-it is open, so `remove` fails on every path that does not close `stdout` itself.
-
-**flex's own `xstrdup` is gone and gnulib's answers instead.** flex's called
-`flexfatal`, which returns a status through flex's own path; gnulib's calls
-`exit`. Nothing records that the deletion is only safe because m4's objects are
-always linked in.
-
-**`yy_fatal_error` is not obeyed everywhere it is called.** `yy_pop_state` and
-`yy_less_to` return after calling it, as `docs/scanner.md` says a replacement
-that returns requires; the three matcher arms that call it fall through instead,
-which loops rather than leaving `lex()`.
-
 **win32-arm64 ships unverified.** No wine on macOS loads an ARM64 PE - every
 build of it is x86_64, and Rosetta translates the other way. The smoke test asks
 rather than assumes, so it will check itself the day a capable one exists.

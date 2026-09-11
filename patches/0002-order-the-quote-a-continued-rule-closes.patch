@@ -1,0 +1,115 @@
+Close a continued rule's m4 quote after it has been opened
+
+A rule that borrows the next rule's action with `|' makes flex stop with
+
+    flex: ERROR: end of file in string
+
+for every back end that reaches its output through m4 hooks: --emit=c99,
+--emit=go, and any skeleton written against the hooks. --emit=c (the
+C/C++ skeleton that predates them) is unaffected and still emits the
+fall-through case correctly.
+
+    %option noyywrap
+    %%
+    "a"     |
+    "b"     return 1;
+
+The two halves of the quoting disagree about order. finish_rule() in
+nfa.c ends every rule by opening a quote for the action that follows:
+
+    line_directive_out(NULL, infilename, linenum);
+    add_action("[[");
+
+and scan.l's `|' arm closes it:
+
+    add_action("]""]");
+    continued_action = true;
+    ++linenum;
+    return '\n';
+
+but the arm runs in the scanner, and finish_rule() runs when the parser
+reduces the rule, which is after the arm has returned '\n'. So the close
+is written before the open exists. Counting over the m4 source of the
+grammar above gives equal numbers of [[ and ]] - the totals balance - but
+the depth ends at 1, with a stray ]] where the first rule should have
+begun.
+
+The fix is to ask for the close and let finish_rule() write it once the
+quote is there.
+
+Introduced in two steps. The quoting pair arrived in 4bffa41 ("Improved
+M4 quotation", 2016-09-27), which is in v2.6.2 and later, so the
+inversion is present in released flex; it is harmless there because no
+released back end reads the action through m4 hooks. It becomes fatal
+with the hook-based skeletons, which start at 978a4a3 ("Begin work on a
+C99 front end", 2020-10-16) and 079b2d1 ("Eliminate YY_BREAK macro,
+replaced with an m4 hook", 2020-10-28). Neither is in any tag, so this
+affects master rather than a release.
+
+Applies to flex master as of 4fcc714.
+---
+diff --git a/src/flexdef.h b/src/flexdef.h
+index adf4fd0..0d8862c 100644
+--- a/src/flexdef.h
++++ b/src/flexdef.h
+@@ -458,6 +458,11 @@ extern struct env_bundle_t env;
+ extern bool syntaxerror, eofseen;
+ extern int yymore_used, reject, real_reject, continued_action, in_rule;
+ 
++/* Whether a rule continued with `|' is still waiting for the quote that
++ * finish_rule() opens, so that it can be closed in the right order.
++ */
++extern int continued_action_pending;
++
+ /* Variables used in the flex input routines:
+  * datapos - characters on current output line
+  * dataline - number of contiguous lines of data in current data
+diff --git a/src/main.c b/src/main.c
+index ef48e7a..61a508c 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -51,6 +51,7 @@ void set_up_initial_allocations(void);
+ /* these globals are all defined and commented in flexdef.h */
+ bool    syntaxerror, eofseen;
+ int     yymore_used, reject, real_reject, continued_action, in_rule;
++int     continued_action_pending;
+ int     datapos, dataline, linenum;
+ FILE   *skelfile = NULL;
+ int     skel_ind = 0;
+diff --git a/src/nfa.c b/src/nfa.c
+index 86a895d..5430661 100644
+--- a/src/nfa.c
++++ b/src/nfa.c
+@@ -286,6 +286,15 @@ void    finish_rule (int mach, bool variable_trail_rule, int headcnt, int trailc
+ 
+ 	line_directive_out(NULL, infilename, linenum);
+         add_action("[[");
++
++	/* A rule continued with `|' has no action of its own, so the quote just
++	 * opened is closed straight away.  Doing it where the `|' was read would
++	 * close a quote that did not exist yet.
++	 */
++	if (continued_action_pending) {
++		add_action("]""]");
++		continued_action_pending = false;
++	}
+ }
+ 
+ 
+diff --git a/src/scan.l b/src/scan.l
+index b65bd4c..8f2802b 100644
+--- a/src/scan.l
++++ b/src/scan.l
+@@ -576,7 +576,11 @@ void context_member(char *, const char *);
+                             yyless(amt);
+                         }
+                         else {
+-                            add_action("]""]");
++                            /* The quote this closes is opened by finish_rule(),
++                             * which the parser has not reached yet, so ask for
++                             * the close rather than writing it here.
++                             */
++                            continued_action_pending = true;
+                             continued_action = true;
+                             ++linenum;
+                             return '\n';
