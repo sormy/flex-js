@@ -1,0 +1,1234 @@
+%# BACKEND-DIVERGENCE
+%# JavaScript back end for flex.
+%# END BACKEND-DIVERGENCE
+%#
+%# Emits a dependency-free ES5 scanner in an IIFE: the DFA tables as plain
+%# arrays, and the C skeleton's matching loop.
+%#
+%# This file is part of flex.
+%#
+%# Redistribution and use in source and binary forms, with or without
+%# modification, are permitted provided that the following conditions
+%# are met:
+%#
+%# 1. Redistributions of source code must retain the above copyright
+%#    notice, this list of conditions and the following disclaimer.
+%# 2. Redistributions in binary form must reproduce the above copyright
+%#    notice, this list of conditions and the following disclaimer in the
+%#    documentation and/or other materials provided with the distribution.
+%#
+%# Neither the name of the University nor the names of its contributors
+%# may be used to endorse or promote products derived from this software
+%# without specific prior written permission.
+%#
+%# THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
+%# IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+%# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+%# PURPOSE.
+
+m4_changequote
+m4_changequote([[, ]])
+
+%# Properties not used in the skeleton - meant to be read by the Flex code
+%# BACKEND-DIVERGENCE
+m4_define([[M4_PROPERTY_BACKEND_NAME]], [[JavaScript]])
+m4_define([[M4_PROPERTY_SOURCE_SUFFIX]], [[js]])
+%# END BACKEND-DIVERGENCE
+%# The scanner reads UTF-8 bytes, so the tables cover all of them.
+m4_define([[M4_PROPERTY_CHARACTER_SET]], [[8bit]])
+%# The fast-scanner tables are pointer arithmetic over transition records,
+%# which this back end has no matcher for.
+m4_define([[M4_PROPERTY_NO_FULLSPD]], [[yes]])
+%# A scanner is an object already, so there is nothing for reentrancy to add.
+m4_define([[M4_PROPERTY_NO_REENTRANT]], [[yes]])
+%# The scanner is a method on that object, so its name is fixed.
+m4_define([[M4_PROPERTY_NO_YYDECL]], [[yes]])
+%# The prefix names the scanner, so it has to read as one.
+m4_define([[M4_PROPERTY_PREFIX_NAMES_A_BINDING]], [[yes]])
+m4_define([[M4_PROPERTY_TRACE_LINE_REGEXP]], [[^//#line ([0-9]+) "(.*)"]])
+m4_define([[M4_PROPERTY_TRACE_LINE_TEMPLATE]], [[//#line %d "%s"]])
+
+%# Macro hooks used by Flex code generators start here
+m4_define([[M4_HOOK_INT32]], [[Int32]])
+m4_define([[M4_HOOK_INT16]], [[Int16]])
+m4_define([[M4_HOOK_COMMENT_OPEN]], [[/*]])
+m4_define([[M4_HOOK_COMMENT_CLOSE]], [[*/]])
+m4_define([[M4_HOOK_TRACE_LINE_FORMAT]], [[//#line $1 "$2"
+]])
+m4_define([[M4_HOOK_TABLE_OPENER]], [[[]])
+m4_define([[M4_HOOK_TABLE_CONTINUE]], [[],]])
+m4_define([[M4_HOOK_TABLE_CLOSER]], [[];]])
+m4_define([[M4_HOOK_RELATIVIZE]], [[$1]])
+m4_define([[M4_HOOK_CONST_DEFINE_BYTE]], [[var $1 = $2;
+]])
+m4_define([[M4_HOOK_CONST_DEFINE_STATE]], [[var $1 = $2;
+]])
+m4_define([[M4_HOOK_CONST_DEFINE_UINT]], [[var $1 = $2;
+]])
+m4_define([[M4_HOOK_CONST_DEFINE_BOOL]], [[var $1 = $2;
+]])
+m4_define([[M4_HOOK_CONST_DEFINE_UNKNOWN]], [[m4_define($1, [[$2]])]])
+m4_define([[M4_HOOK_SET_OFFSET_TYPE]], [[m4_define([[YY_OFFSET_TYPE]], [[$1]])]])
+m4_define([[M4_HOOK_SET_USERINIT]], [[m4_define([[YY_USER_INIT]], [[$1]])]])
+m4_define([[M4_HOOK_SET_PREACTION]], [[m4_define([[YY_USER_ACTION]], [[$1]])]])
+m4_define([[M4_HOOK_SET_RULE_SETUP]], [[m4_ifdef([[M4_MODE_BOL_NEEDED]], [[if (yyleng > 0) {
+        yy_scanner.yy_at_bol_flag = yytext.charCodeAt(yyleng - 1) === YY_NL;
+      }
+      ]])m4_ifdef([[YY_USER_ACTION]], [[YY_USER_ACTION]])
+]])
+m4_define([[M4_HOOK_STATE_CASE_BREAK]], [[break;]])
+m4_define([[M4_HOOK_SET_POSTACTION]], [[m4_define([[M4_HOOK_STATE_CASE_BREAK]], [[$1]])]])
+m4_define([[M4_HOOK_NORMAL_STATE_CASE_ARM]], [[    case $1:]])
+
+m4_define([[M4_HOOK_EOF_STATE_CASE_ARM]], [[    case YY_STATE_EOF($1):]])
+m4_define([[M4_HOOK_EOF_STATE_CASE_FALLTHROUGH]], [[/* fallthrough */]])
+m4_define([[M4_HOOK_EOF_STATE_CASE_TERMINATE]], [[yyterminate();
+]])
+m4_define([[M4_HOOK_ECHO]], [[yy_scanner.yy_echo(yytext);]])
+m4_define([[M4_HOOK_FATAL_ERROR]], [[yy_scanner.yy_fatal_error($1);]])
+
+m4_define([[M4_HOOK_RELEASE_YYTEXT]], [[]])
+%# Taking yytext from a pair of positions. Written once and expanded in each
+%# place rather than called, because this is the per-token path.
+m4_define([[M4_GEN_JS_TAKE_TEXT]], [[m4_ifelse([[$2]], [[yy_cp]], [[]], [[yy_cp = $2;
+      ]])yy_scanner.yy_c_buf_p = yy_cp;
+      yytext = yy_source.substring($1, yy_cp);
+      yytext = yy_scanner.yytext = yy_wide ? yy_utf8_decode(yytext) : yytext;
+      yyleng = yy_scanner.yyleng = yytext.length;]])
+
+m4_define([[M4_HOOK_TAKE_YYTEXT]], [[M4_GEN_JS_TAKE_TEXT(yy_bp - yy_more_len, yy_cp)]])
+
+%# Rewinding for trailing context. The scanner keeps its position in yy_cp,
+%# and yytext is rebuilt from it before the action runs.
+m4_define([[M4_HOOK_CHAR_REWIND]], [[yy_cp -= $1;]])
+m4_define([[M4_HOOK_CHAR_FORWARD]], [[yy_cp = yy_bp + $1;]])
+m4_define([[M4_HOOK_LINE_REWIND]], [[m4_ifdef([[M4_MODE_YYLINENO]], [[yylineno = yy_scanner.yylineno =
+      yy_lineno_back(yy_source, yy_cp - ($1), yy_cp, yylineno);]])]])
+m4_define([[M4_HOOK_LINE_FORWARD]], [[m4_ifdef([[M4_MODE_YYLINENO]], [[yylineno = yy_scanner.yylineno =
+      yy_lineno_back(yy_source, yy_bp + ($1), yy_cp, yylineno);]])]])
+
+%# What a rule body may say. These expand where the rule was written, so they
+%# read the way they do in a FLEX scanner written for C.
+m4_define([[yyterminate]],
+  [[m4_ifdef([[M4_MODE_YYTERMINATE]], [[M4_MODE_YYTERMINATE]], [[return 0]])]])
+m4_define([[YY_RULE_SETUP]], [[M4_HOOK_SET_RULE_SETUP]])
+%# ECHO, BEGIN, yymore, REJECT and the rest are real names in the generated
+%# file rather than macros: flex quotes a rule body, so a macro defined here
+%# would never reach it. yyterminate and yyless are the exceptions flex lets
+%# through itself.
+
+%# yyless returns all but the first n characters to the input.
+m4_define([[yyless]], [[yy_less_to($1)]])
+
+%# unput, input and the start-condition stack are real functions in lex().
+
+%% [0.0] Make hook macros available to Flex
+%# The prefix is known by now, so the scanner can be named after it.
+m4_ifdef([[M4_MODE_PREFIX]],, [[m4_define([[M4_MODE_PREFIX]], [[yy]])]])
+m4_define([[M4_JS_EXPORT_NAME]],
+  m4_ifelse(M4_MODE_PREFIX, yy, [[Scanner]], M4_MODE_PREFIX[[Scanner]]))
+/* A lexical scanner generated by flex */
+%# BACKEND-DIVERGENCE
+%# What --header-file writes: flex sends the same source down a second m4
+%# with M4_YY_IN_HEADER set, and that branch is the types and nothing else.
+m4_ifdef([[M4_YY_IN_HEADER]], [[/* Written by flex from the grammar beside it. */
+
+interface M4_JS_EXPORT_NAME {
+  /** Text of the current match. */
+  yytext: string;
+  /** Length of the current match. */
+  yyleng: number;
+  /** Line the current match is on, with %option yylineno. */
+  yylineno: number;
+  /** Anything the rules need to reach. */
+  yy: any;
+  /** Where ECHO writes; stdout when this is null. */
+  yyout: { write(text: string): void } | null;
+  /** Whether %option debug traces what the scanner does. */
+  yy_flex_debug: boolean;
+  /** The input being scanned, as UTF-8 bytes, one per code unit. */
+  yy_source: string;
+  /** How far into it the scanner has read. */
+  yy_c_buf_p: number;
+  /** The start condition in force, doubled and offset the way FLEX keeps it. */
+  yy_start: number;
+  /** Scan until a rule returns something, or 0 at the end of the input. */
+  lex(): unknown;
+  /** Scan input from its beginning, in the initial start condition. */
+  restart(source?: string | Uint8Array): M4_JS_EXPORT_NAME;
+  /** The same, under the name FLEX gives it. */
+  yy_scan_string(source: string | Uint8Array): M4_JS_EXPORT_NAME;
+  /** Put the current input aside and scan another string. */
+  yypush_buffer_state(source: string | Uint8Array): M4_JS_EXPORT_NAME;
+  /** Return to the input that was set aside. */
+  yypop_buffer_state(): boolean;
+  /** Whether the next match would start a line. */
+  yy_at_bol(): boolean;
+  yy_set_bol(atBol: boolean): void;
+  yy_echo(text: string): void;
+  yy_trace(text: string): void;
+  yy_fatal_error(message: string): never;
+m4_ifdef([[M4_YY_NO_YYUNPUT]],, [[  /** Put text back in front of the scanner. */
+  unput(text: string): M4_JS_EXPORT_NAME;
+]])m4_dnl
+m4_ifdef([[M4_MODE_NO_YYINPUT]],, [[  /** Read the next character, or the empty string at the end. */
+  input(): string;
+]])m4_dnl
+m4_ifdef([[M4_YY_STACK_USED]], [[m4_ifdef([[M4_YY_NO_PUSH_STATE]],, [[  yy_push_state(sc: number): M4_JS_EXPORT_NAME;
+]])m4_dnl
+m4_ifdef([[M4_YY_NO_POP_STATE]],, [[  yy_pop_state(): M4_JS_EXPORT_NAME;
+]])m4_dnl
+m4_ifdef([[M4_YY_NO_TOP_STATE]],, [[  yy_top_state(): number;
+]])m4_dnl
+]])m4_dnl
+  /** Asked when the input runs out; false means scanning goes on. */
+  yywrap(): boolean;
+}
+
+declare const M4_JS_EXPORT_NAME: {
+  new (source?: string | Uint8Array): M4_JS_EXPORT_NAME;
+};
+
+export = M4_JS_EXPORT_NAME;
+m4_m4exit(0)]])m4_dnl
+%# END BACKEND-DIVERGENCE
+
+var M4_JS_EXPORT_NAME = (function () {
+'use strict';
+
+m4_ifdef([[M4_MODE_REAL_REJECT]], [[/* What REJECT throws, so the matcher can tell it from a real error. */
+var YY_REJECT_SIGNAL = { reject: true };
+]])
+m4_ifdef([[M4_MODE_REAL_REJECT]], [[/** Give this match up for the next rule that matched here, FLEX's REJECT. */
+function REJECT() {
+  throw YY_REJECT_SIGNAL;
+}
+]])
+/* The byte a rule can match the end of a line on. */
+var YY_NL = 10;
+
+/* An accepting number with these bits set belongs to trailing context. */
+var YY_TRAILING_MASK = 0x2000;
+var YY_TRAILING_HEAD_MASK = 0x4000;
+
+/* One per start condition, INITIAL and whatever %s and %x declared. */
+M4_YY_SC_DEFS
+
+%% [1.0] DFA
+
+%# REJECT gives this match up and looks for the next best rule at the same
+%# place. A labelled continue is what the C skeleton reaches with a goto.
+%# Only a rule that calls it can throw; variable trailing context needs the
+%# state stack below but never this, which is the split C draws too.
+m4_ifdef([[M4_MODE_REAL_REJECT]], [[
+m4_define([[M4_GEN_JS_REJECT_OPEN]], [[try {]])
+m4_define([[M4_GEN_JS_REJECT_CATCH]], [[
+      } catch (yy_signal) {
+        if (yy_signal !== YY_REJECT_SIGNAL) {
+          throw yy_signal;
+        }
+        yy_cp = yy_full_match;
+m4_ifdef([[M4_MODE_VARIABLE_TRAILING_CONTEXT_RULES]], [[
+        yy_lp = yy_full_lp;
+        yy_state_ptr = yy_full_state;
+        yy_current_state = yy_state_buf[yy_state_ptr];
+]])
+        ++yy_lp;
+        continue yy_find_rule;
+      }]])
+]])
+m4_ifdef([[M4_MODE_REAL_REJECT]],, [[
+m4_define([[M4_GEN_JS_REJECT_OPEN]], [[]])
+m4_define([[M4_GEN_JS_REJECT_CATCH]], [[]])
+]])
+
+%# Whether the tables are indexed by character or by equivalence class.
+m4_ifdef([[M4_MODE_USEECS]], [[m4_define([[M4_EC]], [[yy_ec[$1] ]])]])
+m4_ifdef([[M4_MODE_NO_USEECS]], [[m4_define([[M4_EC]], [[$1]])]])
+
+m4_ifdef([[M4_MODE_DEBUG]],
+  [[m4_define([[M4_MODE_DEBUG_INITIAL]], [[true]])]],
+  [[m4_define([[M4_MODE_DEBUG_INITIAL]], [[false]])]])
+
+
+%# Running the DFA. A full table indexes twice and stops at a negative entry;
+%# a compressed one walks the default chain until the check table agrees, and
+%# runs on to the jam state, which is why it always backs up afterwards.
+%# What the matcher reads for the byte under the cursor, and for the end of
+%# the input, which jams the way C's sentinel does.
+%# A 7-bit alphabet leaves no column for a byte above ASCII, so the input is
+%# checked where one could arrive rather than on every byte.
+m4_ifdef([[M4_MODE_7BIT]],
+  [[m4_define([[M4_GEN_JS_WIDE]], [[yy_check_7bit(this, $1)]])]],
+  [[m4_define([[M4_GEN_JS_WIDE]], [[$1]])]])
+
+m4_ifdef([[M4_MODE_USEECS]], [[
+m4_define([[M4_GEN_JS_EOB_EC]], [[YY_EOB_EC]])
+m4_define([[M4_GEN_JS_BYTE_EC]], [[yy_ec[yy_source.charCodeAt(yy_cp)] ]])
+]])
+m4_ifdef([[M4_MODE_NO_USEECS]], [[
+m4_define([[M4_GEN_JS_EOB_EC]], [[0]])
+m4_define([[M4_GEN_JS_BYTE_EC]], [[yy_source.charCodeAt(yy_cp) || YY_NUL_EC]])
+]])
+
+m4_ifdef([[M4_MODE_FIND_ACTION_FULLTBL]], [[
+m4_define([[M4_GEN_JS_MATCH]], [[
+      var yy_next = 0;
+      while (yy_cp < yy_limit) {
+        yy_next = yy_nxt[yy_current_state][M4_EC(yy_source.charCodeAt(yy_cp))];
+        if (yy_next <= 0) {
+          break;
+        }
+        yy_current_state = yy_next;
+        if (yy_accept[yy_current_state]) {
+          yy_last_accepting_state = yy_current_state;
+          yy_last_accepting_cpos = yy_cp;
+        }
+        ++yy_cp;
+      }
+]])
+m4_define([[M4_GEN_JS_FIND_ACTION]], [[
+      if (yy_next < 0) {
+        yy_current_state = -yy_next;
+        yy_act = yy_accept[yy_current_state];
+      } else {
+        /* The input ran out, or the byte led nowhere: back up to the last
+         * rule that matched.
+         */
+        yy_act = 0;
+      }
+]])
+m4_define([[M4_GEN_JS_BACKUP]], [[if (yy_last_accepting_cpos < 0) {
+          this.yy_c_buf_p = yy_cp;
+          this.yy_fatal_error(
+            'fatal flex scanner internal error--no action found');
+        }
+        yy_cp = yy_last_accepting_cpos + 1;]])
+]])
+
+m4_ifdef([[M4_MODE_NO_FULLSPD_OR_FULLTBL]], [[
+m4_define([[M4_GEN_JS_MATCH]], [[
+      do {
+        yy_c = yy_cp >= yy_limit ? M4_GEN_JS_EOB_EC : M4_GEN_JS_BYTE_EC;
+m4_ifdef([[M4_MODE_NO_USES_REJECT]], [[
+        if (yy_accept[yy_current_state]) {
+          yy_last_accepting_state = yy_current_state;
+          yy_last_accepting_cpos = yy_cp;
+        }
+]])
+        while (yy_chk[yy_base[yy_current_state] + yy_c] !== yy_current_state) {
+          yy_current_state = yy_def[yy_current_state];
+m4_ifdef([[M4_MODE_USEMECS]], [[
+          if (yy_current_state >= YY_JAMSTATE + 1) {
+            yy_c = yy_meta[yy_c];
+          }
+]])
+        }
+        yy_current_state = yy_nxt[yy_base[yy_current_state] + yy_c];
+m4_ifdef([[M4_MODE_USES_REJECT]], [[
+        yy_state_buf[yy_state_ptr++] = yy_current_state;
+]])
+        ++yy_cp;
+m4_ifdef([[M4_MODE_NO_USES_REJECT]], [[
+        /* One step past the end records a match ending there. */
+      } while (yy_current_state !== YY_JAMSTATE && yy_cp <= yy_limit);
+]])
+m4_ifdef([[M4_MODE_USES_REJECT]], [[
+        /* REJECT walks the state stack, so leave the step past the end off it. */
+      } while (yy_current_state !== YY_JAMSTATE && yy_cp < yy_limit);
+]])
+]])
+m4_ifdef([[M4_MODE_NO_USES_REJECT]], [[
+m4_define([[M4_GEN_JS_FIND_ACTION]], [[
+      if (yy_last_accepting_cpos < 0) {
+        this.yy_c_buf_p = yy_cp;
+        this.yy_fatal_error('fatal flex scanner internal error--no action found');
+      }
+      yy_cp = yy_last_accepting_cpos;
+      yy_current_state = yy_last_accepting_state;
+      yy_act = yy_accept[yy_current_state];
+]])
+]])
+m4_ifdef([[M4_MODE_USES_REJECT]], [[
+m4_define([[M4_GEN_JS_FIND_ACTION]], [[
+      yy_current_state = yy_state_buf[--yy_state_ptr];
+      yy_lp = yy_accept[yy_current_state];
+]])
+]])
+]])
+
+%# Choosing the rule. Without REJECT the action number is already known;
+%# with it, the accepting numbers for the state are walked in turn, and
+%# REJECT re-enters this loop to take the next one.
+m4_ifdef([[M4_MODE_USES_REJECT]], [[
+m4_define([[M4_GEN_JS_RULE_LOOKUP]], [[
+      for (;;) {
+        var yy_accept_end = yy_accept[yy_current_state + 1];
+        if (yy_lp && yy_lp < yy_accept_end) {
+          yy_act = yy_acclist[yy_lp];
+m4_ifdef([[M4_MODE_VARIABLE_TRAILING_CONTEXT_RULES]], [[
+          if ((yy_act & YY_TRAILING_HEAD_MASK) !== 0 || yy_looking_for_trail_begin) {
+            if (yy_act === yy_looking_for_trail_begin) {
+              yy_looking_for_trail_begin = 0;
+              yy_act &= ~YY_TRAILING_HEAD_MASK;
+              break;
+            }
+          } else if ((yy_act & YY_TRAILING_MASK) !== 0) {
+            yy_looking_for_trail_begin = yy_act & ~YY_TRAILING_MASK;
+            yy_looking_for_trail_begin |= YY_TRAILING_HEAD_MASK;
+            yy_full_match = yy_cp;
+            yy_full_state = yy_state_ptr;
+            yy_full_lp = yy_lp;
+          } else {
+            yy_full_match = yy_cp;
+            yy_full_state = yy_state_ptr;
+            yy_full_lp = yy_lp;
+            break;
+          }
+          ++yy_lp;
+          continue;
+]])
+m4_ifdef([[M4_MODE_NO_VARIABLE_TRAILING_CONTEXT_RULES]], [[
+          yy_full_match = yy_cp;
+          break;
+]])
+        }
+
+        --yy_cp;
+        if (yy_state_ptr <= 0) {
+          this.yy_c_buf_p = yy_cp;
+          this.yy_fatal_error('fatal flex scanner internal error--no action found');
+        }
+        yy_current_state = yy_state_buf[--yy_state_ptr];
+        yy_lp = yy_accept[yy_current_state];
+      }
+]])
+]])
+m4_ifdef([[M4_MODE_NO_USES_REJECT]], [[
+m4_define([[M4_GEN_JS_RULE_LOOKUP]], [[]])
+]])
+
+%# Setting up yytext, and what depends on it.
+m4_define([[M4_GEN_JS_BEFORE_ACTION]], [[
+m4_ifdef([[M4_MODE_YYMORE_USED]], [[      this.yy_text_start = yy_bp - yy_more_len;
+]])      M4_GEN_JS_TAKE_TEXT(yy_bp - yy_more_len, yy_cp)
+m4_ifdef([[M4_MODE_YYLINENO]], [[
+      if (yy_act < yy_rule_can_match_eol.length && yy_rule_can_match_eol[yy_act]) {
+        /* Over the match and no further: looking for the next newline anywhere
+         * would read the rest of the input for every token.
+         */
+        for (var yy_nl = yy_bp; yy_nl < yy_cp; yy_nl++) {
+          if (yy_source.charCodeAt(yy_nl) === YY_NL) {
+            this.yylineno += 1;
+          }
+        }
+      }
+      yylineno = this.yylineno;
+]])
+m4_ifdef([[M4_MODE_DEBUG]], [[
+      if (this.yy_flex_debug) {
+        if (yy_act === 0) {
+          this.yy_trace('--scanner backing up\n');
+        } else if (yy_act < YY_NUM_RULES) {
+          this.yy_trace('--accepting rule at line ' + yy_rule_linenum[yy_act] +
+            ' ("' + yytext + '")\n');
+        } else {
+          this.yy_trace('--accepting default rule ("' + yytext + '")\n');
+        }
+      }
+]])
+]])
+
+%% [2.0] payload macros for the DFA data tables are inserted here
+
+m4_ifdef( [[M4_HOOK_NXT_ROWS]],[[m4_dnl
+var yy_nxt =
+M4_HOOK_NXT_BODY
+]])
+
+m4_ifdef( [[M4_HOOK_NEED_ACCEPT]],[[m4_dnl
+var yy_accept = [ 0,
+M4_HOOK_ACCEPT_BODY[[]]m4_dnl
+];
+]])
+
+m4_ifdef( [[M4_MODE_USEECS]],[[m4_dnl
+/* Character equivalence-class mapping */
+var yy_ec = [ 0,
+M4_HOOK_ECSTABLE_BODY[[]]m4_dnl
+];
+]])
+
+m4_ifdef( [[M4_MODE_USEMECS]],[[m4_dnl
+/* Character meta-equivalence-class mapping */
+var yy_meta = [ 0,
+M4_HOOK_MECSTABLE_BODY[[]]m4_dnl
+];
+]])
+
+m4_ifdef( [[M4_HOOK_NULTRANS_SIZE]],[[m4_dnl
+/* Where a NUL leads, which the table columns do not cover. */
+var yy_NUL_trans = [ 0,
+M4_HOOK_NULTRANS_BODY[[]]m4_dnl
+];
+]])
+
+m4_ifdef( [[M4_HOOK_ACCLIST_TYPE]],[[m4_dnl
+var yy_acclist = [ 0,
+M4_HOOK_ACCLIST_BODY[[]]m4_dnl
+];
+]])
+
+m4_ifdef( [[M4_HOOK_BASE_TYPE]],[[m4_dnl
+var yy_base = [ 0,
+M4_HOOK_BASE_BODY[[]]m4_dnl
+];
+]])
+
+m4_ifdef( [[M4_HOOK_DEF_TYPE]],[[m4_dnl
+var yy_def = [ 0,
+M4_HOOK_DEF_BODY[[]]m4_dnl
+];
+]])
+
+m4_ifdef( [[M4_HOOK_YYNXT_TYPE]],[[m4_dnl
+var yy_nxt = [ 0,
+M4_HOOK_YYNXT_BODY[[]]m4_dnl
+];
+]])
+
+m4_ifdef( [[M4_HOOK_CHK_TYPE]],[[m4_dnl
+var yy_chk = [ 0,
+M4_HOOK_CHK_BODY[[]]m4_dnl
+];
+]])
+
+m4_ifdef( [[M4_MODE_YYLINENO]],[[m4_dnl
+/* True where the rule could match an end of line. */
+var yy_rule_can_match_eol = [ 0,
+M4_HOOK_EOLTABLE_BODY[[]]m4_dnl
+];
+]])
+
+m4_ifdef( [[M4_MODE_DEBUG]],[[m4_dnl
+/* The line each rule was written on. */
+var yy_rule_linenum = [ 0,
+M4_HOOK_DEBUGTABLE_BODY[[]]m4_dnl
+];
+]])
+
+m4_ifdef([[M4_MODE_NO_FULLSPD_OR_FULLTBL]], [[m4_ifdef([[M4_MODE_USEECS]], [[
+/* The class the tables give a NUL is the end-of-buffer one, so the class a
+ * real NUL belongs to is folded in and the end of the input keeps the
+ * original.
+ */
+var YY_EOB_EC = yy_ec[0];
+yy_ec[0] = YY_NUL_EC;
+]])]])
+
+%# C reaches the transition a NUL makes through a table of its own, or through
+%# a column the matcher does not otherwise index. Folding it into the column a
+%# NUL already indexes leaves the loop a plain lookup.
+m4_ifdef([[M4_MODE_NULTRANS]], [[
+(function () {
+  for (var yy_state = 0; yy_state < yy_nxt.length; yy_state++) {
+    var yy_to = yy_NUL_trans[yy_state];
+
+    yy_nxt[yy_state][M4_EC(0)] = yy_to > 0 ? yy_to : -yy_state;
+  }
+}());
+]])
+m4_ifdef([[M4_MODE_NULTRANS_FULLTBL]], [[
+(function () {
+  for (var yy_state = 0; yy_state < yy_nxt.length; yy_state++) {
+    yy_nxt[yy_state][M4_EC(0)] = yy_nxt[yy_state][YY_NUL_EC];
+  }
+}());
+]])
+
+%% [3.0] static declarations conditional on mode switches go here
+
+/* UTF-8 bytes in, one per code unit; yytext is decoded before a rule sees it. */
+var yy_not_ascii = /[^\u0000-\u007f]/;
+
+m4_ifdef([[M4_MODE_7BIT]], [[
+/* %option 7bit builds tables for ASCII alone. */
+function yy_check_7bit(yy_scanner, yy_is_wide) {
+  if (yy_is_wide) {
+    yy_scanner.yy_fatal_error('this scanner was built with %option 7bit,' +
+      ' so the input cannot hold characters above ASCII');
+  }
+  return yy_is_wide;
+}
+]])
+
+/* Callers ask whether the text holds anything above ASCII before coming here,
+ * so most input never reaches this at all.
+ */
+function yy_utf8_encode(text) {
+  if (typeof Buffer !== 'undefined' && Buffer.from) {
+    return Buffer.from(text, 'utf8').toString('latin1');
+  }
+
+  var length = text.length;
+  var bytes = '';
+  for (var index = 0; index < length; index++) {
+    var code = text.charCodeAt(index);
+    if (code < 0x80) {
+      bytes += text.charAt(index);
+    } else if (code < 0x800) {
+      bytes += String.fromCharCode(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
+    } else if (code >= 0xd800 && code <= 0xdbff && index + 1 < length &&
+        text.charCodeAt(index + 1) >= 0xdc00 && text.charCodeAt(index + 1) <= 0xdfff) {
+      var pair = 0x10000 + ((code - 0xd800) << 10) + (text.charCodeAt(++index) - 0xdc00);
+      bytes += String.fromCharCode(0xf0 | (pair >> 18), 0x80 | ((pair >> 12) & 0x3f),
+        0x80 | ((pair >> 6) & 0x3f), 0x80 | (pair & 0x3f));
+    } else if (code >= 0xd800 && code <= 0xdfff) {
+      /* A surrogate on its own is not a character; Buffer writes U+FFFD for
+       * it, and so does this.
+       */
+      bytes += String.fromCharCode(0xef, 0xbf, 0xbd);
+    } else {
+      bytes += String.fromCharCode(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f),
+        0x80 | (code & 0x3f));
+    }
+  }
+  return bytes;
+}
+
+/* The same bytes read as numbers 0..255, which a signed view would not give. */
+function yy_unsigned_view(view) {
+  return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+}
+
+function yy_bytes_to_string(bytes) {
+  var text = '';
+  /* In pieces: apply overflows the stack on a long array. A subarray is a
+   * view of the same bytes, where slicing would copy them.
+   */
+  for (var at = 0; at < bytes.length; at += 4096) {
+    var chunk = bytes.subarray(at, at + 4096);
+    text += String.fromCharCode.apply(null, chunk);
+  }
+  return text;
+}
+
+/* How many bytes follow this one, or -1 where it cannot begin a character. */
+function yy_utf8_follows(lead) {
+  return lead < 0x80 ? 0
+    : lead >= 0xc2 && lead <= 0xdf ? 1
+    : lead >= 0xe0 && lead <= 0xef ? 2
+    : lead >= 0xf0 && lead <= 0xf4 ? 3
+    : -1;
+}
+
+/* How many bytes the character at that position takes. A byte that cannot go
+ * on ends it, which is where the standard starts reading again.
+ */
+function yy_utf8_width(bytes, at) {
+  var lead = bytes.charCodeAt(at);
+  var follows = yy_utf8_follows(lead);
+
+  if (follows <= 0) {
+    return 1;
+  }
+
+  var least = lead === 0xe0 ? 0xa0 : lead === 0xf0 ? 0x90 : 0x80;
+  var most = lead === 0xed ? 0x9f : lead === 0xf4 ? 0x8f : 0xbf;
+  for (var step = 1; step <= follows; step++) {
+    var next = at + step < bytes.length ? bytes.charCodeAt(at + step) : -1;
+    if (next < least || next > most) {
+      return step;
+    }
+    least = 0x80;
+    most = 0xbf;
+  }
+  return follows + 1;
+}
+
+/* How many bytes hold the first so many units of what these decode to; a count that
+ * lands inside a character takes the whole of it.
+ */
+function yy_utf8_bytes_for(bytes, at, units) {
+  var start = at;
+
+  while (units > 0 && at < bytes.length) {
+    var width = yy_utf8_width(bytes, at);
+
+    units -= width === 4 ? 2 : 1;
+    at += width;
+  }
+  return at - start;
+}
+
+function yy_utf8_decode(bytes) {
+  /* Most matches are ASCII even where the input is not, and those decode to
+   * themselves, which is quicker to find out than to do.
+   */
+  if (!yy_not_ascii.test(bytes)) {
+    return bytes;
+  }
+
+  if (typeof Buffer !== 'undefined' && Buffer.from) {
+    return Buffer.from(bytes, 'latin1').toString('utf8');
+  }
+
+  var text = '';
+  var index = 0;
+  while (index < bytes.length) {
+    var lead = bytes.charCodeAt(index);
+    var follows = yy_utf8_follows(lead);
+    var width = yy_utf8_width(bytes, index);
+
+    if (follows === 0) {
+      text += String.fromCharCode(lead);
+    } else if (width !== follows + 1) {
+      /* Nothing that can be a character, so the standard says U+FFFD. */
+      text += '\ufffd';
+    } else {
+      var code = lead & (follows === 1 ? 0x1f : follows === 2 ? 0x0f : 0x07);
+      for (var step = 1; step <= follows; step++) {
+        code = (code << 6) | (bytes.charCodeAt(index + step) & 0x3f);
+      }
+      if (code > 0xffff) {
+        code -= 0x10000;
+        text += String.fromCharCode(0xd800 + (code >> 10), 0xdc00 + (code & 0x3ff));
+      } else {
+        text += String.fromCharCode(code);
+      }
+    }
+    index += width;
+  }
+  return text;
+}
+
+/* Each start condition gets a rule number above the end-of-buffer one, the
+ * way the C scanner numbers its <<EOF>> rules.
+ */
+function YY_STATE_EOF(sc) {
+  return YY_END_OF_BUFFER + sc + 1;
+}
+
+/** A scanner over held input. Call lex() until it answers 0. */
+function YYScanner(source) {
+  this.yy_buffer_stack = [];
+  this.yy = null;
+  this.yyout = null;
+  this.yy_flex_debug = M4_MODE_DEBUG_INITIAL;
+m4_ifdef([[M4_YY_STACK_USED]], [[  this.yy_start_stack = [];
+]])m4_ifdef([[M4_MODE_USES_REJECT]], [[  this.yy_state_buf = [];
+]])  this.yy_wide = false;
+m4_ifdef([[YY_USER_INIT]], [[  this.yy_init = false;
+]])
+  /* restart() leaves these where they are, the way C does, so a new scanner
+   * is where they are set.
+   */
+  this.yy_start = 1;
+  this.yylineno = 1;
+  this.restart(source);
+}
+
+/** Scan a string, from its beginning, in the initial start condition. */
+YYScanner.prototype.restart = function (source) {
+  /* Pure ASCII needs no decoding, which is the common case and the fast one:
+   * asking here answers it, where the encoder would have asked again. Text
+   * that holds more goes on to be encoded, and the bytes it turns into hold
+   * more too, so the answer carries over.
+   */
+  var yy_beyond_ascii;
+  var yy_bytes;
+
+  if (source === undefined || source === null) {
+    yy_bytes = '';
+    yy_beyond_ascii = false;
+  } else if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(source) &&
+      source.BYTES_PER_ELEMENT === 1) {
+    /* Bytes already, which is what the scanner wants. A Buffer is one of
+     * these, and knows the quickest way to say so. Asked by shape rather than
+     * by instanceof, which answers no for a view made in another realm.
+     */
+    yy_bytes = typeof Buffer !== 'undefined' && Buffer.isBuffer(source)
+      ? source.toString('latin1')
+      : yy_bytes_to_string(yy_unsigned_view(source));
+    yy_beyond_ascii = yy_not_ascii.test(yy_bytes);
+  } else {
+    var yy_text = String(source);
+
+    yy_beyond_ascii = yy_not_ascii.test(yy_text);
+    yy_bytes = yy_beyond_ascii ? yy_utf8_encode(yy_text) : yy_text;
+  }
+
+  /* Nothing is taken until the input is known to be scannable, or refusing it
+   * would leave the scanner holding bytes it cannot read.
+   */
+  this.yy_wide = M4_GEN_JS_WIDE(yy_beyond_ascii);
+  this.yy_source = yy_bytes;
+  this.yy_c_buf_p = 0;
+  this.yytext = '';
+  this.yyleng = 0;
+  this.yy_more_len = 0;
+  this.yy_more_flag = 0;
+  this.yy_text_start = 0;
+  this.yy_at_bol_flag = true;
+  return this;
+};
+
+/** FLEX's yy_scan_string, kept because scanners written for C reach for it. */
+YYScanner.prototype.yy_scan_string = function (source) {
+  return this.restart(source);
+};
+
+/** Push the current input aside and scan another string. */
+YYScanner.prototype.yypush_buffer_state = function (source) {
+  var yy_aside = {
+    source: this.yy_source,
+    position: this.yy_c_buf_p,
+    atBol: this.yy_at_bol_flag,
+    wide: this.yy_wide
+  };
+
+  /* restart() keeps the start condition, its stack and the line count, all
+   * of which belong to the scanner rather than to the input. It goes first,
+   * so input it refuses leaves nothing on the stack.
+   */
+  this.restart(source);
+  this.yy_buffer_stack.push(yy_aside);
+  return this;
+};
+
+/** Return to the input yypush_buffer_state set aside. */
+YYScanner.prototype.yypop_buffer_state = function () {
+  var saved = this.yy_buffer_stack.pop();
+  if (!saved) {
+    return false;
+  }
+  this.yy_source = saved.source;
+  this.yy_c_buf_p = saved.position;
+  /* C's yy_load_buffer_state starts yytext where the cursor is, on every
+   * switch, so nothing a yymore() carried belongs to the input coming back.
+   */
+  this.yy_text_start = saved.position;
+  this.yy_at_bol_flag = saved.atBol;
+  this.yy_wide = saved.wide;
+  return true;
+};
+
+/** True where the next match would start a line, which is what ^ asks. */
+YYScanner.prototype.yy_at_bol = function () {
+  return this.yy_at_bol_flag;
+};
+
+YYScanner.prototype.yy_set_bol = function (atBol) {
+  this.yy_at_bol_flag = !!atBol;
+};
+
+/** Where ECHO writes. */
+YYScanner.prototype.yy_echo = function (text) {
+  if (this.yyout) {
+    this.yyout.write(text);
+  } else if (typeof process !== 'undefined' && process.stdout) {
+    process.stdout.write(text);
+  }
+};
+
+/* Asked when the input runs out; false means something replaced it. */
+YYScanner.prototype.yywrap = function () {
+  return true;
+};
+
+/** Where %option debug writes what the scanner is doing. */
+YYScanner.prototype.yy_trace = function (text) {
+  if (typeof console !== 'undefined' && console.error) {
+    console.error(text.replace(/\n$/, ''));
+  }
+};
+
+YYScanner.prototype.yy_fatal_error = function (message) {
+  throw new Error(message);
+};
+
+m4_ifdef([[M4_YY_NO_YYUNPUT]],, [[
+/** Put text back in front of the scanner, FLEX's unput. */
+YYScanner.prototype.unput = function (text) {
+  var at = this.yy_c_buf_p;
+  var given = String(text);
+  var bytes = yy_not_ascii.test(given) ? yy_utf8_encode(given) : given;
+
+  this.yy_wide = M4_GEN_JS_WIDE(this.yy_wide || bytes !== given);
+
+  /* C writes over the bytes in front of the cursor and steps back across
+   * them rather than making room, so giving back what is already there costs
+   * nothing and giving back something else replaces as much as it is long.
+   */
+  if (at >= bytes.length) {
+    if (this.yy_source.substr(at - bytes.length, bytes.length) !== bytes) {
+      this.yy_source = this.yy_source.substring(0, at - bytes.length) + bytes +
+        this.yy_source.substring(at);
+    }
+    this.yy_c_buf_p = at - bytes.length;
+  } else {
+    /* Less has been read than is being given back, so the input grows at the
+     * front and what is measured from it moves too, as C's shift does.
+     */
+    this.yy_source = bytes + this.yy_source.substring(at);
+    this.yy_c_buf_p = 0;
+m4_ifdef([[M4_MODE_YYMORE_USED]], [[    this.yy_text_start = 0;
+]])  }
+
+m4_ifdef([[M4_MODE_YYLINENO]], [[  for (var back = bytes.indexOf('\n'); back !== -1;
+      back = bytes.indexOf('\n', back + 1)) {
+    this.yylineno -= 1;
+  }
+]])  this.yytext = '';
+  this.yyleng = 0;
+  return this;
+};
+
+]])
+m4_ifdef([[M4_MODE_NO_YYINPUT]],, [[
+/** Read the next character, answering '' once the input is exhausted. */
+YYScanner.prototype.input = function () {
+  if (this.yy_c_buf_p >= this.yy_source.length) {
+    return '';
+  }
+  var width = yy_utf8_width(this.yy_source, this.yy_c_buf_p);
+  var bytes = this.yy_source.substr(this.yy_c_buf_p, width);
+  this.yy_c_buf_p += bytes.length;
+m4_ifdef([[M4_MODE_BOL_NEEDED]], [[  this.yy_at_bol_flag = bytes === '\n';
+]])m4_ifdef([[M4_MODE_YYLINENO]], [[  if (bytes === '\n') {
+    this.yylineno += 1;
+  }
+]])  return width === 1 ? bytes : yy_utf8_decode(bytes);
+};
+]])
+
+m4_ifdef([[M4_YY_STACK_USED]], [[m4_ifdef([[M4_YY_NO_PUSH_STATE]],, [[/** Switch start condition, remembering the one being left. */
+YYScanner.prototype.yy_push_state = function (sc) {
+  this.yy_start_stack.push(this.yy_start);
+  this.yy_start = 1 + 2 * sc;
+  return this;
+};
+
+]])m4_dnl
+m4_ifdef([[M4_YY_NO_POP_STATE]],, [[/** Return to the start condition yy_push_state remembered. */
+YYScanner.prototype.yy_pop_state = function () {
+  var depth = this.yy_start_stack.length;
+  if (!depth) {
+    this.yy_fatal_error('start-condition stack underflow');
+  }
+  this.yy_start = this.yy_start_stack[depth - 1];
+  this.yy_start_stack.length = depth - 1;
+  return this;
+};
+
+]])m4_dnl
+m4_ifdef([[M4_YY_NO_TOP_STATE]],, [[/** The remembered start condition, without leaving the current one. */
+YYScanner.prototype.yy_top_state = function () {
+  var depth = this.yy_start_stack.length;
+  var start = depth ? this.yy_start_stack[depth - 1] : this.yy_start;
+  return (start - 1) / 2;
+};
+]])m4_dnl
+]])m4_dnl
+
+/* Giving input back takes its newlines off the count. */
+m4_ifdef([[M4_MODE_YYLINENO]], [[function yy_lineno_back(source, from, to, lineno) {
+  for (var at = from; at < to; at++) {
+    if (source.charCodeAt(at) === YY_NL) {
+      lineno -= 1;
+    }
+  }
+  return lineno;
+}
+]])
+
+%% [4.0] user's declarations go here
+
+/** Scan until a rule body returns something. Answers 0 at the end. */
+YYScanner.prototype.lex = function () {
+  var yy_scanner = this;
+
+  /* The scan loop reads all of these off the scanner before it uses them,
+   * since a rule body may have put different input in front of it.
+   */
+  var yy_source;
+  var yy_limit;
+  var yy_cp;
+  var yy_bp;
+  var yy_current_state = 0;
+  var yy_last_accepting_state = 0;
+  var yy_last_accepting_cpos = -1;
+  var yy_act = 0;
+  var yy_c = 0;
+  var yy_more_flag = this.yy_more_flag;
+  var yy_at_eof = 0;
+  var yy_more_len = this.yy_more_len;
+  var yytext = '';
+  var yyleng = 0;
+  var yylineno;
+  var yy_wide;
+
+  /* What a rule body can call. These reach the matcher's own position. */
+m4_ifdef([[M4_YY_NO_YYUNPUT]],, [[
+  function unput(text) {
+    yy_scanner.yy_c_buf_p = yy_cp;
+    yy_scanner.unput(text);
+    yy_take_input();
+    yytext = yy_scanner.yytext;
+    yyleng = yy_scanner.yyleng;
+  }
+]])
+
+m4_ifdef([[M4_MODE_NO_YYINPUT]],, [[
+  function input() {
+    yy_scanner.yy_c_buf_p = yy_cp;
+    var text = yy_scanner.input();
+    yy_cp = yy_scanner.yy_c_buf_p;
+    yylineno = yy_scanner.yylineno;
+    return text;
+  }
+]])
+
+m4_ifdef([[M4_YY_STACK_USED]], [[m4_ifdef([[M4_YY_NO_PUSH_STATE]],, [[  function yy_push_state(sc) {
+    yy_scanner.yy_push_state(sc);
+  }
+
+]])m4_dnl
+m4_ifdef([[M4_YY_NO_POP_STATE]],, [[  function yy_pop_state() {
+    yy_scanner.yy_pop_state();
+  }
+
+]])m4_dnl
+m4_ifdef([[M4_YY_NO_TOP_STATE]],, [[  function yy_top_state() {
+    return yy_scanner.yy_top_state();
+  }
+]])m4_dnl
+]])m4_dnl
+
+  function yy_set_bol(atBol) {
+    yy_scanner.yy_set_bol(atBol);
+  }
+
+  /** Write the current match out, FLEX's ECHO. */
+  function ECHO() {
+    yy_scanner.yy_echo(yytext);
+  }
+
+  /** Switch start condition, FLEX's BEGIN. */
+  function BEGIN(sc) {
+    yy_scanner.yy_start = 1 + 2 * sc;
+  }
+
+  /** The start condition in force, FLEX's YY_START. */
+  function YY_START() {
+    return (yy_scanner.yy_start - 1) / 2;
+  }
+
+  var YYSTATE = YY_START;
+
+  /** True where the match began a line, FLEX's YY_AT_BOL. */
+  function YY_AT_BOL() {
+    return yy_scanner.yy_at_bol();
+  }
+
+  /** Keep the first n characters and return the rest, which is what the
+   * macro above rewrites a rule's call into.
+   */
+  function yy_less_to(n) {
+    /* A count below zero would read from before the match, and keeping none
+     * of it instead leaves the scan where it was, matching forever.
+     */
+    if (n < 0) {
+      yy_scanner.yy_fatal_error('[[yyless]]() was given a count below zero');
+      return;
+    }
+
+    var yy_start_at = yy_bp - yy_more_len;
+    /* Measured over the bytes rather than by encoding yytext again, which
+     * cannot give back a byte that was never a character.
+     */
+    var yy_keep = yy_wide && yy_not_ascii.test(yytext)
+      ? yy_utf8_bytes_for(yy_source, yy_start_at, n)
+      : n;
+
+    /* Keeping more than was matched would take input no rule has seen. */
+    if (yy_start_at + yy_keep > yy_cp) {
+      yy_keep = yy_cp - yy_start_at;
+    }
+m4_ifdef([[M4_MODE_YYLINENO]], [[
+    yylineno = yy_scanner.yylineno =
+      yy_lineno_back(yy_source, yy_start_at + yy_keep, yy_cp, yylineno);
+]])
+    M4_GEN_JS_TAKE_TEXT(yy_start_at, yy_start_at + yy_keep)
+  }
+
+  /** Add the next match to this one rather than replacing it, FLEX's yymore. */
+  function yymore() {
+    yy_more_flag = 1;
+    yy_scanner.yy_more_flag = 1;
+  }
+
+  /* A rule body that puts different input in front of the scanner has to be
+   * seen by whatever it does next, rather than at the top of the next scan.
+   */
+  function yy_take_input() {
+    yy_source = yy_scanner.yy_source;
+    yy_limit = yy_source.length;
+    yy_cp = yy_scanner.yy_c_buf_p;
+    yy_wide = yy_scanner.yy_wide;
+    yylineno = yy_scanner.yylineno;
+  }
+
+  /* Different input has nothing in common with the match in progress, so
+   * where that match began stops meaning anything.
+   */
+  function yy_take_buffer() {
+    yy_take_input();
+    yy_bp = yy_cp;
+    yy_more_len = 0;
+  }
+
+  /** Put this input aside and scan another, FLEX's yypush_buffer_state. */
+  function yypush_buffer_state(text) {
+    var pushed = yy_scanner.yypush_buffer_state(text);
+
+    yy_take_buffer();
+    return pushed;
+  }
+
+  /** Go back to the input set aside, FLEX's yypop_buffer_state. */
+  function yypop_buffer_state() {
+    var popped = yy_scanner.yypop_buffer_state();
+
+    /* Only a pop that found something changed the input; taking it anyway
+     * would throw away where the match in progress began.
+     */
+    if (popped) {
+      yy_take_buffer();
+    }
+    return popped;
+  }
+
+  /** Scan a string from its beginning, FLEX's yy_scan_string. */
+  function yy_scan_string(text) {
+    var scanning = yy_scanner.restart(text);
+
+    yy_take_buffer();
+    return scanning;
+  }
+
+m4_ifdef([[M4_MODE_USES_REJECT]], [[
+  var yy_state_buf = this.yy_state_buf;
+  var yy_state_ptr = 0;
+  var yy_lp = 0;
+  var yy_full_match = 0;
+  var yy_full_state = 0;
+  var yy_full_lp = 0;
+  var yy_looking_for_trail_begin = 0;
+]])
+
+m4_ifdef([[YY_USER_INIT]], [[  if (!this.yy_init) {
+    this.yy_init = true;
+    YY_USER_INIT
+  }
+
+]])  var yy = this.yy;
+
+  yy_scan: for (;;) {
+    /* The scanner holds the input, and a rule body may have replaced it. */
+    yy_source = this.yy_source;
+    yy_limit = yy_source.length;
+    yy_cp = this.yy_c_buf_p;
+    yy_wide = this.yy_wide;
+    yylineno = this.yylineno;
+    yy_bp = yy_cp;
+
+    /* Nothing left: the start condition's <<EOF>> rule, else 0. */
+    if (yy_cp >= yy_limit) {
+m4_ifdef([[M4_MODE_NO_YYWRAP]],, [[
+      /* Nothing is left here, but yywrap may put something in its place. */
+      if (!this.yywrap()) {
+        continue yy_scan;
+      }
+]])
+      this.yytext = yytext = '';
+      this.yyleng = yyleng = 0;
+      yy_act = YY_STATE_EOF((this.yy_start - 1) / 2);
+m4_ifdef([[M4_MODE_DEBUG]], [[
+      if (this.yy_flex_debug) {
+        this.yy_trace('--EOF (start condition ' + ((this.yy_start - 1) / 2) + ')\n');
+      }
+]])
+      yy_more_len = this.yy_more_len = 0;
+      yy_more_flag = this.yy_more_flag = 0;
+      yy_at_eof = 1;
+    } else {
+      yy_at_eof = 0;
+      yy_more_len = this.yy_more_len = 0;
+m4_ifdef([[M4_MODE_YYMORE_USED]], [[      if (yy_more_flag) {
+        yy_more_len = this.yy_more_len = this.yy_c_buf_p - this.yy_text_start;
+        yy_more_flag = this.yy_more_flag = 0;
+      }
+]])
+
+      /* The start state, which ^ splits in two. */
+      yy_current_state = this.yy_start;
+m4_ifdef([[M4_MODE_BOL_NEEDED]], [[
+      if (this.yy_at_bol_flag) {
+        yy_current_state += 1;
+      }
+]])
+m4_ifdef([[M4_MODE_USES_REJECT]], [[
+      yy_state_ptr = 0;
+      yy_state_buf[yy_state_ptr++] = yy_current_state;
+]])
+m4_ifdef([[M4_MODE_NO_USES_REJECT]], [[      yy_last_accepting_state = 0;
+      yy_last_accepting_cpos = -1;
+]])
+M4_GEN_JS_MATCH
+
+M4_GEN_JS_FIND_ACTION
+    }
+
+    yy_find_rule: for (;;) {
+      /* The end of the input names its own rule; REJECT re-enters here. */
+      if (!yy_at_eof) {
+M4_GEN_JS_RULE_LOOKUP
+M4_GEN_JS_BEFORE_ACTION
+      }
+      M4_GEN_JS_REJECT_OPEN
+      switch (yy_act) {
+m4_ifdef([[M4_MODE_FIND_ACTION_FULLTBL]], [[m4_ifdef([[M4_MODE_NO_USES_REJECT]], [[    case 0:
+      /* The full table stops where the input ends, C on a sentinel, so a rule
+       * cut short there has to be backed out to the last one that matched.
+       */
+      M4_GEN_JS_BACKUP
+      yy_current_state = yy_last_accepting_state;
+      yy_act = yy_accept[yy_current_state];
+      continue yy_find_rule;
+
+]])]])
+%% [5.0] user actions get inserted here
+
+    case YY_END_OF_BUFFER:
+      this.yy_c_buf_p = yy_cp;
+      return 0;
+
+    default:
+      this.yy_fatal_error('fatal flex scanner internal error--no action found');
+      }
+      M4_GEN_JS_REJECT_CATCH
+
+      continue yy_scan;
+    }
+  }
+};
+
+return YYScanner;
+}());
+
+%# BACKEND-DIVERGENCE
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = M4_JS_EXPORT_NAME;
+}
+%# END BACKEND-DIVERGENCE

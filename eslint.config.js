@@ -4,6 +4,11 @@ var js = require('@eslint/js');
 var globals = require('globals');
 
 module.exports = [
+  {
+    // the flex checkout, the binaries, and anything the generator wrote:
+    // generated scanners are flex's output, not this repository's source
+    ignores: ['build/**', 'dist/**', 'benchmark/node_modules/**']
+  },
   js.configs.recommended,
   {
     languageOptions: {
@@ -19,8 +24,8 @@ module.exports = [
     }
   },
   {
-    // the library is ES5, the tests only have to run on the versions CI covers
-    files: ['test/**/*.js'],
+    // the generator's own scripts and the tests only have to run on Node
+    files: ['test/**/*.js', 'bin/**/*.js', 'benchmark/*.js'],
     languageOptions: {
       ecmaVersion: 2022
     }

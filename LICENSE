@@ -1,19 +1,52 @@
-Copyright (c) 2017 Artem Butusov <art.sormy@gmail.com>
+Flex carries the copyright used for BSD software, slightly modified
+because it originated at the Lawrence Berkeley (not Livermore!) Laboratory,
+which operates under a contract with the Department of Energy:
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2007 The Flex Project.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Copyright (c) 1990, 1997 The Regents of the University of California.
+All rights reserved.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+This code is derived from software contributed to Berkeley by
+Vern Paxson.
+
+The United States Government has rights in this work pursuant
+to contract no. DE-AC03-76SF00098 between the United States
+Department of Energy and the University of California.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+Neither the name of the University nor the names of its contributors
+may be used to endorse or promote products derived from this software
+without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE.
+
+This basically says "do whatever you please with this software except
+remove this notice or take advantage of the University's (or the flex
+authors') name".
+
+Note that the "flex.skl" scanner skeleton carries no copyright notice.
+You are free to do whatever you please with scanners generated using flex;
+for them, you are not even bound by the above copyright.
+
+---
+
+The JavaScript and TypeScript back ends in skeleton/, the patches in patches/,
+the compatibility headers in compat/, and the scripts and tests around them are
+Copyright (c) 2017-2026 Artem Butusov, and are released under the same terms.
+
+The Windows distribution also carries GNU M4, which is under the GNU General
+Public License and stays that way. It is a separate program, run as a child
+process, not linked into anything here. See LICENSE.m4.

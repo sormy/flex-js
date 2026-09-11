@@ -1,29 +1,30 @@
-/**
- * Throughput comparison against other JavaScript lexers.
- *
- * Run with `npm run bench`, which installs the lexers compared against into
- * this directory. They are kept out of the root package so that testing and
- * linting flex-js does not mean downloading three other lexers. Whichever is
- * present takes part, and the table is still produced without them. Every engine is fed the same source and must return the same number of
- * tokens, so a change in that count means the grammars have drifted apart and
- * the timings are not comparable.
- *
- * BENCH_ALL=1 adds lex, which is unmaintained and runs its rules as global
- * rather than sticky expressions, so a rule that does not match here scans the
- * rest of the input. That costs seconds per round once a grammar has a couple
- * of dozen rules, which is why it is left out by default.
- */
+/*
+** Throughput of the scanners flex-js 2 generates, against the 1.x library
+** and the other lexers people reach for.
+**
+** Every engine is given the same input and has to return the same number of
+** tokens, each as an object, so a change in that count means the grammars
+** have drifted apart and the timings are not comparable.
+**
+** Run with `npm run bench` from the repository root.
+*/
 
+'use strict';
+
+var fs = require('fs');
+var os = require('os');
+var path = require('path');
 var childProcess = require('child_process');
 
-var Lexer = require('..');
 var corpus = require('./corpus.js');
 
 var LINES = 3000;
-var MEMORY_ROUNDS = 3;
 var WARMUP_ROUNDS = 20;
 var TIMED_ROUNDS = 30;
-var BUDGET_MS = 1500;
+var MEMORY_ROUNDS = 3;
+
+var GENERATOR = process.env.FLEX_JS ||
+  path.join(__dirname, '..', 'build', 'flex', 'src', 'flex');
 
 function optional(name) {
   try {
@@ -33,21 +34,100 @@ function optional(name) {
   }
 }
 
+var LegacyLexer = optional('flex-js');
 var moo = optional('moo');
-var chevrotain = optional('chevrotain');
-var Lex = optional('lex');
+var peggy = optional('peggy');
+var chevrotain = optional('chevrotain/lib/src/api.js') || optional('chevrotain');
 
+/* Empty asks for flex's own default tables, which name no option at all. */
+var TABLES = (process.env.FLEX_JS_TABLES === undefined
+  ? '-Cf'
+  : process.env.FLEX_JS_TABLES).split(' ').filter(Boolean);
+
+var directory = fs.mkdtempSync(path.join(os.tmpdir(), 'flex-js-bench-'));
+
+/* One run spawns a process per engine per workload, so the scanners each one
+ * generates go away with it rather than accumulating in the temp directory.
+ */
+process.on('exit', function () {
+  fs.rmSync(directory, { recursive: true, force: true });
+});
+
+/** Generates a scanner from one of the grammars beside this file. */
+function generated(name) {
+  var output = path.join(directory, name + '.js');
+  var run = childProcess.spawnSync(GENERATOR,
+    ['--emit=javascript'].concat(TABLES,
+      ['--noline', '-o', output, path.join(__dirname, name + '.l')]),
+    { encoding: 'utf8' });
+
+  if (run.status !== 0) {
+    throw new Error('generating ' + name + ' failed: ' + run.stderr);
+  }
+  return require(output);
+}
+
+function token(type) {
+  return function (lexer) {
+    return { type: type, value: lexer.text };
+  };
+}
+
+var PUNCTUATION = ['>=', '<=', '==', '(', ')', '{', '}', ';', '=', '+', '*', '-', '/', '<', '>'];
+var KEYWORDS = ['if', 'else', 'return', 'null'];
 var SQL_KEYWORDS = ['SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'IN'];
 var SQL_PUNCTUATION = ['<=', '>=', '<>', '=', '<', '>', '+', '-', '*', '/', '(', ')', ',', ';'];
 
-var KEYWORDS = ['if', 'else', 'return', 'null'];
-var PUNCTUATION = ['>=', '<=', '==', '(', ')', '{', '}', ';', '=', '+', '*', '-', '/', '<', '>'];
+/*
+** PEG is ordered choice, so the rules are written longest first and a keyword
+** is followed by a lookahead, which is what longest match does on its own.
+*/
+var PEGGY_HEAD = [
+  'Tokens = t:Token* { return t.filter(function (x) { return x !== null; }); }',
+  ''
+].join('\n');
+
+var PEGGY = {
+  'expression rules': [
+    'Token = Ws / Comment / Str / Float / Int / Kw / Id / Op',
+    'Ws = [ \\t\\n]+ { return null; }',
+    'Comment = "//" [^\\n]* { return null; }',
+    'Str = \'"\' ( [^"\\\\] / "\\\\" . )* \'"\' { return { type: "str", value: text() }; }',
+    'Float = [0-9]+ "." [0-9]+ { return { type: "float", value: text() }; }',
+    'Int = [0-9]+ { return { type: "int", value: text() }; }',
+    'Kw = "let" ![a-zA-Z0-9_] { return { type: "kw", value: text() }; }',
+    'Id = [a-zA-Z_][a-zA-Z0-9_]* { return { type: "id", value: text() }; }',
+    'Op = [-+*/=();] { return { type: "op", value: text() }; }'
+  ].join('\n'),
+  'string rules': [
+    'Token = Ws / Punct / Kw / Int / Id',
+    'Ws = [ \\t\\n]+ { return null; }',
+    'Punct = (">=" / "<=" / "==" / "(" / ")" / "{" / "}" / ";" / "=" / "+" / "*" / "-" / "/" / "<" / ">")',
+    '  { return { type: "punct", value: text() }; }',
+    'Kw = ("if" / "else" / "return" / "null") ![a-zA-Z0-9_]',
+    '  { return { type: "kw", value: text() }; }',
+    'Int = [0-9]+ { return { type: "int", value: text() }; }',
+    'Id = [a-zA-Z_][a-zA-Z0-9_]* { return { type: "id", value: text() }; }'
+  ].join('\n'),
+  'keyword rules': [
+    'Token = Ws / Kw / Str / Int / Id / Punct',
+    'Ws = [ \\t\\n]+ { return null; }',
+    'Kw = ("SELECT" / "FROM" / "WHERE" / "AND" / "OR" / "NOT" / "IN") ![a-zA-Z0-9_]',
+    '  { return { type: "kw", value: text() }; }',
+    'Str = "\'" [^\']* "\'" { return { type: "str", value: text() }; }',
+    'Int = [0-9]+ { return { type: "int", value: text() }; }',
+    'Id = [a-zA-Z_][a-zA-Z0-9_]* { return { type: "id", value: text() }; }',
+    'Punct = ("<=" / ">=" / "<>" / "=" / "<" / ">" / "+" / "-" / "*" / "/" / "(" / ")" / "," / ";")',
+    '  { return { type: "punct", value: text() }; }'
+  ].join('\n')
+};
 
 var WORKLOADS = [
   {
     name: 'expression rules',
+    grammar: 'expr',
     source: corpus.expressions(LINES),
-    flex: function (lexer) {
+    legacy: function (lexer) {
       lexer.addRule(/[ \t\n]+/);
       lexer.addRule(/\/\/[^\n]*/);
       lexer.addRule(/"(?:[^"\\]|\\.)*"/, token('str'));
@@ -68,16 +148,6 @@ var WORKLOADS = [
         op: /[-+*/=();]/
       });
     },
-    lex: function (lexer) {
-      lexer.addRule(/[ \t\n]+/, function () { });
-      lexer.addRule(/\/\/[^\n]*/, function () { });
-      lexer.addRule(/"(?:[^"\\]|\\.)*"/, lexeme('str'));
-      lexer.addRule(/[0-9]+\.[0-9]+/, lexeme('float'));
-      lexer.addRule(/[0-9]+/, lexeme('int'));
-      lexer.addRule(/let/, lexeme('kw'));
-      lexer.addRule(/[a-zA-Z_][a-zA-Z0-9_]*/, lexeme('id'));
-      lexer.addRule(/[-+*/=();]/, lexeme('op'));
-    },
     chevrotain: function (create, skipped) {
       var id = create({ name: 'Id', pattern: /[a-zA-Z_][a-zA-Z0-9_]*/ });
       return [
@@ -94,8 +164,9 @@ var WORKLOADS = [
   },
   {
     name: 'string rules',
+    grammar: 'keywords',
     source: corpus.keywords(LINES),
-    flex: function (lexer) {
+    legacy: function (lexer) {
       lexer.addRule(/[ \t\n]+/);
       PUNCTUATION.forEach(function (text) { lexer.addRule(text, token('punct')); });
       KEYWORDS.forEach(function (text) { lexer.addRule(text, token('kw')); });
@@ -109,13 +180,6 @@ var WORKLOADS = [
         int: /[0-9]+/,
         id: { match: /[a-zA-Z_][a-zA-Z0-9_]*/, type: moo.keywords({ kw: KEYWORDS }) }
       });
-    },
-    lex: function (lexer) {
-      lexer.addRule(/[ \t\n]+/, function () { });
-      PUNCTUATION.forEach(function (text) { lexer.addRule(asExpression(text), lexeme('punct')); });
-      KEYWORDS.forEach(function (text) { lexer.addRule(asExpression(text), lexeme('kw')); });
-      lexer.addRule(/[0-9]+/, lexeme('int'));
-      lexer.addRule(/[a-zA-Z_][a-zA-Z0-9_]*/, lexeme('id'));
     },
     chevrotain: function (create, skipped) {
       var id = create({ name: 'Id', pattern: /[a-zA-Z_][a-zA-Z0-9_]*/ });
@@ -133,8 +197,9 @@ var WORKLOADS = [
   },
   {
     name: 'keyword rules',
+    grammar: 'sql',
     source: corpus.sql(LINES),
-    flex: function (lexer) {
+    legacy: function (lexer) {
       lexer.addRule(/[ \t\n]+/);
       SQL_KEYWORDS.forEach(function (word) { lexer.addRule(word, token('kw')); });
       lexer.addRule(/'[^']*'/, token('str'));
@@ -147,20 +212,9 @@ var WORKLOADS = [
         ws: { match: /[ \t\n]+/, lineBreaks: true },
         str: /'[^']*'/,
         int: /[0-9]+/,
-        id: {
-          match: /[a-zA-Z_][a-zA-Z0-9_]*/,
-          type: moo.keywords({ kw: SQL_KEYWORDS })
-        },
+        id: { match: /[a-zA-Z_][a-zA-Z0-9_]*/, type: moo.keywords({ kw: SQL_KEYWORDS }) },
         punct: SQL_PUNCTUATION.slice()
       });
-    },
-    lex: function (lexer) {
-      lexer.addRule(/[ \t\n]+/, function () { });
-      SQL_KEYWORDS.forEach(function (word) { lexer.addRule(asExpression(word), lexeme('kw')); });
-      lexer.addRule(/'[^']*'/, lexeme('str'));
-      lexer.addRule(/[0-9]+/, lexeme('int'));
-      lexer.addRule(/[a-zA-Z_][a-zA-Z0-9_]*/, lexeme('id'));
-      SQL_PUNCTUATION.forEach(function (text) { lexer.addRule(asExpression(text), lexeme('punct')); });
     },
     chevrotain: function (create, skipped) {
       var id = create({ name: 'Id', pattern: /[a-zA-Z_][a-zA-Z0-9_]*/ });
@@ -179,29 +233,42 @@ var WORKLOADS = [
   }
 ];
 
-function token(type) {
-  return function (lexer) {
-    return { type: type, value: lexer.text };
+function generatedRunner(workload) {
+  var Scanner = generated(workload.grammar);
+  /* Built empty: the round below takes the input, and taking it twice would
+   * pay for a pass over the corpus that nothing measures.
+   */
+  var scanner = new Scanner();
+  return function () {
+    scanner.restart(workload.source);
+    var tokens = [];
+    var next;
+    while ((next = scanner.lex()) !== 0) {
+      tokens.push(next);
+    }
+    return tokens.length;
   };
 }
 
-function asExpression(text) {
-  return new RegExp(text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'));
-}
-
-function lexeme(type) {
-  return function (text) {
-    return { type: type, value: text };
-  };
-}
-
-function flexRunner(workload) {
-  var lexer = new Lexer();
-  workload.flex(lexer);
+function legacyRunner(workload) {
+  var lexer = new LegacyLexer();
+  workload.legacy(lexer);
   return function () {
     lexer.reset();
     lexer.setSource(workload.source);
-    return lexer.lexAll().length;
+    var tokens = [];
+    var next;
+    while ((next = lexer.lex()) !== 0) {
+      tokens.push(next);
+    }
+    return tokens.length;
+  };
+}
+
+function peggyRunner(workload) {
+  var parser = peggy.generate(PEGGY_HEAD + PEGGY[workload.name]);
+  return function () {
+    return parser.parse(workload.source).length;
   };
 }
 
@@ -220,19 +287,6 @@ function mooRunner(workload) {
   };
 }
 
-function lexRunner(workload) {
-  var lexer = new Lex();
-  workload.lex(lexer);
-  return function () {
-    lexer.setInput(workload.source);
-    var count = 0;
-    while (lexer.lex() !== undefined) {
-      count++;
-    }
-    return count;
-  };
-}
-
 function chevrotainRunner(workload) {
   var types = workload.chevrotain(chevrotain.createToken, chevrotain.Lexer.SKIPPED);
   var lexer = new chevrotain.Lexer(types, { positionTracking: 'onlyOffset' });
@@ -241,27 +295,51 @@ function chevrotainRunner(workload) {
   };
 }
 
+/*
+** Only what is asked for is built: constructing an engine costs memory, and
+** the memory figures are taken from a process running one engine and nothing
+** else.
+*/
+/** The engines that would take part, whichever of them are installed. */
+function candidates(workload) {
+  return [
+    ['flex-js 2', true, generatedRunner],
+    ['flex-js 1.x', LegacyLexer, legacyRunner],
+    ['moo', moo, mooRunner],
+    ['peggy', peggy && PEGGY[workload.name], peggyRunner],
+    ['chevrotain', chevrotain, chevrotainRunner]
+  ].filter(function (candidate) {
+    return candidate[1];
+  });
+}
+
+/** Their names, without building any of them. */
+function runnerNames(workload) {
+  return candidates(workload).map(function (candidate) {
+    return candidate[0];
+  });
+}
+
+function buildRunners(workload, only) {
+  return candidates(workload).filter(function (candidate) {
+    return !only || candidate[0] === only;
+  }).map(function (candidate) {
+    return { name: candidate[0], run: candidate[2](workload) };
+  });
+}
+
 function measure(runners) {
   runners.forEach(function (runner) {
-    var started = process.hrtime.bigint();
     runner.count = runner.run();
-    var first = Number(process.hrtime.bigint() - started) / 1e6;
-
-    // a slow engine gets fewer rounds rather than holding up the whole run
-    runner.rounds = Math.max(5, Math.min(TIMED_ROUNDS, Math.floor(BUDGET_MS / first)));
-    var warmup = Math.min(WARMUP_ROUNDS, runner.rounds);
-    for (var round = 1; round < warmup; round++) {
+    for (var round = 1; round < WARMUP_ROUNDS; round++) {
       runner.run();
     }
     runner.samples = [];
   });
 
-  // interleave so that any drift over the run reaches every engine alike
+  // interleaved, so drift over the run reaches every engine alike
   for (var round = 0; round < TIMED_ROUNDS; round++) {
     runners.forEach(function (runner) {
-      if (round >= runner.rounds) {
-        return;
-      }
       var started = process.hrtime.bigint();
       runner.run();
       runner.samples.push(Number(process.hrtime.bigint() - started) / 1e6);
@@ -273,89 +351,78 @@ function measure(runners) {
   });
 }
 
-function buildRunners(workload) {
-  var runners = [{ name: 'flex-js', run: flexRunner(workload) }];
-  if (moo) {
-    runners.push({ name: 'moo', run: mooRunner(workload) });
-  }
-  if (chevrotain) {
-    runners.push({ name: 'chevrotain', run: chevrotainRunner(workload) });
-  }
-  if (Lex && process.env.BENCH_ALL) {
-    runners.push({ name: 'lex', run: lexRunner(workload) });
-  }
-  return runners;
-}
-
-/**
- * Peak resident memory, reported by a process running this engine and nothing
- * else, so that the figure covers loading the library as well as scanning.
- */
 function reportMemory(workload, name) {
-  var runner = buildRunners(workload).filter(function (candidate) {
-    return candidate.name === name;
-  })[0];
-
-  if (!runner) {
-    return;
-  }
+  var runner = buildRunners(workload, name)[0];
 
   for (var round = 0; round < MEMORY_ROUNDS; round++) {
     runner.run();
   }
 
-  console.log('  ' + name.padEnd(12) +
-    (process.resourceUsage().maxRSS / 1024).toFixed(1).padStart(7) + ' MB peak');
+  console.log((process.resourceUsage().maxRSS / 1024).toFixed(1));
 }
 
 function report(workload) {
   var runners = buildRunners(workload);
-
   measure(runners);
 
   var reference = runners[0];
   var megabytes = workload.source.length / 1048576;
+
   console.log('\n' + workload.name + ' - ' + Math.round(workload.source.length / 1024) +
-    ' KB, ' + reference.count + ' tokens, best of ' + reference.rounds);
+    ' KB, ' + reference.count + ' tokens, best of ' + TIMED_ROUNDS);
 
-  var ranked = runners.slice().sort(function (left, right) {
+  runners.slice().sort(function (left, right) {
     return left.samples[0] - right.samples[0];
-  });
-
-  ranked.forEach(function (runner, position) {
+  }).forEach(function (runner, position) {
     var best = runner.samples[0];
-    var relative = best / reference.samples[0];
     console.log('  ' + String(position + 1) + '. ' + runner.name.padEnd(12) +
       best.toFixed(2).padStart(7) + ' ms  ' +
       (megabytes / (best / 1000)).toFixed(1).padStart(7) + ' MB/s  ' +
       (runner.count / best / 1000).toFixed(1).padStart(6) + ' Mtokens/s  ' +
-      (runner === reference ? '' : relative.toFixed(2) + 'x flex-js'));
+      (runner === reference ? '' : (best / reference.samples[0]).toFixed(2) + 'x flex-js 2'));
+
     if (runner.count !== reference.count) {
-      console.log('     token count differs from flex-js (' + runner.count +
-        ' against ' + reference.count + '), timings are not comparable');
+      console.log('     token count differs (' + runner.count + ' against ' +
+        reference.count + '), so these timings are not comparable');
     }
   });
 }
 
 function selected() {
-  var wanted = process.argv[2];
-  return WORKLOADS.filter(function (workload) { return workload.name === wanted; })[0];
+  return WORKLOADS.filter(function (workload) {
+    return workload.name === process.argv[2];
+  })[0];
 }
 
-// each workload gets its own process, so that the shapes of one grammar do not
-// leave the scanner polymorphic while the next one is measured
+// one process per workload, so the shapes of one grammar do not leave the
+// scanner polymorphic while the next is measured
 function runEachSeparately() {
   WORKLOADS.forEach(function (workload) {
-    childProcess.spawnSync(process.execPath, [__filename, workload.name], { stdio: 'inherit' });
+    var timed = childProcess.spawnSync(process.execPath, [__filename, workload.name],
+      { stdio: 'inherit' });
+
+    if (timed.status !== 0) {
+      throw new Error('timing ' + workload.name + ' failed');
+    }
     console.log('');
-    buildRunners(workload).forEach(function (runner) {
-      childProcess.spawnSync(process.execPath, [__filename, workload.name, runner.name], { stdio: 'inherit' });
+    // peak memory wanders with the collector, so the smallest of a few
+    // processes is what gets reported
+    runnerNames(workload).forEach(function (name) {
+      var peaks = [];
+      for (var round = 0; round < MEMORY_ROUNDS; round++) {
+        var run = childProcess.spawnSync(process.execPath,
+          [__filename, workload.name, name], { encoding: 'utf8' });
+
+        if (run.status !== 0) {
+          throw new Error('measuring ' + name + ' on ' + workload.name +
+            ' failed: ' + (run.stderr || run.error));
+        }
+        peaks.push(parseFloat(run.stdout));
+      }
+      console.log('  ' + name.padEnd(12) +
+        Math.min.apply(null, peaks).toFixed(1).padStart(7) + ' MB peak');
     });
   });
-}
-
-if (!moo || !chevrotain) {
-  console.log('note: install moo and chevrotain for the full comparison');
 }
 
 if (process.argv[3]) {

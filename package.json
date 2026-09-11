@@ -1,39 +1,63 @@
 {
   "name": "flex-js",
-  "version": "1.0.9",
-  "description": "FLEX.JS - Fast lexer (tokenizer, scanner) for JavaScript inspired by FLEX lexer generator",
+  "version": "2.0.0",
+  "description": "FLEX for JavaScript and TypeScript: the fast lexical analyser generator, emitting scanners with no dependencies",
   "keywords": [
-    "lexer",
-    "tokenizer",
-    "scanner",
     "flex",
     "lex",
-    "tokenize",
-    "parsing",
+    "lexer",
+    "scanner",
+    "tokenizer",
+    "lexical-analysis",
+    "parser",
     "compiler",
-    "regexp"
+    "typescript"
   ],
   "homepage": "https://github.com/sormy/flex-js#readme",
-  "bugs": "https://github.com/sormy/flex-js/issues",
-  "main": "index.js",
-  "types": "index.d.ts",
-  "files": [
-    "index.js",
-    "index.d.ts",
-    "src/Lexer.js"
-  ],
-  "repository": "https://github.com/sormy/flex-js.git",
+  "bugs": {
+    "url": "https://github.com/sormy/flex-js/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sormy/flex-js.git"
+  },
+  "license": "SEE LICENSE IN LICENSE",
   "author": "Artem Butusov <art.sormy@gmail.com>",
-  "license": "MIT",
+  "bin": {
+    "flex-js": "bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    "build.sh",
+    "build-dist.sh",
+    "dist/",
+    "compat/",
+    "skeleton/js-flex.skl",
+    "skeleton/ts-flex.skl",
+    "patches/",
+    "docs/",
+    "LICENSE",
+    "LICENSE.m4",
+    "README.md"
+  ],
   "scripts": {
-    "eslint": "eslint src test benchmark eslint.config.js",
-    "test": "npm run eslint && node --test test/*.test.js",
+    "build": "./build.sh",
+    "build:dist": "./build-dist.sh",
+    "pretest": "./build.sh",
+    "test": "eslint . && prettier --check \"**/*.md\" && node --test test/*.test.js",
+    "test:dist": "FLEX_JS=./bin/cli.js node --test test/*.test.js",
     "bench": "npm --prefix benchmark install --silent --no-audit --no-fund && node benchmark/index.js",
-    "prepublishOnly": "npm run test"
+    "prepublishOnly": "npm run build && npm run build:dist && npm test",
+    "lint": "eslint . && prettier --check \"**/*.md\""
+  },
+  "engines": {
+    "node": ">=14.14"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.10.0",
-    "globals": "^17.12.0"
+    "globals": "^17.12.0",
+    "prettier": "^3.9.6",
+    "typescript": "5.9.3"
   }
 }

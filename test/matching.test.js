@@ -1,230 +1,111 @@
-var nodeTest = require('node:test');
+'use strict';
+
+var test = require('node:test');
 var assert = require('node:assert');
+var helper = require('./helper.js');
 
-var describe = nodeTest.describe;
-var it = nodeTest.it;
+test('takes the longest match', function () {
+  var built = helper.build([
+    '%option noyywrap',
+    '%%',
+    '"<"     return "lt";',
+    '"<="    return "le";',
+    '%%'
+  ].join('\n'));
 
-var Lexer = require('../src/Lexer.js');
-
-function lexerWith(rules) {
-  var lexer = new Lexer();
-  lexer.echoed = [];
-  lexer.setOutput(function (text) { lexer.echoed.push(text); });
-  rules.forEach(function (rule) {
-    lexer.addRule(rule.expression, function (current) { return rule.name + ':' + current.text; });
-  });
-  return lexer;
-}
-
-describe('how the input is matched', function () {
-  it('takes the rule matching the most text', function () {
-    var lexer = lexerWith([
-      { name: 'short', expression: /ab/ },
-      { name: 'long', expression: /abc/ },
-    ]);
-
-    lexer.setSource('abc');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['long:abc']);
-  });
-
-  it('takes the most text whichever rule was added first', function () {
-    var lexer = lexerWith([
-      { name: 'long', expression: /abc/ },
-      { name: 'short', expression: /ab/ },
-    ]);
-
-    lexer.setSource('abc');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['long:abc']);
-  });
-
-  it('breaks a tie with the rule added first', function () {
-    var lexer = lexerWith([
-      { name: 'first', expression: /[a-c]+/ },
-      { name: 'second', expression: /abc/ },
-    ]);
-
-    lexer.setSource('abc');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['first:abc']);
-  });
+  assert.deepStrictEqual(helper.lexAll(built.Scanner, '<= <'), ['le', 'lt']);
 });
 
-describe('beginning of line', function () {
-  ['anchored first', 'anchored second'].forEach(function (order) {
-    it('adds no length to the match, declared ' + order, function () {
-      var anchored = { name: 'bol', expression: /^ab/ };
-      var plain = { name: 'plain', expression: /abc/ };
-      var lexer = lexerWith(order === 'anchored first' ? [anchored, plain] : [plain, anchored]);
+test('breaks a tie on the rule written first', function () {
+  var built = helper.build([
+    '%option noyywrap',
+    '%%',
+    '"if"                     return "keyword";',
+    '[a-z]+                   return "word";',
+    '%%'
+  ].join('\n'));
 
-      lexer.setSource('abc');
-
-      assert.deepStrictEqual(lexer.lexAll(), ['plain:abc']);
-    });
-  });
-
-  it('wins a tie when it was added first', function () {
-    var lexer = lexerWith([
-      { name: 'bol', expression: /^abc/ },
-      { name: 'plain', expression: /abc/ },
-    ]);
-
-    lexer.setSource('abc');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['bol:abc']);
-  });
-
-  it('loses a tie when it was added second', function () {
-    var lexer = lexerWith([
-      { name: 'plain', expression: /abc/ },
-      { name: 'bol', expression: /^abc/ },
-    ]);
-
-    lexer.setSource('abc');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['plain:abc']);
-  });
-
-  it('matches only where a line starts', function () {
-    var lexer = lexerWith([
-      { name: 'bol', expression: /^a/ },
-      { name: 'plain', expression: /a/ },
-    ]);
-
-    lexer.setSource('aa');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['bol:a', 'plain:a']);
-  });
-
-  it('matches again after a newline', function () {
-    var lexer = lexerWith([
-      { name: 'bol', expression: /^a/ },
-      { name: 'plain', expression: /a/ },
-      { name: 'nl', expression: /\n/ },
-    ]);
-
-    lexer.setSource('a\na');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['bol:a', 'nl:\n', 'bol:a']);
-  });
+  assert.deepStrictEqual(helper.lexAll(built.Scanner, 'if iffy'),
+    ['keyword', 'word']);
 });
 
-describe('end of line as trailing context', function () {
-  it('counts the trailing newline toward the match length', function () {
-    var lexer = lexerWith([
-      { name: 'plain', expression: /[a-z]+/ },
-      { name: 'eol', expression: /[a-z]+$/ },
-      { name: 'nl', expression: /\n/ },
-    ]);
+test('the order rules are written in does not decide the length', function () {
+  var built = helper.build([
+    '%option noyywrap',
+    '%%',
+    '[a-z]+                   return "word";',
+    '"if"                     return "keyword";',
+    '%%'
+  ].join('\n'));
 
-    lexer.setSource('abc\n');
+  // "if" is as long as the word rule allows, so the earlier rule wins
+  assert.deepStrictEqual(helper.lexAll(built.Scanner, 'if'), ['word']);
+});
 
-    assert.deepStrictEqual(lexer.lexAll(), ['eol:abc', 'nl:\n']);
+test('writes unmatched input out, which is the default rule', function () {
+  var built = helper.build([
+    '%option noyywrap',
+    '%%',
+    '[0-9]+   return "number";',
+    '%%'
+  ].join('\n'));
+
+  var out = helper.sink();
+  var tokens = helper.lexAll(built.Scanner, 'a1b', function (scanner) {
+    scanner.yyout = out;
   });
 
-  it('leaves an unanchored match alone away from the line end', function () {
-    var lexer = lexerWith([
-      { name: 'plain', expression: /[a-z]+/ },
-      { name: 'eol', expression: /[a-z]+$/ },
-      { name: 'space', expression: / / },
-      { name: 'nl', expression: /\n/ },
-    ]);
+  assert.deepStrictEqual(tokens, ['number']);
+  assert.strictEqual(out.text(), 'ab');
+});
 
-    lexer.setSource('abc d\n');
+test('%option nodefault refuses unmatched input instead', function () {
+  var built = helper.build([
+    '%option noyywrap nodefault',
+    '%%',
+    '[0-9]+   return "number";',
+    '%%'
+  ].join('\n'));
 
-    assert.deepStrictEqual(lexer.lexAll(), ['plain:abc', 'space: ', 'eol:d', 'nl:\n']);
-  });
+  assert.throws(function () {
+    helper.lexAll(built.Scanner, 'a');
+  }, /scanner jammed|no action found/);
+});
 
-  it('does not include the newline in the text', function () {
-    var lexer = lexerWith([
-      { name: 'eol', expression: /ab$/ },
-      { name: 'nl', expression: /\n/ },
-    ]);
+test('matches with the full table too', function () {
+  var built = helper.build([
+    '%option noyywrap',
+    '%%',
+    '"<="    return "le";',
+    '"<"     return "lt";',
+    '[ ]+    ;',
+    '%%'
+  ].join('\n'), { args: ['-Cf'] });
 
-    lexer.setSource('ab\n');
+  assert.deepStrictEqual(helper.lexAll(built.Scanner, '<= <'), ['le', 'lt']);
+});
 
-    assert.deepStrictEqual(lexer.lexAll(), ['eol:ab', 'nl:\n']);
-  });
+test('scans a string with no rules matching nothing at all', function () {
+  var built = helper.build([
+    '%option noyywrap',
+    '%%',
+    '.|\\n    ;',
+    '%%'
+  ].join('\n'));
 
-  it('leaves the index before the newline', function () {
-    var lexer = new Lexer();
-    var indexes = [];
-    lexer.addRule(/ab$/, function (current) { indexes.push(current.index); });
-    lexer.addRule(/\n/);
+  assert.deepStrictEqual(helper.lexAll(built.Scanner, 'anything\nat all'), []);
+});
 
-    lexer.setSource('ab\n');
-    lexer.lexAll();
-
-    assert.deepStrictEqual(indexes, [2]);
-  });
-
-  it('does not match at the end of the input without a newline', function () {
-    var lexer = lexerWith([
-      { name: 'eol', expression: /ab$/ },
-      { name: 'plain', expression: /ab/ },
-    ]);
-
-    lexer.setSource('ab');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['plain:ab']);
-  });
-
-  it('matches the same text once a newline follows', function () {
-    var lexer = lexerWith([
-      { name: 'eol', expression: /ab$/ },
-      { name: 'plain', expression: /ab/ },
-      { name: 'nl', expression: /\n/ },
-    ]);
-
-    lexer.setSource('ab\n');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['eol:ab', 'nl:\n']);
-  });
-
-  it('does not match in the middle of a line', function () {
-    var lexer = lexerWith([
-      { name: 'eol', expression: /ab$/ },
-      { name: 'plain', expression: /ab/ },
-      { name: 'c', expression: /c/ },
-    ]);
-
-    lexer.setSource('abc');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['plain:ab', 'c:c']);
-  });
-
-  it('anchors every line but the unterminated last one', function () {
-    var lexer = lexerWith([
-      { name: 'eol', expression: /[a-z]+$/ },
-      { name: 'plain', expression: /[a-z]+/ },
-      { name: 'nl', expression: /\n/ },
-    ]);
-
-    lexer.setSource('aa\nbb\ncc');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['eol:aa', 'nl:\n', 'eol:bb', 'nl:\n', 'plain:cc']);
-  });
-
-  it('gives an escaped dollar no trailing width', function () {
-    var lexer = lexerWith([
-      { name: 'literal', expression: /ab\$/ },
-      { name: 'longer', expression: /ab\$c/ },
-    ]);
-
-    lexer.setSource('ab$c');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['longer:ab$c']);
-  });
-
-  it('treats an escaped backslash before the dollar as a real anchor', function () {
-    var lexer = lexerWith([
-      { name: 'anchored', expression: /a\\$/ },
-      { name: 'nl', expression: /\n/ },
-    ]);
-
-    lexer.setSource('a\\\n');
-
-    assert.deepStrictEqual(lexer.lexAll(), ['anchored:a\\', 'nl:\n']);
+test('the fast-scanner tables have no matcher here, so they are refused', function () {
+  ['-F', '-CF', '-CFe'].forEach(function (option) {
+    assert.throws(function () {
+      helper.build([
+        '%option noyywrap',
+        '%%',
+        '[a-z]+   { return 1; }',
+        '.|\\n     ;',
+        '%%'
+      ].join('\n'), { args: [option] });
+    }, /-F\/-CF is not supported/, option + ' was not refused');
   });
 });

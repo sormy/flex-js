@@ -32,6 +32,28 @@ jobs:
 
       - run: node --version
 
+      # npm test builds the generator from the upstream flex sources first
+      - name: Install what the generator is built with
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential autoconf automake libtool \
+            bison m4 gettext
+
+      - name: Reuse the generator built for these patches
+        uses: actions/cache@v4
+        with:
+          path: build/flex
+          key: flex-${{ hashFiles('build.sh', 'patches/**') }}
+
       - run: npm ci
 
       - run: npm test
+
+      # The shim, the platform table and the bundled-m4 lookup, which nothing
+      # above reaches. Cross-building every platform is build-dist.sh's job.
+      - name: Put the host generator where the shim looks for it
+        run: |
+          mkdir -p dist
+          cp build/flex/src/flex dist/flex-js-linux-x64
+
+      - run: npm run test:dist
