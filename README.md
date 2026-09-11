@@ -15,8 +15,8 @@ dependencies". None. Nothing in `node_modules` that turns out, two years later,
 to have opinions about your bundler.
 
 - blazing fast, which is what every README says, so here is the table instead:
-  491 KB of SQL in **6.6 ms**, where chevrotain takes 7.3 and moo 16.2. We could
-  not find a JavaScript lexer that beats it. [Go and check](#performance)
+  491 KB of SQL in **6.3 ms**, where chevrotain takes 7.8 and moo 19.4. Against
+  seven others, on three grammars, nothing beat it. [Go and check](#performance)
 - longest match wins, so `>=` beats `>` whichever order you wrote them in - that
   is the bug you were going to spend Thursday on, already fixed
 - start conditions, `REJECT`, `yymore`, `yyless`, trailing context, `<<EOF>>` -
@@ -212,79 +212,94 @@ two, as it does everywhere in JavaScript. Take that up with 1995; we tried.
 
 ## Performance
 
-Every project's benchmark shows that project winning. Here is ours, showing us
-winning.
-
-`npm run bench`, best of 30 rounds, every engine building one object per token
+`npm run bench`, best of 30 rounds, every lexer building one object per token
 and returning the same number of them. flex-js and moo answer one token per
-call, the way FLEX's `yylex()` does; chevrotain and peggy take the whole input
-and loop inside. SQL, 491 KB and 123,000 tokens, MacBook Pro (M1 Max), macOS
-26.6.2, Node 24.20.0. `plain` is `%option notyped`, and a row with no table mode
-named is the one FLEX builds unasked. Three are worth reaching for, in bold:
-`-Cfe` is the balance [A first scanner](#a-first-scanner) uses, `-Cf` is the
-quickest that still reads UTF-8, and `-Cfe plain` is that balance without typed
-arrays:
+call, the way FLEX's `yylex()` does; chevrotain, peggy and lezer take the whole
+input and loop inside. Every engine is held to the same token count, and the
+harness says so when one differs. MacBook Pro (M1 Max), macOS 26.6.2, Node
+24.20.0. flex-js with `-Cfe`, which [A first scanner](#a-first-scanner) uses.
 
-| scanner                     | time    | peak memory | raw    | minified | gzipped | dependencies |
-| --------------------------- | ------- | ----------- | ------ | -------- | ------- | ------------ |
-| **flex-js 2, `-Cf`**        | 6.6 ms  | ~110 MB     | 107 KB | 54 KB    | 3.2 KB  | none         |
-| flex-js 2, `-7 -Cf`         | 6.6 ms  | ~110 MB     | 64 KB  | 29 KB    | 3.1 KB  | none         |
-| **flex-js 2, `-Cfe`**       | 6.8 ms  | ~110 MB     | 33 KB  | 12 KB    | 2.7 KB  | none         |
-| chevrotain 13.2.0           | 7.3 ms  | 108 MB      | 240 KB | 111 KB   | 30.5 KB | 5 packages   |
-| flex-js 2, `-7 -Cf` plain   | 7.7 ms  | ~110 MB     | 64 KB  | 29 KB    | 3.1 KB  | none         |
-| flex-js 2, `-Cf` plain      | 7.8 ms  | ~110 MB     | 107 KB | 54 KB    | 3.2 KB  | none         |
-| flex-js 2                   | 8.0 ms  | ~110 MB     | 24 KB  | 7.5 KB   | 2.5 KB  | none         |
-| **flex-js 2, `-Cfe` plain** | 8.1 ms  | ~110 MB     | 33 KB  | 12 KB    | 2.7 KB  | none         |
-| flex-js 1.x                 | 8.9 ms  | 99 MB       | 37 KB  | 14 KB    | 4.8 KB  | none         |
-| flex-js 2 plain             | 9.8 ms  | ~110 MB     | 24 KB  | 7.4 KB   | 2.5 KB  | none         |
-| moo 0.5.3                   | 16.2 ms | 163 MB      | 18 KB  | 8.5 KB   | 3.2 KB  | none         |
-| peggy 5.1.0                 | 51.2 ms | 168 MB      | 20 KB  | 6 KB     | 2.4 KB  | none         |
+\* parses rather than lexes. There is no tokenizing stage in there to measure on
+its own, so it is being asked for strictly more work than the rest and the
+comparison is unfair to it.
 
-The sizes are the whole scanner for flex-js and peggy, grammar included, and the
-library before your grammar for the rest. Minified with esbuild, gzipped with
-`gzip -9`. `FLEX_JS_TABLES` picks the mode the benchmark generates with. The
-corpus, the grammars and the harness are all in `benchmark/`, so the correct
-response to the paragraph above is to go and disagree with it.
+Rules written as regular expressions, 155 KB and 39,500 tokens:
 
-Time moves about half a millisecond between runs and peak memory about 15 MB, so
-neighbouring rows say nothing about each other, whatever we would like them to
-say. What the table does say is that typed tables are worth more than the choice
-between the three full ones, and that compressed tables are slower than all of
-them.
+| lexer             | time    | throughput | tokens/s | peak memory |
+| ----------------- | ------- | ---------- | -------- | ----------- |
+| flex-js 2         | 2.2 ms  | 70.3 MB/s  | 18.3 M   | 88 MB       |
+| chevrotain 13.2.0 | 2.7 ms  | 55.3 MB/s  | 14.4 M   | 75 MB       |
+| flex-js 1.x       | 3.1 ms  | 49.5 MB/s  | 12.9 M   | 75 MB       |
+| moo 0.5.3         | 5.6 ms  | 27.1 MB/s  | 7.1 M    | 98 MB       |
+| jison-lex 0.3.4   | 13.0 ms | 11.7 MB/s  | 3.1 M    | 99 MB       |
+| peggy 5.1.0 \*    | 13.3 ms | 11.4 MB/s  | 3.0 M    | 105 MB      |
+| lezer 1.4.10 \*   | 14.2 ms | 10.7 MB/s  | 2.8 M    | 111 MB      |
 
-The other two grammars, same conditions, flex-js with `-Cf`:
+Keywords and punctuation written as plain strings, 163 KB and 52,500 tokens:
 
-| scanner     | expression rules | keywords as strings |
-| ----------- | ---------------- | ------------------- |
-| flex-js 2   | **2.3 ms**       | **2.7 ms**          |
-| chevrotain  | 2.9 ms           | 3.1 ms              |
-| flex-js 1.x | 3.2 ms           | 3.6 ms              |
-| moo         | 5.8 ms           | 7.1 ms              |
-| peggy       | 14.1 ms          | 16.9 ms             |
+| lexer             | time    | throughput | tokens/s | peak memory |
+| ----------------- | ------- | ---------- | -------- | ----------- |
+| flex-js 2         | 2.8 ms  | 57.7 MB/s  | 19.0 M   | 81 MB       |
+| chevrotain 13.2.0 | 2.9 ms  | 54.7 MB/s  | 18.0 M   | 77 MB       |
+| flex-js 1.x       | 3.4 ms  | 46.6 MB/s  | 15.4 M   | 75 MB       |
+| moo 0.5.3         | 6.8 ms  | 23.2 MB/s  | 7.7 M    | 100 MB      |
+| jison-lex 0.3.4   | 14.7 ms | 10.8 MB/s  | 3.6 M    | 102 MB      |
+| peggy 5.1.0 \*    | 16.0 ms | 9.9 MB/s   | 3.3 M    | 109 MB      |
+| lezer 1.4.10 \*   | 17.6 ms | 9.0 MB/s   | 3.0 M    | 115 MB      |
 
-Without the option those read 2.7 ms and 3.0 ms, still ahead of chevrotain but
-by less than the spread between runs.
+SQL, seven keywords against identifiers and fourteen pieces of punctuation, 491
+KB and 123,000 tokens:
+
+| lexer             | time    | throughput | tokens/s | peak memory |
+| ----------------- | ------- | ---------- | -------- | ----------- |
+| flex-js 2         | 6.3 ms  | 76.8 MB/s  | 19.7 M   | 108 MB      |
+| chevrotain 13.2.0 | 7.8 ms  | 61.8 MB/s  | 15.9 M   | 107 MB      |
+| flex-js 1.x       | 8.6 ms  | 56.0 MB/s  | 14.4 M   | 100 MB      |
+| moo 0.5.3         | 19.4 ms | 24.7 MB/s  | 6.3 M    | 162 MB      |
+| jison-lex 0.3.4   | 37.3 ms | 12.9 MB/s  | 3.3 M    | 143 MB      |
+| lezer 1.4.10 \*   | 42.4 ms | 11.3 MB/s  | 2.9 M    | 168 MB      |
+| peggy 5.1.0 \*    | 51.2 ms | 9.4 MB/s   | 2.4 M    | 165 MB      |
+
+Time moves about half a millisecond between runs and peak memory about 15 MB.
+The corpus, the grammars and the harness are all in `benchmark/`.
 
 ### The table modes
 
-| mode     | what it holds                             | against `-Cf`              |
-| -------- | ----------------------------------------- | -------------------------- |
-| `-Cf`    | a column per byte, 256 to cover UTF-8     | -                          |
-| `-Cfe`   | a column per equivalence class, 32 here   | a third, within noise      |
-| `-7 -Cf` | ASCII only, and refuses anything above it | half, no UTF-8             |
-| none     | compressed, what FLEX builds unasked      | smallest, a quarter slower |
+`-C` picks what the DFA is held in. The SQL scanner above, generated four ways:
 
-Typed arrays are what the rows without `plain` above use, and they are the
-default. They hold the tables as numbers of one width rather than as arrays of
-them, and a full table as one run rather than a row per state. Nothing about the
-scanning or the size changes. `%option notyped` gives plain arrays back, for an
-engine without `Int16Array`.
+| mode     | what it holds                             | time   | raw    | minified | gzipped |
+| -------- | ----------------------------------------- | ------ | ------ | -------- | ------- |
+| `-Cf`    | a column per byte, 256 to cover UTF-8     | 6.5 ms | 107 KB | 54 KB    | 3.2 KB  |
+| `-Cfe`   | a column per equivalence class, 32 here   | 6.5 ms | 33 KB  | 12 KB    | 2.7 KB  |
+| `-7 -Cf` | ASCII only, and refuses anything above it | 6.5 ms | 64 KB  | 29 KB    | 3.1 KB  |
+| none     | compressed, what FLEX builds unasked      | 8.0 ms | 24 KB  | 7 KB     | 2.5 KB  |
 
-Every row already leaves the text of a match unbuilt where the rule that matched
-reads none of it - a rule whose action is empty. That asks for no option, and is
-worth 3 to 10 percent on its own.
+`-Cfe` is the buy: within noise of the widest table at under a third of its
+size.
 
-With a parser rather than objects, the gap opens: with
+### What ships
+
+| lexer             | minified | gzipped | dependencies |
+| ----------------- | -------- | ------- | ------------ |
+| jison-lex 0.3.4   | 5 KB     | 1.7 KB  | none         |
+| peggy 5.1.0       | 7 KB     | 2.6 KB  | none         |
+| moo 0.5.3         | 9 KB     | 3.3 KB  | none         |
+| flex-js 2, `-Cfe` | 12 KB    | 2.7 KB  | none         |
+| flex-js 1.x       | 15 KB    | 5.0 KB  | none         |
+| lezer 1.4.10      | 54 KB    | 17.5 KB | 1 package    |
+| chevrotain 13.2.0 | 112 KB   | 30.9 KB | 5 packages   |
+
+flex-js, peggy and jison-lex generate: that is the whole thing, your grammar
+included, and nothing is needed at runtime. chevrotain, moo and flex-js 1.x are
+libraries, measured bundled with their own dependencies and before your grammar.
+lezer is both - the row is its runtime, and a generated parser sits on top.
+Minified with esbuild, gzipped with `gzip -9`.
+
+Typed arrays hold the tables unless `%option notyped` says otherwise, which is
+worth a seventh to a fifth. A match no rule reads is never built, which asks for
+nothing and is worth 3 to 10 percent.
+
+With a parser rather than objects the gap opens: with
 [lemon-js](https://github.com/sormy/lemon-js) the 103 TPC-DS queries parse from
 text in 2.8 ms against chevrotain's 9.2 ms. Two tools old enough to draw a
 pension, entirely unbothered.

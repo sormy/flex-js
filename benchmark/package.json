@@ -4,9 +4,12 @@
   "private": true,
   "description": "Lexers flex-js is measured against, pinned so the numbers stay reproducible",
   "dependencies": {
+    "@lezer/generator": "^1.8.0",
+    "@lezer/lr": "^1.4.10",
     "chevrotain": "13.2.0",
-    "moo": "0.5.3",
     "flex-js": "1.0.9",
+    "jison-lex": "^0.3.4",
+    "moo": "0.5.3",
     "peggy": "5.1.0"
   }
 }

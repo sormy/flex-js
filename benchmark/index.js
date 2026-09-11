@@ -38,6 +38,12 @@ var LegacyLexer = optional('flex-js');
 var moo = optional('moo');
 var peggy = optional('peggy');
 var chevrotain = optional('chevrotain/lib/src/api.js') || optional('chevrotain');
+var JisonLex = optional('jison-lex');
+
+/* lezer ships as ES modules only, so it arrives through import() before
+ * anything is measured rather than through require() here.
+ */
+var lezerBuild = null;
 
 /* Empty asks for flex's own default tables, which name no option at all. */
 var TABLES = (process.env.FLEX_JS_TABLES === undefined
@@ -142,6 +148,95 @@ var PEGGY = {
     'Id = [a-zA-Z_][a-zA-Z0-9_]* { return { type: "id", value: text() }; }',
     'Punct = ("<=" / ">=" / "<>" / "=" / "<" / ">" / "+" / "-" / "*" / "/" / "(" / ")" / "," / ";")',
     '  { return { type: "punct", value: text() }; }'
+  ].join('\n')
+};
+
+/*
+** lezer generates an LR parser rather than a lexer, so it builds a tree where
+** the others hand back tokens. Counting the nodes is the same work asked for.
+*/
+/*
+** jison-lex is the closest thing to this project's ancestry: a lex grammar in,
+** a JavaScript lexer out. The rules are the same ones, in lex's own syntax.
+*/
+var JISON = {
+  'expression rules': [
+    '%%',
+    '[ \\t\\n]+                 /* skip */',
+    '"//"[^\\n]*                 /* skip */',
+    '\'"\'([^"\\\\]|\\\\.)*\'"\'        return "str";',
+    '[0-9]+"."[0-9]+           return "float";',
+    '[0-9]+                    return "int";',
+    '"let"                     return "kw";',
+    '[a-zA-Z_][a-zA-Z0-9_]*    return "id";',
+    '[-+*/=();]                return "op";'
+  ].join('\n'),
+  'string rules': [
+    '%%',
+    '[ \\t\\n]+                 /* skip */',
+    '">="|"<="|"=="            return "punct";',
+    '"if"|"else"|"return"|"null"  return "kw";',
+    '[0-9]+                    return "int";',
+    '[a-zA-Z_][a-zA-Z0-9_]*    return "id";',
+    '[(){};=+*\\-/<>]            return "punct";'
+  ].join('\n'),
+  'keyword rules': [
+    '%%',
+    '[ \\t\\n]+                 /* skip */',
+    '"SELECT"|"FROM"|"WHERE"|"AND"|"OR"|"NOT"|"IN"  return "kw";',
+    "\"'\"[^']*\"'\"              return \"str\";",
+    '[0-9]+                    return "int";',
+    '[a-zA-Z_][a-zA-Z0-9_]*    return "id";',
+    '"<="|">="|"<>"            return "punct";',
+    '[=<>+*\\-/(),;]             return "punct";'
+  ].join('\n')
+};
+
+var LEZER = {
+  'expression rules': [
+    '@top Program { item* }',
+    'item { Kw | Str | Float | Int | Id | Op }',
+    '@skip { space | comment }',
+    '@tokens {',
+    '  space { $[ \\t\\n]+ }',
+    '  comment { "//" ![\\n]* }',
+    '  Str { \'"\' (![\'"\\\\] | "\\\\" _)* \'"\' }',
+    '  Float { $[0-9]+ "." $[0-9]+ }',
+    '  Int { $[0-9]+ }',
+    '  identifier { $[a-zA-Z_] $[a-zA-Z0-9_]* }',
+    '  Op { $[-+*/=();] }',
+    '  @precedence { comment, Op }',
+    '  @precedence { Float, Int }',
+    '}',
+    'Kw { @specialize<identifier, "let"> }',
+    'Id { identifier }'
+  ].join('\n'),
+  'string rules': [
+    '@top Program { item* }',
+    'item { Kw | Int | Id | Punct }',
+    '@skip { space }',
+    '@tokens {',
+    '  space { $[ \\t\\n]+ }',
+    '  Int { $[0-9]+ }',
+    '  identifier { $[a-zA-Z_] $[a-zA-Z0-9_]* }',
+    '  Punct { ">=" | "<=" | "==" | "(" | ")" | "{" | "}" | ";" | "=" | "+" | "*" | "-" | "/" | "<" | ">" }',
+    '}',
+    'Kw { @specialize<identifier, "if" | "else" | "return" | "null"> }',
+    'Id { identifier }'
+  ].join('\n'),
+  'keyword rules': [
+    '@top Program { item* }',
+    'item { Kw | Str | Int | Id | Punct }',
+    '@skip { space }',
+    '@tokens {',
+    '  space { $[ \\t\\n]+ }',
+    "  Str { \"'\" ![']* \"'\" }",
+    '  Int { $[0-9]+ }',
+    '  identifier { $[a-zA-Z_] $[a-zA-Z0-9_]* }',
+    '  Punct { "<=" | ">=" | "<>" | "=" | "<" | ">" | "+" | "-" | "*" | "/" | "(" | ")" | "," | ";" }',
+    '}',
+    'Kw { @specialize<identifier, "SELECT" | "FROM" | "WHERE" | "AND" | "OR" | "NOT" | "IN"> }',
+    'Id { identifier }'
   ].join('\n')
 };
 
@@ -295,6 +390,35 @@ function legacyRunner(workload) {
   };
 }
 
+function lezerRunner(workload) {
+  var parser = lezerBuild(LEZER[workload.name]);
+  return function () {
+    var tree = parser.parse(workload.source);
+    var cursor = tree.cursor();
+    var tokens = 0;
+
+    do {
+      if (cursor.name !== 'Program' && cursor.name !== 'item') {
+        tokens++;
+      }
+    } while (cursor.next());
+    return tokens;
+  };
+}
+
+function jisonRunner(workload) {
+  var lexer = new JisonLex(JISON[workload.name]);
+  return function () {
+    lexer.setInput(workload.source);
+    var tokens = [];
+    var next;
+    while ((next = lexer.lex()) !== lexer.EOF) {
+      tokens.push(next);
+    }
+    return tokens.length;
+  };
+}
+
 function peggyRunner(workload) {
   var parser = peggy.generate(PEGGY_HEAD + PEGGY[workload.name]);
   return function () {
@@ -338,7 +462,9 @@ function candidates(workload) {
     ['flex-js 1.x', LegacyLexer, legacyRunner],
     ['moo', moo, mooRunner],
     ['peggy', peggy && PEGGY[workload.name], peggyRunner],
-    ['chevrotain', chevrotain, chevrotainRunner]
+    ['chevrotain', chevrotain, chevrotainRunner],
+    ['lezer', lezerBuild && LEZER[workload.name], lezerRunner],
+    ['jison-lex', JisonLex && JISON[workload.name], jisonRunner]
   ].filter(function (candidate) {
     return candidate[1];
   });
@@ -456,10 +582,21 @@ function runEachSeparately() {
   });
 }
 
-if (process.argv[3]) {
-  reportMemory(selected(), process.argv[3]);
-} else if (process.argv[2]) {
-  report(selected());
-} else {
-  runEachSeparately();
+function main() {
+  if (process.argv[3]) {
+    reportMemory(selected(), process.argv[3]);
+  } else if (process.argv[2]) {
+    report(selected());
+  } else {
+    runEachSeparately();
+  }
 }
+
+import('@lezer/generator')
+  .then(function (lezer) {
+    lezerBuild = lezer.buildParser;
+  })
+  .catch(function () {
+    /* not installed: it drops out of the table the way the others do */
+  })
+  .then(main);
