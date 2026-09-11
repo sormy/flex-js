@@ -15,7 +15,7 @@ dependencies". None. Nothing in `node_modules` that turns out, two years later,
 to have opinions about your bundler.
 
 - blazing fast, which is what every README says, so here is the table instead:
-  491 KB of SQL in **6.4 ms**, where chevrotain takes 7.3 and moo 19.6. Against
+  491 KB of SQL in **6.4 ms**, where chevrotain takes 6.9 and moo 16.0. Against
   seven others, on three grammars, nothing beat it. [Go and check](#performance)
 - longest match wins, so `>=` beats `>` whichever order you wrote them in - that
   is the bug you were going to spend Thursday on, already fixed
@@ -93,7 +93,7 @@ quickest table mode at under a third of its size, measured under
 [Performance](#performance).
 
 Typed arrays hold the tables unless you say otherwise, which is worth a seventh
-to a fifth. `%option notyped` gives plain arrays back, for an engine without
+to a quarter. `%option notyped` gives plain arrays back, for an engine without
 `Int16Array` - roughly, older than about 2011.
 
 `--header-file` is flex's own, the way a `.c` gets a `.h`; without it only
@@ -227,25 +227,25 @@ Rules written as regular expressions, 155 KB and 39,500 tokens:
 
 | lexer             | time    | throughput | tokens/s | peak memory |
 | ----------------- | ------- | ---------- | -------- | ----------- |
-| flex-js 2         | 2.0 ms  | 77.0 MB/s  | 20.1 M   | 77 MB       |
-| chevrotain 13.2.0 | 2.4 ms  | 62.5 MB/s  | 16.3 M   | 70 MB       |
-| flex-js 1.x       | 2.8 ms  | 54.0 MB/s  | 14.1 M   | 69 MB       |
-| moo 0.5.3         | 5.3 ms  | 28.7 MB/s  | 7.5 M    | 93 MB       |
-| peggy 5.1.0 \*    | 12.2 ms | 12.4 MB/s  | 3.2 M    | 93 MB       |
-| jison-lex 0.3.4   | 13.4 ms | 11.3 MB/s  | 3.0 M    | 81 MB       |
-| lezer 1.4.10 \*   | 14.4 ms | 10.5 MB/s  | 2.7 M    | 98 MB       |
+| flex-js 2         | 2.0 ms  | 77.2 MB/s  | 20.1 M   | 76 MB       |
+| chevrotain 13.2.0 | 2.4 ms  | 62.6 MB/s  | 16.3 M   | 70 MB       |
+| flex-js 1.x       | 2.7 ms  | 55.3 MB/s  | 14.4 M   | 69 MB       |
+| moo 0.5.3         | 5.1 ms  | 29.6 MB/s  | 7.7 M    | 92 MB       |
+| peggy 5.1.0 \*    | 11.9 ms | 12.8 MB/s  | 3.3 M    | 92 MB       |
+| jison-lex 0.3.4   | 12.9 ms | 11.7 MB/s  | 3.1 M    | 80 MB       |
+| lezer 1.4.10 \*   | 14.0 ms | 10.8 MB/s  | 2.8 M    | 98 MB       |
 
 Keywords and punctuation written as plain strings, 163 KB and 52,500 tokens:
 
 | lexer             | time    | throughput | tokens/s | peak memory |
 | ----------------- | ------- | ---------- | -------- | ----------- |
-| flex-js 2         | 2.2 ms  | 71.0 MB/s  | 23.4 M   | 83 MB       |
-| chevrotain 13.2.0 | 2.6 ms  | 61.9 MB/s  | 20.5 M   | 73 MB       |
-| flex-js 1.x       | 3.1 ms  | 51.6 MB/s  | 17.0 M   | 71 MB       |
-| moo 0.5.3         | 6.2 ms  | 25.9 MB/s  | 8.4 M    | 94 MB       |
-| peggy 5.1.0 \*    | 14.7 ms | 10.9 MB/s  | 3.5 M    | 108 MB      |
-| jison-lex 0.3.4   | 14.9 ms | 10.7 MB/s  | 3.5 M    | 97 MB       |
-| lezer 1.4.10 \*   | 17.4 ms | 9.1 MB/s   | 3.0 M    | 110 MB      |
+| flex-js 2         | 2.2 ms  | 71.7 MB/s  | 23.7 M   | 80 MB       |
+| chevrotain 13.2.0 | 2.6 ms  | 62.4 MB/s  | 20.6 M   | 73 MB       |
+| flex-js 1.x       | 3.0 ms  | 52.2 MB/s  | 17.2 M   | 71 MB       |
+| moo 0.5.3         | 6.2 ms  | 25.8 MB/s  | 8.5 M    | 94 MB       |
+| peggy 5.1.0 \*    | 14.5 ms | 11.0 MB/s  | 3.6 M    | 108 MB      |
+| jison-lex 0.3.4   | 14.7 ms | 10.8 MB/s  | 3.6 M    | 97 MB       |
+| lezer 1.4.10 \*   | 17.0 ms | 9.3 MB/s   | 3.1 M    | 109 MB      |
 
 SQL, seven keywords against identifiers and fourteen pieces of punctuation, 491
 KB and 123,000 tokens:
@@ -253,14 +253,14 @@ KB and 123,000 tokens:
 | lexer             | time    | throughput | tokens/s | peak memory |
 | ----------------- | ------- | ---------- | -------- | ----------- |
 | flex-js 2         | 6.4 ms  | 74.7 MB/s  | 19.2 M   | 108 MB      |
-| chevrotain 13.2.0 | 7.3 ms  | 65.6 MB/s  | 16.9 M   | 107 MB      |
-| flex-js 1.x       | 8.7 ms  | 55.2 MB/s  | 14.2 M   | 100 MB      |
-| moo 0.5.3         | 19.6 ms | 24.5 MB/s  | 6.3 M    | 162 MB      |
-| jison-lex 0.3.4   | 35.3 ms | 13.6 MB/s  | 3.5 M    | 144 MB      |
-| lezer 1.4.10 \*   | 43.5 ms | 11.0 MB/s  | 2.8 M    | 167 MB      |
-| peggy 5.1.0 \*    | 52.1 ms | 9.2 MB/s   | 2.4 M    | 165 MB      |
+| chevrotain 13.2.0 | 6.9 ms  | 69.9 MB/s  | 18.0 M   | 107 MB      |
+| flex-js 1.x       | 8.4 ms  | 57.2 MB/s  | 14.7 M   | 100 MB      |
+| moo 0.5.3         | 16.0 ms | 29.9 MB/s  | 7.7 M    | 163 MB      |
+| jison-lex 0.3.4   | 34.3 ms | 14.0 MB/s  | 3.6 M    | 141 MB      |
+| lezer 1.4.10 \*   | 41.9 ms | 11.4 MB/s  | 2.9 M    | 160 MB      |
+| peggy 5.1.0 \*    | 51.1 ms | 9.4 MB/s   | 2.4 M    | 165 MB      |
 
-Time moves about half a millisecond between runs and peak memory about 15 MB.
+Time moves by about a fiftieth between runs and peak memory by about 15 MB.
 The corpus, the grammars and the harness are all in `benchmark/`.
 
 ### The table modes
@@ -269,10 +269,10 @@ The corpus, the grammars and the harness are all in `benchmark/`.
 
 | mode     | what it holds                             | time   | raw    | minified | gzipped |
 | -------- | ----------------------------------------- | ------ | ------ | -------- | ------- |
-| `-Cf`    | a column per byte, 256 to cover UTF-8     | 6.5 ms | 107 KB | 54 KB    | 3.2 KB  |
-| `-Cfe`   | a column per equivalence class, 32 here   | 6.5 ms | 33 KB  | 12 KB    | 2.7 KB  |
-| `-7 -Cf` | ASCII only, and refuses anything above it | 6.5 ms | 64 KB  | 29 KB    | 3.1 KB  |
-| none     | compressed, what FLEX builds unasked      | 8.0 ms | 24 KB  | 7 KB     | 2.5 KB  |
+| `-Cf`    | a column per byte, 256 to cover UTF-8     | 6.2 ms | 107 KB | 54 KB    | 3.2 KB  |
+| `-Cfe`   | a column per equivalence class, 32 here   | 6.4 ms | 33 KB  | 12 KB    | 2.7 KB  |
+| `-7 -Cf` | ASCII only, and refuses anything above it | 6.2 ms | 64 KB  | 29 KB    | 3.2 KB  |
+| none     | compressed, what FLEX builds unasked      | 7.6 ms | 24 KB  | 7 KB     | 2.5 KB  |
 
 `-Cfe` is the buy: within noise of the widest table at under a third of its
 size.
@@ -296,7 +296,7 @@ lezer is both - the row is its runtime, and a generated parser sits on top.
 Minified with esbuild, gzipped with `gzip -9`.
 
 Typed arrays hold the tables unless `%option notyped` says otherwise, which is
-worth a seventh to a fifth. A match no rule reads is never built, which asks for
+worth a seventh to a quarter. A match no rule reads is never built, which asks for
 nothing and is worth 3 to 10 percent.
 
 With a parser rather than objects the gap opens: with
