@@ -36,11 +36,11 @@ exactly as they are in FLEX.
 
 `REJECT` leaves the rule body by throwing, since C reaches the next rule with a
 `goto` and JavaScript has nothing that leaves a function from the middle and
-comes back. `yy_fatal_error` and `yyterminate()` go the same way. So a rule body
-that wraps its own code in `try`/`catch` catches these too, and a `catch` that
-does not rethrow turns a `REJECT` into the match it was refusing, with nothing
-said. Catch what you meant to catch, or keep the `try` to the call that can
-throw.
+comes back. `yy_fatal_error` goes the same way. `yyterminate()` does not - it
+compiles to `return 0;`, which only a `finally` sees. So a rule body that wraps
+its own code in `try`/`catch` catches these too, and a `catch` that does not
+rethrow turns a `REJECT` into the match it was refusing, with nothing said.
+Catch what you meant to catch, or keep the `try` to the call that can throw.
 
 ## The input is held, not read
 
@@ -177,6 +177,15 @@ asks to run before or after every action with `%option pre-action` or
 
 C builds `yytext` unconditionally, which is only visible to a debugger stopped
 inside an empty action.
+
+A value given to `%option pre-action`, `post-action`, `user-init` or `yydecl`
+cannot carry `[[` or `]]`, and one that does is refused. Those are m4's quote
+pair, and the value is handed to m4 quoted so that a comma in it survives; the
+pair is escaped to carry it through, which lasts exactly one m4 pass. This back
+end expands these where C writes them out, so they go through a second pass, and
+what the first recovered is read as a quote again. Refused rather than written
+out corrupt - `a[b[0]] = 1;` came out as `a[b[0 = 1;]]`, with flex reporting
+success. A subscript can be written `a[b[0] ] = 1;` to keep the pair apart.
 
 ## `.` is one character, not one byte
 

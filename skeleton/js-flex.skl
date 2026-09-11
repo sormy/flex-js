@@ -45,6 +45,7 @@ m4_define([[M4_PROPERTY_NO_REENTRANT]], [[yes]])
 m4_define([[M4_PROPERTY_NO_YYDECL]], [[yes]])
 %# The prefix names the scanner, so it has to read as one.
 m4_define([[M4_PROPERTY_PREFIX_NAMES_A_BINDING]], [[yes]])
+m4_define([[M4_PROPERTY_RESERVED_NAMES]], [[BEGIN ECHO REJECT input unput String Buffer Array Error process module exports console Int8Array Uint8Array Int16Array Uint16Array Int32Array Uint32Array]])
 %# Typed arrays hold the tables, so this asks the engine for Int16Array, which
 %# browsers had from about 2011. %option notyped asks for plain arrays.
 m4_define([[M4_PROPERTY_TYPED_TABLES]], [[yes]])
@@ -80,7 +81,7 @@ m4_define([[M4_HOOK_SET_PREACTION]], [[m4_define([[YY_USER_ACTION]], [[$1]])]])
 m4_define([[M4_HOOK_SET_RULE_SETUP]], [[m4_ifdef([[M4_MODE_BOL_NEEDED]], [[if (yyleng > 0) {
         yy_scanner.yy_at_bol_flag = yytext.charCodeAt(yyleng - 1) === YY_NL;
       }
-      ]])m4_ifdef([[YY_USER_ACTION]], [[YY_USER_ACTION]])
+      ]])m4_ifdef([[YY_USER_ACTION]], YY_USER_ACTION)
 ]])
 m4_define([[M4_HOOK_STATE_CASE_BREAK]], [[break;]])
 m4_define([[M4_HOOK_SET_POSTACTION]], [[m4_define([[M4_HOOK_STATE_CASE_BREAK]], [[$1]])]])
@@ -256,6 +257,13 @@ m4_define([[M4_GEN_JS_REJECT_CATCH]], [[
       } catch (yy_signal) {
         if (yy_signal !== YY_REJECT_SIGNAL) {
           throw yy_signal;
+        }
+        if (yy_at_eof) {
+          /* The lookup above is skipped at the end of the input, so there is
+           * no next-best rule to reach and going round again would not end.
+           */
+          this.yy_fatal_error('REJECT in an <<EOF>> rule has no rule to fall back to');
+          return 0;
         }
         yy_cp = yy_full_match;
 m4_ifdef([[M4_MODE_VARIABLE_TRAILING_CONTEXT_RULES]], [[

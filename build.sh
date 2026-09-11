@@ -63,9 +63,13 @@ if [ "$(cat "$m4_src/.patches" 2>/dev/null)" != "$m4_applied" ]; then
 	echo "$m4_applied" > "$m4_src/.patches"
 fi
 
-if [ ! -d "$m4_build" ]; then
+if [ ! -f "$m4_build/.built" ]; then
 	echo "building m4"
 	m4_rebuilt=yes
+	# A directory on its own says nothing: an interrupted build leaves one
+	# with some of the objects in it, and skipping it then fails much later
+	# as a link error naming m4 symbols, with nothing pointing back here.
+	rm -rf "$m4_build"
 	mkdir -p "$m4_build"
 	# m4 has no main of its own any more, so its own binary is the one thing
 	# that cannot be linked. What flex wants is built before that, and flex
@@ -78,6 +82,7 @@ if [ ! -d "$m4_build" ]; then
 			exit 1
 		fi
 	fi
+	: > "$m4_build/.built"
 fi
 
 # What m4 links against, asked of its own build rather than guessed at here.

@@ -561,8 +561,12 @@ function report(workload) {
       (runner === reference ? '' : (best / reference.samples[0]).toFixed(2) + 'x ' + reference.name));
 
     if (runner.count !== reference.count) {
-      console.log('     token count differs (' + runner.count + ' against ' +
-        reference.count + '), so these timings are not comparable');
+      /* Printing it and carrying on leaves a ranked table that reads as if it
+       * meant something, and exits 0, so the numbers get copied out.
+       */
+      throw new Error(runner.name + ' returned ' + runner.count + ' tokens against ' +
+        reference.name + '\'s ' + reference.count + ': the grammars have drifted ' +
+        'apart and nothing here is comparable');
     }
   });
 }

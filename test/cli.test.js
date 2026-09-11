@@ -460,6 +460,46 @@ test('a header it cannot create leaves no scanner behind', function () {
     });
   });
 
+/* A value is handed to m4 quoted so a comma in it survives, which leaves the
+ * quote pairs. One escaping carries it through one m4 pass, and this back end
+ * expands these rather than writing them out, which is a second. It used to
+ * come out corrupt, or a subscript short, with flex reporting success.
+ */
+['pre-action', 'post-action', 'user-init'].forEach(function (option) {
+  test('%option ' + option + ' carrying a quote pair is refused', function () {
+    var source = grammar([
+      '%option noyywrap',
+      '%option ' + option + '="yy.a[yy.b[0]] = 1;"',
+      '%%',
+      '"a"      { return 1; }',
+      '.|\\n     ;',
+      ''
+    ].join('\n'));
+    var output = path.join(directory, 'pair-' + option + '.js');
+    var made = run(['--emit=javascript', '--noline', '-o', output, source]);
+
+    assert.notStrictEqual(made.status, 0, 'a corrupt value was accepted');
+    assert.match(made.stderr, /cannot carry/);
+  });
+});
+
+/* The comma the quoting was added for still has to survive. */
+test('%option pre-action keeps a comma in its value', function () {
+  var source = grammar([
+    '%option noyywrap',
+    '%option pre-action="yy.f(1, 2);"',
+    '%%',
+    '"a"      { return 1; }',
+    '.|\\n     ;',
+    ''
+  ].join('\n'));
+  var output = path.join(directory, 'comma.js');
+  var made = run(['--emit=javascript', '--noline', '-o', output, source]);
+
+  assert.strictEqual(made.status, 0, made.stderr);
+  assert.match(fs.readFileSync(output, 'utf8'), /yy\.f\(1, 2\);/);
+});
+
 /* %option emit chooses the back end again, and a back end brings a default for
  * `.' and for the table types. Defaults: what the grammar has already asked for
  * has to outlast the line that names the back end.

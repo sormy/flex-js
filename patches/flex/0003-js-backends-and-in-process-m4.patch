@@ -768,7 +768,7 @@ index 6699c2b..2706be0 100644
  
  		geneoltbl ();
 diff --git a/src/main.c b/src/main.c
-index 61a508c..3fd0dbb 100644
+index 61a508c..61dcb31 100644
 --- a/src/main.c
 +++ b/src/main.c
 @@ -101,6 +101,7 @@ jmp_buf flex_main_jmp_buf;
@@ -779,7 +779,7 @@ index 61a508c..3fd0dbb 100644
  int     nlch = '\n';
  
  bool    tablesext, tablesverify, gentables;
-@@ -124,19 +125,14 @@ static const char tablesfile_template[] = "lex.%s.tables";
+@@ -124,19 +125,50 @@ static const char tablesfile_template[] = "lex.%s.tables";
  extern FILE* yyout;
  
  static char outfile_path[MAXLINE];
@@ -790,7 +790,42 @@ index 61a508c..3fd0dbb 100644
  
 -/* For debugging. The max number of filters to apply to skeleton. */
 -static int preproc_level = 1000;
--
++/* A hook value is wrapped in m4 quotes so a comma in it stays part of it,
++   which leaves the pairs that do the wrapping: [[ or ]] written in the value
++   would open or close it instead, and what came out was either corrupt or
++   quietly short of a subscript.  flex escapes the same pairs in action text
++   and this is that escaping, applied where a value is quoted whole.  */
++static void out_quoted (const char *fmt, const char *text)
++{
++	size_t	    qstart = strlen (escaped_qstart);
++	size_t	    qend = strlen (escaped_qend);
++	size_t	    widest = qstart > qend ? qstart : qend;
++	char	   *quoted = allocate_array ((int) (strlen (text) * widest + 1),
++					     sizeof (char));
++	char	   *op = quoted;
++	const char *cp;
++
++	for (cp = text; *cp != '\0'; cp++) {
++		const char *pair = NULL;
++
++		if (cp[0] == '[' && cp[1] == '[')
++			pair = escaped_qstart;
++		else if (cp[0] == ']' && cp[1] == ']')
++			pair = escaped_qend;
++
++		if (pair == NULL) {
++			*op++ = *cp;
++			continue;
++		}
++		strcpy (op, pair);
++		op += strlen (pair);
++		cp++;
++	}
++	*op = '\0';
++	out_str (fmt, quoted);
++	free (quoted);
++}
+ 
  int flex_main (int argc, char *argv[]);
  
  int flex_main (int argc, char *argv[])
@@ -800,7 +835,7 @@ index 61a508c..3fd0dbb 100644
  	int	did_eof_rule = false;
  
  	/* Set a longjmp target. Yes, I know it's a hack, but it gets worse: The
-@@ -147,23 +143,8 @@ int flex_main (int argc, char *argv[])
+@@ -147,23 +179,8 @@ int flex_main (int argc, char *argv[])
  	 * exit(n);
  	 */
  	exit_status = setjmp (flex_main_jmp_buf);
@@ -825,7 +860,7 @@ index 61a508c..3fd0dbb 100644
  
  	flexinit (argc, argv);
  
-@@ -292,29 +273,29 @@ int main (int argc, char *argv[])
+@@ -292,29 +309,29 @@ int main (int argc, char *argv[])
  	return flex_main (argc, argv);
  }
  
@@ -871,7 +906,7 @@ index 61a508c..3fd0dbb 100644
  void check_options (void)
  {
  	int     i;
-@@ -344,7 +325,14 @@ void check_options (void)
+@@ -344,7 +361,14 @@ void check_options (void)
  #endif
  
  	if (ctrl.csize == trit_unspecified) {
@@ -887,7 +922,7 @@ index 61a508c..3fd0dbb 100644
  			ctrl.csize = DEFAULT_CSIZE;
  		else
  			ctrl.csize = CSIZE;
-@@ -357,7 +345,35 @@ void check_options (void)
+@@ -357,7 +381,35 @@ void check_options (void)
  			ctrl.interactive = trit_true;
  	}
  
@@ -923,7 +958,7 @@ index 61a508c..3fd0dbb 100644
  		if (ctrl.usemecs)
  			flexerror (_
  				   ("-Cf/-CF and -Cm don't make sense together"));
-@@ -413,23 +429,17 @@ void check_options (void)
+@@ -413,23 +465,17 @@ void check_options (void)
  		}
  	}
  
@@ -956,7 +991,7 @@ index 61a508c..3fd0dbb 100644
  }
  
  /* flexend - terminate flex
-@@ -459,19 +469,8 @@ void flexend (int exit_status)
+@@ -459,19 +505,8 @@ void flexend (int exit_status)
  				env.skelname);
  	}
  
@@ -978,7 +1013,7 @@ index 61a508c..3fd0dbb 100644
  
  
  	if (env.backing_up_report && ctrl.backing_up_file) {
-@@ -855,10 +854,6 @@ void flexinit (int argc, char **argv)
+@@ -855,10 +890,6 @@ void flexinit (int argc, char **argv)
  			ctrl.posix_compat = true;
  			break;
  
@@ -989,7 +1024,7 @@ index 61a508c..3fd0dbb 100644
  		    case OPT_MAIN:
  			ctrl.do_yywrap = false;
  			ctrl.do_main = trit_true;
-@@ -1187,6 +1182,12 @@ void flexinit (int argc, char **argv)
+@@ -1187,6 +1218,12 @@ void flexinit (int argc, char **argv)
  	 */
  	lastprot = 1;
  
@@ -1002,7 +1037,7 @@ index 61a508c..3fd0dbb 100644
  	set_up_initial_allocations ();
  }
  
-@@ -1207,16 +1208,6 @@ void readin (void)
+@@ -1207,16 +1244,6 @@ void readin (void)
  	if (syntaxerror)
  		flexend (1);
  
@@ -1019,35 +1054,58 @@ index 61a508c..3fd0dbb 100644
  	yyout = stdout;
  
  	if (tablesext)
-@@ -1277,19 +1268,23 @@ void readin (void)
+@@ -1277,19 +1304,46 @@ void readin (void)
  	/* Place a bogus line directive, it will be fixed in the filter. */
  	line_directive_out(NULL, NULL, 0);
  
 +	/* Every value below is quoted, or m4 reads a comma in one as another
-+	 * argument and drops everything after it.
++	 * argument and drops everything after it.  out_quoted escapes the quote
++	 * pairs themselves, which carries a value through one m4 pass.  A back
++	 * end that expands one of these rather than writing it out puts it
++	 * through a second pass, where the pair the first recovered is read as
++	 * a quote again, and no one escaping suits both.  Refused rather than
++	 * written out corrupt.
 +	 */
++	if (!is_default_backend ()) {
++		struct { const char *name; const char *value; } quoted[] = {
++			{ "yydecl", ctrl.yydecl },
++			{ "user-init", ctrl.userinit },
++			{ "pre-action", ctrl.preaction },
++			{ "post-action", ctrl.postaction },
++		};
++		size_t	i;
++
++		for (i = 0; i < sizeof (quoted) / sizeof (quoted[0]); i++)
++			if (quoted[i].value != NULL
++			    && (strstr (quoted[i].value, "[[") != NULL
++				|| strstr (quoted[i].value, "]]") != NULL))
++				lerr_fatal (
++					_("%option %s: a value cannot carry [[ or ]]"),
++					quoted[i].name);
++	}
++
 +
  	/* User may want to set the scanner prototype */
  	if (ctrl.yydecl != NULL) {
 -		out_str ("M4_HOOK_SET_YY_DECL(%s)\n", ctrl.yydecl);
-+		out_str ("M4_HOOK_SET_YY_DECL([[%s]])\n", ctrl.yydecl);
++		out_quoted ("M4_HOOK_SET_YY_DECL([[%s]])\n", ctrl.yydecl);
  	}
  
  	if (ctrl.userinit != NULL) {
 -		out_str ("M4_HOOK_SET_USERINIT(%s)\n", ctrl.userinit);
-+		out_str ("M4_HOOK_SET_USERINIT([[%s]])\n", ctrl.userinit);
++		out_quoted ("M4_HOOK_SET_USERINIT([[%s]])\n", ctrl.userinit);
  	}
  	if (ctrl.preaction != NULL) {
 -		out_str ("M4_HOOK_SET_PREACTION(%s)\n", ctrl.preaction);
-+		out_str ("M4_HOOK_SET_PREACTION([[%s]])\n", ctrl.preaction);
++		out_quoted ("M4_HOOK_SET_PREACTION([[%s]])\n", ctrl.preaction);
  	}
  	if (ctrl.postaction != NULL) {
 -		out_str ("M4_HOOK_SET_POSTACTION(%s)\n", ctrl.postaction);
-+		out_str ("M4_HOOK_SET_POSTACTION([[%s]])\n", ctrl.postaction);
++		out_quoted ("M4_HOOK_SET_POSTACTION([[%s]])\n", ctrl.postaction);
  	}
  
  	/* This has to be a straight textual substitution rather
-@@ -1516,6 +1511,9 @@ void readin (void)
+@@ -1516,6 +1570,9 @@ void readin (void)
  	if (ctrl.usemecs)
  		visible_define ( "M4_MODE_USEMECS");
  
@@ -1057,7 +1115,7 @@ index 61a508c..3fd0dbb 100644
  	// mode switches for find-action code
  	if (ctrl.fullspd)
  		visible_define ( "M4_MODE_FULLSPD");
-@@ -1599,6 +1597,11 @@ void readin (void)
+@@ -1599,6 +1656,11 @@ void readin (void)
  	if (ctrl.bufsize != 0)
  	    visible_define_int("M4_MODE_YY_BUFSIZE", ctrl.bufsize);
  
@@ -1069,7 +1127,7 @@ index 61a508c..3fd0dbb 100644
  	if (ctrl.yyterminate != NULL)
  	    visible_define_str("M4_MODE_YYTERMINATE", ctrl.yyterminate);
  	
-@@ -1701,6 +1704,7 @@ void set_up_initial_allocations (void)
+@@ -1701,6 +1763,7 @@ void set_up_initial_allocations (void)
  	rule_linenum = allocate_integer_array (current_max_rules);
  	rule_useful = allocate_array(current_max_rules, sizeof(char));
  	rule_has_nl = allocate_array(current_max_rules, sizeof(char));
@@ -1583,24 +1641,22 @@ index afe592e..eb6dadf 100644
  }
  
 diff --git a/src/sym.c b/src/sym.c
-index b96ba2e..0f4ac7d 100644
+index b96ba2e..dcf9ab7 100644
 --- a/src/sym.c
 +++ b/src/sym.c
-@@ -211,10 +211,37 @@ void    scextend (void)
+@@ -211,10 +211,48 @@ void    scextend (void)
  
  void    scinstal (const char *str, bool sc_is_exclusive)
  {
-+	/* skel_property answers into a shared buffer, so ask it the once. */
++	/* skel_property answers into a shared buffer, so keep only what the
++	   first call was for before making the second.  */
 +	bool	binds = skel_property ("M4_PROPERTY_PREFIX_NAMES_A_BINDING") != NULL;
-+	int	i;
-+
-+	/* The names the back end writes beside the start conditions.  A start
-+	   condition is a constant there, and one of these is a function in the
-+	   same scope, so the function wins and BEGIN() reaches it instead of a
-+	   number.  */
-+	static const char *const bound[] = {
-+		"BEGIN", "ECHO", "REJECT", "input", "unput", NULL
-+	};
++	/* The names the back end writes beside the start conditions, or reaches
++	   for in the same scope.  A start condition is a constant there, and
++	   whichever of the two is written last answers, so one of these would
++	   take the name over.  The back end says which, since they are its
++	   language's and not flex's.  */
++	const char *reserved = skel_property ("M4_PROPERTY_RESERVED_NAMES");
  
  	if (++lastsc >= current_max_scs)
  		scextend ();
@@ -1614,12 +1670,25 @@ index b96ba2e..0f4ac7d 100644
 +		format_synerr (
 +			_("start condition %s: yy and YY are flex's own"), str);
 +
-+	if (binds)
-+		for (i = 0; bound[i] != NULL; i++)
-+			if (strcmp (str, bound[i]) == 0)
++	if (reserved != NULL) {
++		const char *word = reserved;
++		size_t	    taken = strlen (str);
++
++		while (*word != '\0') {
++			size_t	len;
++
++			while (*word == ' ')
++				word++;
++			len = strcspn (word, " ");
++			if (len == 0)
++				break;
++			if (len == taken && strncmp (str, word, len) == 0)
 +				format_synerr (
 +					_("start condition %s: the scanner binds that name"),
 +					str);
++			word += len;
++		}
++	}
 +
  	if (addsym(str, NULL, lastsc, sctbl, START_COND_HASH_SIZE)) {
  		format_pinpoint_message (

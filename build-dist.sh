@@ -85,31 +85,33 @@ fi
 # Its own binary has no main to link any more; the objects are what flex wants,
 # and flex linking against them is what says they all arrived.
 build_m4() {
-	name=$1
-	host=$2
-	compiler=$3
+	# sh has no local, so these carry a prefix: build_one has a name,
+	# host and compiler of its own and calls this with them.
+	m4_name=$1
+	m4_host=$2
+	m4_cc=$3
 
 	# The archiver has to understand the target's objects: Apple's ar makes an
 	# archive with nothing in it out of ELF or COFF ones, and says nothing.
-	case $compiler in
-		"zig cc"*) archiver="zig ar"; indexer="zig ranlib" ;;
-		*)         archiver=ar;       indexer=ranlib ;;
+	case $m4_cc in
+		"zig cc"*) m4_archiver="zig ar"; m4_indexer="zig ranlib" ;;
+		*)         m4_archiver=ar;       m4_indexer=ranlib ;;
 	esac
 
-	echo "building m4 for $name"
-	rm -rf "$work/m4-$name"
-	mkdir -p "$work/m4-$name"
+	echo "building m4 for $m4_name"
+	rm -rf "$work/m4-$m4_name"
+	mkdir -p "$work/m4-$m4_name"
 	(
-		cd "$work/m4-$name"
-		if ! CC="$compiler" AR="$archiver" RANLIB="$indexer" \
+		cd "$work/m4-$m4_name"
+		if ! CC="$m4_cc" AR="$m4_archiver" RANLIB="$m4_indexer" \
 				CFLAGS="-O2 -g0" "$m4_src/configure" \
-				--host="$host" --quiet >"$work/m4-$name.log" 2>&1; then
-			cat "$work/m4-$name.log" >&2
+				--host="$m4_host" --quiet >"$work/m4-$m4_name.log" 2>&1; then
+			cat "$work/m4-$m4_name.log" >&2
 			exit 1
 		fi
-		make >>"$work/m4-$name.log" 2>&1 || true
+		make >>"$work/m4-$m4_name.log" 2>&1 || true
 		if [ -z "$(find src -name 'output.o' -o -name 'output.obj')" ]; then
-			cat "$work/m4-$name.log" >&2
+			cat "$work/m4-$m4_name.log" >&2
 			exit 1
 		fi
 	)
