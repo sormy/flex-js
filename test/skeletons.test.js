@@ -136,7 +136,7 @@ var DIVERGENCES = {
     '%# TypeScript will not read a name it has never been given, even under typeof,',
     '%# The scanner describes itself, so there is no header to write beside it.',
     'export interface M4_JS_EXPORT_NAME {',
-    'export default M4_JS_EXPORT_NAME;'
+    'export { M4_JS_EXPORT_NAME };'
   ]
 };
 

@@ -216,11 +216,9 @@ m4_ifdef([[M4_YY_NO_TOP_STATE]],, [[  yy_top_state(): number;
   yywrap(): boolean;
 }
 
-declare const M4_JS_EXPORT_NAME: {
+export const M4_JS_EXPORT_NAME: {
   new (source?: string | Uint8Array): M4_JS_EXPORT_NAME;
 };
-
-export = M4_JS_EXPORT_NAME;
 m4_m4exit(0)]])m4_dnl
 %# END BACKEND-DIVERGENCE
 
@@ -1330,6 +1328,6 @@ return YYScanner;
 
 %# BACKEND-DIVERGENCE
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = M4_JS_EXPORT_NAME;
+  module.exports.M4_JS_EXPORT_NAME = M4_JS_EXPORT_NAME;
 }
 %# END BACKEND-DIVERGENCE

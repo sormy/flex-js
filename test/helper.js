@@ -54,7 +54,7 @@ function build(grammar, options) {
     throw new Error('generating ' + name + ' failed: ' + (run.stderr || run.stdout));
   }
 
-  return { Scanner: require(output), path: output };
+  return { Scanner: require(output).Scanner, path: output };
 }
 
 /** Everything the scanner returns for a string, as an array. */

@@ -220,8 +220,9 @@ test('the declarations flex writes beside JavaScript output compile',
     var driver = path.join(directory, 'declared-use.ts');
 
     fs.writeFileSync(driver, [
-      'import Scanner = require("./declared");',
-      'const scanner = new Scanner("a <z> b");',
+      'import { Scanner } from "./declared";',
+      '// the name is both the class and its type, as in the TypeScript output',
+      'const scanner: Scanner = new Scanner("a <z> b");',
       'scanner.yy_push_state(0);',
       'scanner.unput("x");',
       'scanner.yy = { seen: 0 };',

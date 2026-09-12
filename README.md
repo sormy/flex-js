@@ -109,7 +109,7 @@ many bytes it is made of - see [Unicode](#unicode).
 And use it:
 
 ```js
-var Scanner = require("./tokens.js");
+var { Scanner } = require("./tokens.js");
 
 var scanner = new Scanner("2 apples + 3");
 var token;

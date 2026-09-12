@@ -62,7 +62,7 @@ test('--header-file writes the scanner types beside it', function () {
   var types = fs.readFileSync(made.header, 'utf8');
 
   assert.match(types, /interface Scanner \{/);
-  assert.match(types, /export = Scanner;/);
+  assert.match(types, /export const Scanner:/);
   assert.match(types, /^ {2}unput\(/m);
   assert.doesNotMatch(types, /m4_/, 'm4 reached the declaration file');
 });
@@ -71,7 +71,7 @@ test('the interface is named after -P', function () {
   var made = declared({ before: ['--emit=javascript', '-P', 'sql'] });
 
   assert.match(fs.readFileSync(made.header, 'utf8'), /interface sqlScanner \{/);
-  assert.match(fs.readFileSync(made.output, 'utf8'), /module\.exports = sqlScanner;/);
+  assert.match(fs.readFileSync(made.output, 'utf8'), /module\.exports\.sqlScanner = sqlScanner;/);
 });
 
 test('the interface is named after %option prefix', function () {
@@ -138,7 +138,7 @@ test('an option whose value holds a t is not mistaken for -t', function () {
   var made = run(['--emit=javascript', '-Dtest', '--noline', '-o', output, source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
-  assert.match(fs.readFileSync(output, 'utf8'), /module\.exports = Scanner;/);
+  assert.match(fs.readFileSync(output, 'utf8'), /module\.exports\.Scanner = Scanner;/);
 });
 
 /* No --noline: the directives are what has to be renumbered, and with them
@@ -149,7 +149,7 @@ test('-t writes the scanner to stdout, named as <stdout>', function () {
   var made = run(['--emit=javascript', '-t', source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
-  assert.match(made.stdout, /module\.exports = Scanner;/);
+  assert.match(made.stdout, /module\.exports\.Scanner = Scanner;/);
   assert.match(made.stdout, /#line [0-9]+ "<stdout>"/);
 });
 
@@ -159,7 +159,7 @@ test('-t names the directives after -o, and still writes to stdout', function ()
   var made = run(['--emit=javascript', '-t', '-o', named, source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
-  assert.match(made.stdout, /module\.exports = Scanner;/);
+  assert.match(made.stdout, /module\.exports\.Scanner = Scanner;/);
   assert.strictEqual(fs.existsSync(named), false, '-o was written as well');
   assert.doesNotMatch(made.stdout, /"<stdout>"/);
 });
@@ -198,7 +198,7 @@ test('a grammar cannot name a file for flex to write', function () {
   assert.strictEqual(made.status, 0, made.stderr);
   assert.strictEqual(fs.existsSync(forged), false,
     'the grammar named a file and it was written');
-  assert.match(fs.readFileSync(output, 'utf8'), /module\.exports = Scanner;/);
+  assert.match(fs.readFileSync(output, 'utf8'), /module\.exports\.Scanner = Scanner;/);
 });
 
 test('a name with an accent in it is the name that gets written', function () {
@@ -219,7 +219,7 @@ test('a scanner named - is a file, not stdout', function () {
   var made = run(['--emit=javascript', '--noline', '-o', output, source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
-  assert.match(fs.readFileSync(output, 'utf8'), /module\.exports = Scanner;/);
+  assert.match(fs.readFileSync(output, 'utf8'), /module\.exports\.Scanner = Scanner;/);
 });
 
 /* flex resolves these, so the shim never reads them: the spellings it accepts
@@ -239,7 +239,7 @@ test('a scanner named - is a file, not stdout', function () {
     var made = run(args);
 
     assert.strictEqual(made.status, 0, made.stderr);
-    assert.match(fs.readFileSync(output, 'utf8'), /module\.exports = Scanner;/);
+    assert.match(fs.readFileSync(output, 'utf8'), /module\.exports\.Scanner = Scanner;/);
   });
 });
 
@@ -261,8 +261,8 @@ test('a header is written even when the scanner goes to stdout', function () {
     '-t', source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
-  assert.match(made.stdout, /module\.exports = Scanner;/);
-  assert.match(fs.readFileSync(header, 'utf8'), /export = Scanner;/);
+  assert.match(made.stdout, /module\.exports\.Scanner = Scanner;/);
+  assert.match(fs.readFileSync(header, 'utf8'), /export const Scanner:/);
 });
 
 test('the scanner is written where %option outfile says', function () {
@@ -272,7 +272,7 @@ test('the scanner is written where %option outfile says', function () {
   var made = run(['--emit=javascript', '--noline', source]);
 
   assert.strictEqual(made.status, 0, made.stderr);
-  assert.match(fs.readFileSync(output, 'utf8'), /module\.exports = Scanner;/);
+  assert.match(fs.readFileSync(output, 'utf8'), /module\.exports\.Scanner = Scanner;/);
 });
 
 
@@ -358,7 +358,7 @@ test('a scanner larger than m4 keeps in memory still comes back whole',
     assert.strictEqual(made.status, 0, made.stderr);
     assert.ok(fs.statSync(output).size > 1048576, 'the grammar was not big enough');
 
-    var Scanner = require(output);
+    var Scanner = require(output).Scanner;
 
     assert.strictEqual(new Scanner('KEYWORD5').lex(), 5);
     assert.strictEqual(new Scanner('KEYWORD899').lex(), 899);
@@ -413,7 +413,7 @@ test('a grammar that diverts that much also gets a header', function () {
   assert.strictEqual(made.status, 0, made.stderr);
   assert.ok(fs.readFileSync(output, 'utf8').indexOf(diverted) !== -1,
     'what the grammar diverted did not come back');
-  assert.match(fs.readFileSync(header, 'utf8'), /declare const Scanner/);
+  assert.match(fs.readFileSync(header, 'utf8'), /export const Scanner/);
 });
 
 /* C unlinks what it was writing when it exits with a status; a pair where only
@@ -559,7 +559,7 @@ test('%option pre-action keeps a comma in its value', function () {
 
     assert.strictEqual(made.status, 0, made.stderr);
 
-    var Scanner = require(output);
+    var Scanner = require(output).Scanner;
     var scanner = new Scanner('\u00e9');
     var count = 0;
     while (scanner.lex()) {
@@ -615,7 +615,7 @@ test('%option pre-action keeps a comma in its value', function () {
 
     assert.strictEqual(made.status, 0, made.stderr);
 
-    var Scanner = require(output);
+    var Scanner = require(output).Scanner;
     var scanner = new Scanner('ab');
     var tokens = [];
 
@@ -710,6 +710,6 @@ test('user-init reaches the scanner whole, commas and all', function () {
 
   assert.strictEqual(made.status, 0, made.stderr);
 
-  var Scanner = require(output);
+  var Scanner = require(output).Scanner;
   assert.strictEqual(new Scanner('a').lex(), 3);
 });

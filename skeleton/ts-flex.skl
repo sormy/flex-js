@@ -1362,5 +1362,5 @@ return YYScanner as unknown as M4_JS_EXPORT_NAME[[Constructor]];
 }());
 
 %# BACKEND-DIVERGENCE
-export default M4_JS_EXPORT_NAME;
+export { M4_JS_EXPORT_NAME };
 %# END BACKEND-DIVERGENCE

@@ -4,7 +4,7 @@ One file, no dependencies: tables, rules, and the code that runs them. ES5 in an
 IIFE, so it loads under Node, a bundler, or a `<script>` tag.
 
 ```js
-var Scanner = require("./tokens.js");
+var { Scanner } = require("./tokens.js");
 
 var scanner = new Scanner("let x = 1;");
 var token;
@@ -18,8 +18,12 @@ than required, and the two are not swapped without changing the line that brings
 the scanner in:
 
 ```ts
-import Scanner from "./tokens";
+import { Scanner } from "./tokens";
 ```
+
+The name is the one `%name` gave, exported rather than defaulted, so the class
+and the interface of the same name arrive together and a caller can write
+`let s: Scanner` beside `new Scanner(text)`.
 
 ## What it will read
 

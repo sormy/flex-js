@@ -111,7 +111,7 @@ function generated(name, options) {
   if (run.status !== 0) {
     throw new Error('generating ' + name + ' failed: ' + run.stderr);
   }
-  return require(output);
+  return require(output).Scanner;
 }
 
 function token(type) {

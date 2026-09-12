@@ -223,7 +223,7 @@ test('the fallback encoder agrees with the one Buffer provides', function () {
   var without = source.replace(/typeof Buffer !== 'undefined'/g, 'false');
   var path = built.path.replace(/\.js$/, '-nobuffer.js');
   require('fs').writeFileSync(path, without);
-  var Fallback = require(path);
+  var Fallback = require(path).Scanner;
 
   ['ü', '日本', '😀', '\ud800a', 'a\udc00', 'plain'].forEach(function (text) {
     assert.strictEqual(new Fallback(text).yy_source, new built.Scanner(text).yy_source,
@@ -411,7 +411,7 @@ test('the fallback decoder agrees with the one Buffer provides', function () {
   var path = built.path.replace(/\.js$/, '-nobuffer-decode.js');
   fs.writeFileSync(path, fs.readFileSync(built.path, 'utf8').replace(
     /typeof Buffer !== 'undefined'/g, 'false'));
-  var Fallback = require(path);
+  var Fallback = require(path).Scanner;
 
   // leads, continuations, overlongs, surrogate halves and out-of-range bytes
   var bytes = [0x41, 0xc0, 0xc3, 0xaf, 0xbc, 0xe0, 0xe6, 0x97, 0xed, 0xa0, 0xf0, 0xf5];
