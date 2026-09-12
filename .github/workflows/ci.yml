@@ -36,8 +36,10 @@ jobs:
       - name: Install what the generator is built with
         run: |
           sudo apt-get update
+          # autopoint is its own package on Debian and Ubuntu rather than part
+          # of gettext, and the bootstrap runs it
           sudo apt-get install -y build-essential autoconf automake libtool \
-            bison m4 gettext
+            bison m4 gettext autopoint
 
       - name: Reuse the generator built for these patches
         uses: actions/cache@v4
