@@ -240,7 +240,7 @@ own:
 
 ```
 BEGIN ECHO REJECT input unput
-String Buffer ArrayBuffer Array Error process module exports console
+String Buffer ArrayBuffer Array Error process module exports undefined
 Int8Array Uint8Array Int16Array Uint16Array Int32Array Uint32Array
 ```
 
@@ -248,9 +248,12 @@ Int8Array Uint8Array Int16Array Uint16Array Int32Array Uint32Array
 `String(source)`. The back end names them rather than flex, since they are
 JavaScript's.
 
+`undefined` is in the list for the same reason: `restart()` reads
+`source === undefined`, so a start condition of that name left a scanner built
+with no argument scanning the literal text.
+
 Every other name is a grammar's own business, as it is in C. One that JavaScript
-keeps breaks the scanner loudly, since the file will not parse; one like
-`undefined` breaks it quietly.
+keeps breaks the scanner loudly, since the file will not parse.
 
 A rule body is scanned as C is scanned, which is where the two languages part. A
 `"..."` and a `'...'` are strings to flex, so the names above are left alone

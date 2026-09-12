@@ -48,7 +48,10 @@ declare const Buffer: {
   from(source: string, encoding: string): YYBytes;
   isBuffer(value: unknown): boolean;
 };
-declare const process: { stdout?: { write(text: string): void } };
+declare const process: {
+  stdout?: { write(text: string): void };
+  stderr?: { write(text: string): void };
+};
 %# END BACKEND-DIVERGENCE
 %# The scanner reads UTF-8 bytes, so the tables cover all of them.
 m4_define([[M4_PROPERTY_CHARACTER_SET]], [[8bit]])
@@ -65,7 +68,7 @@ m4_define([[M4_PROPERTY_NO_HEADER]], [[yes]])
 %# END BACKEND-DIVERGENCE
 %# The prefix names the scanner, so it has to read as one.
 m4_define([[M4_PROPERTY_PREFIX_NAMES_A_BINDING]], [[yes]])
-m4_define([[M4_PROPERTY_RESERVED_NAMES]], [[BEGIN ECHO REJECT input unput String Buffer Array Error process module exports console undefined ArrayBuffer Int8Array Uint8Array Int16Array Uint16Array Int32Array Uint32Array]])
+m4_define([[M4_PROPERTY_RESERVED_NAMES]], [[BEGIN ECHO REJECT input unput String Buffer Array Error process module exports undefined ArrayBuffer Int8Array Uint8Array Int16Array Uint16Array Int32Array Uint32Array]])
 %# Typed arrays hold the tables, so this asks the engine for Int16Array, which
 %# browsers had from about 2011. %option notyped asks for plain arrays.
 m4_define([[M4_PROPERTY_TYPED_TABLES]], [[yes]])
@@ -398,6 +401,7 @@ m4_define([[M4_GEN_JS_BACKUP]], [[if (yy_last_accepting_cpos < 0) {
           this.yy_c_buf_p = yy_cp;
           this.yy_fatal_error(
             'fatal flex scanner internal error--no action found');
+          return 0;
         }
         yy_cp = yy_last_accepting_cpos + 1;]])
 ]])
@@ -439,6 +443,7 @@ m4_define([[M4_GEN_JS_FIND_ACTION]], [[
       if (yy_last_accepting_cpos < 0) {
         this.yy_c_buf_p = yy_cp;
         this.yy_fatal_error('fatal flex scanner internal error--no action found');
+        return 0;
       }
       yy_cp = yy_last_accepting_cpos;
       yy_current_state = yy_last_accepting_state;
@@ -494,6 +499,7 @@ m4_ifdef([[M4_MODE_NO_VARIABLE_TRAILING_CONTEXT_RULES]], [[
         if (yy_state_ptr <= 0) {
           this.yy_c_buf_p = yy_cp;
           this.yy_fatal_error('fatal flex scanner internal error--no action found');
+          return 0;
         }
         yy_current_state = yy_state_buf[--yy_state_ptr];
         yy_lp = yy_accept[yy_current_state];
@@ -528,9 +534,13 @@ m4_ifdef([[M4_MODE_DEBUG]], [[
         } else if (yy_act < YY_NUM_RULES) {
           this.yy_trace('--accepting rule at line ' + yy_rule_linenum[yy_act] +
             ' ("' + yytext + '")\n');
-        } else {
+        } else if (yy_act === YY_NUM_RULES) {
           this.yy_trace('--accepting default rule ("' + yytext + '")\n');
         }
+        /* C has one more arm here, for the buffer it refills; there is no
+         * refill to report, which docs/differences.md says. Naming the arm
+         * keeps that action from being traced as the default rule.
+         */
       }
 ]])
 ]])
@@ -956,8 +966,8 @@ YYScanner.prototype.yywrap = function (this: ScannerState) {
 
 /** Where %option debug writes what the scanner is doing. */
 YYScanner.prototype.yy_trace = function (this: ScannerState, text: string) {
-  if (typeof console !== 'undefined' && console.error) {
-    console.error(text.replace(/\n$/, ''));
+  if (typeof process !== 'undefined' && process.stderr) {
+    process.stderr.write(text);
   }
 };
 
@@ -1339,6 +1349,7 @@ m4_ifdef([[M4_MODE_FIND_ACTION_FULLTBL]], [[m4_ifdef([[M4_MODE_NO_USES_REJECT]],
 
     default:
       this.yy_fatal_error('fatal flex scanner internal error--no action found');
+      return 0;
       }
       M4_GEN_JS_REJECT_CATCH
 

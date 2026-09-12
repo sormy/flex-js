@@ -256,6 +256,43 @@ var UTF8_CLASS =
   '\\xf0[\\x90-\\xbf][\\x80-\\xbf]{2}|[\\xf1-\\xf3][\\x80-\\xbf]{3}|' +
   '\\xf4[\\x80-\\x8f][\\x80-\\xbf]{2}';
 
+/* <<EOF>> had no case here at all, which is how a continued one shipped
+ * writing a scanner that would not parse. Every action terminates: an EOF
+ * rule that falls through to the next match runs again at the same place,
+ * in C as here.
+ */
+test('EOF rules', { skip: !HAVE_CC && 'no C compiler' }, function () {
+  agree('%option noyywrap', [
+    '<<EOF>>     { emit(9, "eof"); yyterminate(); }',
+    '[a-z]+      emit(1, yytext);',
+    '[0-9]+      emit(2, yytext);',
+    '.|\\n       emit(3, yytext);'
+  ].join('\n'), ['ab', '', 'a1 b', '\n']);
+});
+
+test('an EOF rule continued with |',
+  { skip: !HAVE_CC && 'no C compiler' }, function () {
+    agree('%option noyywrap', [
+      '<<EOF>>     |',
+      '"q"         { emit(1, yytext); yyterminate(); }',
+      '[a-z]+      emit(2, yytext);',
+      '.|\\n       emit(3, yytext);'
+    ].join('\n'), ['ab', '', 'abq', 'q']);
+  });
+
+test('an EOF rule for one start condition and one for the rest',
+  { skip: !HAVE_CC && 'no C compiler' }, function () {
+    agree('%option noyywrap\n%x QUOTED', [
+      '"\\""            BEGIN(QUOTED);',
+      '<QUOTED>"\\""    BEGIN(INITIAL);',
+      '<QUOTED>[^"]+    emit(1, yytext);',
+      '<QUOTED><<EOF>>  { emit(8, "unterminated"); yyterminate(); }',
+      '<<EOF>>          { emit(9, "eof"); yyterminate(); }',
+      '[a-z]+           emit(2, yytext);',
+      '.|\\n            emit(3, yytext);'
+    ].join('\n'), ['ab', '"unclosed', 'a "b" c']);
+  });
+
 test('longest match and ties', { skip: !HAVE_CC && 'no C compiler' }, function () {
   agree('%option noyywrap', [
     '"if"        emit(1, yytext);',

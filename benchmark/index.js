@@ -87,7 +87,7 @@ function generated(name, options) {
    * their digits would otherwise share a file, and the second require()
    * would hand back the first scanner out of the module cache.
    */
-  var suffix = options ? '-' + options.replace(/[^a-z0-9]+/g, '-') : '';
+  var suffix = options ? '-' + options.replace(/[^A-Za-z0-9]+/g, '-') : '';
   var output = path.join(directory, name + suffix + '.js');
   var grammar = path.join(__dirname, name + '.l');
 
@@ -550,6 +550,17 @@ function report(workload) {
   console.log('\n' + workload.name + ' - ' + Math.round(workload.source.length / 1024) +
     ' KB, ' + reference.count + ' tokens, best of ' + TIMED_ROUNDS);
 
+  runners.forEach(function (runner) {
+    if (runner.count !== reference.count) {
+      /* Before a single row is printed: a ranked table reads as if it meant
+       * something, and someone copies it out of a log.
+       */
+      throw new Error(runner.name + ' returned ' + runner.count + ' tokens against ' +
+        reference.name + '\'s ' + reference.count + ': the grammars have drifted ' +
+        'apart and nothing here is comparable');
+    }
+  });
+
   runners.slice().sort(function (left, right) {
     return left.samples[0] - right.samples[0];
   }).forEach(function (runner, position) {
@@ -560,14 +571,6 @@ function report(workload) {
       (runner.count / best / 1000).toFixed(1).padStart(6) + ' Mtokens/s  ' +
       (runner === reference ? '' : (best / reference.samples[0]).toFixed(2) + 'x ' + reference.name));
 
-    if (runner.count !== reference.count) {
-      /* Printing it and carrying on leaves a ranked table that reads as if it
-       * meant something, and exits 0, so the numbers get copied out.
-       */
-      throw new Error(runner.name + ' returned ' + runner.count + ' tokens against ' +
-        reference.name + '\'s ' + reference.count + ': the grammars have drifted ' +
-        'apart and nothing here is comparable');
-    }
   });
 }
 

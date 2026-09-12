@@ -576,7 +576,7 @@ test('%option pre-action keeps a comma in its value', function () {
  * start condition came out NaN - one wrong token, then a fatal error.
  */
 ['BEGIN', 'ECHO', 'REJECT', 'input', 'unput', 'String', 'Buffer',
- 'ArrayBuffer', 'Array', 'Error', 'process', 'module', 'exports', 'console',
+ 'ArrayBuffer', 'Array', 'Error', 'process', 'module', 'exports',
  'undefined', 'Int8Array', 'Uint8Array', 'Int16Array', 'Uint16Array',
  'Int32Array', 'Uint32Array'].forEach(function (name) {
   test('a start condition named ' + name + ' is refused', function () {

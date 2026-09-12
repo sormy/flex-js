@@ -37,6 +37,24 @@ begun.
 The fix is to ask for the close and let finish_rule() write it once the
 quote is there.
 
+<<EOF>> takes the other order. build_eof_action() opens the quote for the
+EOF rule's action, and the parser has already reduced EOF_OP by the time
+the scanner reads the `|', so there the quote does exist and the close
+belongs in the arm:
+
+    %option noyywrap
+    %%
+    <<EOF>>   |
+    [a-z]+    return yytext;
+
+Deferring it there as well leaves build_eof_action()'s quote open, the
+following rule's case arm inside it - so M4_HOOK_NORMAL_STATE_CASE_ARM
+reaches the output unexpanded, and the deferred ]] lands in it as text.
+Released flex takes this grammar and emits the fall-through case
+correctly. in_eof_action tells the two orders apart, and clearing it
+there is also what tells the next rule's action that it is a rule's own
+and not the EOF rule's.
+
 Introduced in two steps. The quoting pair arrived in 4bffa41 ("Improved
 M4 quotation", 2016-09-27), which is in v2.6.2 and later, so the
 inversion is present in released flex; it is harmless there because no
@@ -48,11 +66,9 @@ affects master rather than a release.
 
 Applies to flex master as of 4fcc714.
 ---
-diff --git a/src/flexdef.h b/src/flexdef.h
-index adf4fd0..0d8862c 100644
 --- a/src/flexdef.h
 +++ b/src/flexdef.h
-@@ -458,6 +458,11 @@ extern struct env_bundle_t env;
+@@ -458,6 +458,11 @@
  extern bool syntaxerror, eofseen;
  extern int yymore_used, reject, real_reject, continued_action, in_rule;
  
@@ -64,11 +80,9 @@ index adf4fd0..0d8862c 100644
  /* Variables used in the flex input routines:
   * datapos - characters on current output line
   * dataline - number of contiguous lines of data in current data
-diff --git a/src/main.c b/src/main.c
-index ef48e7a..61a508c 100644
 --- a/src/main.c
 +++ b/src/main.c
-@@ -51,6 +51,7 @@ void set_up_initial_allocations(void);
+@@ -51,6 +51,7 @@
  /* these globals are all defined and commented in flexdef.h */
  bool    syntaxerror, eofseen;
  int     yymore_used, reject, real_reject, continued_action, in_rule;
@@ -76,11 +90,9 @@ index ef48e7a..61a508c 100644
  int     datapos, dataline, linenum;
  FILE   *skelfile = NULL;
  int     skel_ind = 0;
-diff --git a/src/nfa.c b/src/nfa.c
-index 86a895d..5430661 100644
 --- a/src/nfa.c
 +++ b/src/nfa.c
-@@ -286,6 +286,15 @@ void    finish_rule (int mach, bool variable_trail_rule, int headcnt, int trailc
+@@ -286,6 +286,15 @@
  
  	line_directive_out(NULL, infilename, linenum);
          add_action("[[");
@@ -96,11 +108,9 @@ index 86a895d..5430661 100644
  }
  
  
-diff --git a/src/scan.l b/src/scan.l
-index b65bd4c..8f2802b 100644
 --- a/src/scan.l
 +++ b/src/scan.l
-@@ -576,7 +576,11 @@ void context_member(char *, const char *);
+@@ -576,7 +576,25 @@
                              yyless(amt);
                          }
                          else {
@@ -109,7 +119,21 @@ index b65bd4c..8f2802b 100644
 +                             * which the parser has not reached yet, so ask for
 +                             * the close rather than writing it here.
 +                             */
-+                            continued_action_pending = true;
++                            /* Whether there is a quote to close yet depends
++                             * on which ran first.  For a normal rule the
++                             * parser has not reached finish_rule, so ask it
++                             * to close one it has not opened.  After <<EOF>>
++                             * build_eof_action has already opened one and the
++                             * close belongs here, and clearing in_eof_action
++                             * is what tells the next rule's action that it is
++                             * a rule's and not the EOF rule's.
++                             */
++                            if (in_eof_action) {
++                                add_action("]""]");
++                                in_eof_action = false;
++                            }
++                            else
++                                continued_action_pending = true;
                              continued_action = true;
                              ++linenum;
                              return '\n';

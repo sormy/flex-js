@@ -768,7 +768,7 @@ index 6699c2b..2706be0 100644
  
  		geneoltbl ();
 diff --git a/src/main.c b/src/main.c
-index 61a508c..9ded469 100644
+index 61a508c..c5a7b91 100644
 --- a/src/main.c
 +++ b/src/main.c
 @@ -101,6 +101,7 @@ jmp_buf flex_main_jmp_buf;
@@ -860,7 +860,7 @@ index 61a508c..9ded469 100644
  
  	flexinit (argc, argv);
  
-@@ -292,31 +309,46 @@ int main (int argc, char *argv[])
+@@ -292,33 +309,50 @@ int main (int argc, char *argv[])
  	return flex_main (argc, argv);
  }
  
@@ -915,14 +915,18 @@ index 61a508c..9ded469 100644
  
  void check_options (void)
  {
+ 	int     i;
+ 
 +	check_m4_quotes (_("the output file name"), env.outfilename);
 +	check_m4_quotes (_("the header file name"), env.headerfilename);
 +	check_m4_quotes (_("%option yyclass"), ctrl.yyclass);
++	check_m4_quotes (_("%option yyterminate"), ctrl.yyterminate);
++	check_m4_quotes (_("%option extra-type"), extra_type);
 +
- 	int     i;
- 
  	if (ctrl.lex_compat) {
-@@ -344,7 +376,14 @@ void check_options (void)
+ 		if (ctrl.C_plus_plus)
+ 			flexerror (_("Can't use -+ with -l option"));
+@@ -344,7 +378,14 @@ void check_options (void)
  #endif
  
  	if (ctrl.csize == trit_unspecified) {
@@ -938,7 +942,7 @@ index 61a508c..9ded469 100644
  			ctrl.csize = DEFAULT_CSIZE;
  		else
  			ctrl.csize = CSIZE;
-@@ -357,7 +396,35 @@ void check_options (void)
+@@ -357,7 +398,35 @@ void check_options (void)
  			ctrl.interactive = trit_true;
  	}
  
@@ -974,7 +978,7 @@ index 61a508c..9ded469 100644
  		if (ctrl.usemecs)
  			flexerror (_
  				   ("-Cf/-CF and -Cm don't make sense together"));
-@@ -413,23 +480,17 @@ void check_options (void)
+@@ -413,23 +482,17 @@ void check_options (void)
  		}
  	}
  
@@ -1007,7 +1011,7 @@ index 61a508c..9ded469 100644
  }
  
  /* flexend - terminate flex
-@@ -459,19 +520,8 @@ void flexend (int exit_status)
+@@ -459,19 +522,8 @@ void flexend (int exit_status)
  				env.skelname);
  	}
  
@@ -1029,7 +1033,7 @@ index 61a508c..9ded469 100644
  
  
  	if (env.backing_up_report && ctrl.backing_up_file) {
-@@ -855,10 +905,6 @@ void flexinit (int argc, char **argv)
+@@ -855,10 +907,6 @@ void flexinit (int argc, char **argv)
  			ctrl.posix_compat = true;
  			break;
  
@@ -1040,7 +1044,7 @@ index 61a508c..9ded469 100644
  		    case OPT_MAIN:
  			ctrl.do_yywrap = false;
  			ctrl.do_main = trit_true;
-@@ -1187,6 +1233,12 @@ void flexinit (int argc, char **argv)
+@@ -1187,6 +1235,12 @@ void flexinit (int argc, char **argv)
  	 */
  	lastprot = 1;
  
@@ -1053,7 +1057,7 @@ index 61a508c..9ded469 100644
  	set_up_initial_allocations ();
  }
  
-@@ -1197,6 +1249,7 @@ void readin (void)
+@@ -1197,6 +1251,7 @@ void readin (void)
  {
  	char buf[256];
  
@@ -1061,7 +1065,7 @@ index 61a508c..9ded469 100644
  	line_directive_out(NULL, infilename, linenum);
  
  	if (yyparse ()) {
-@@ -1207,16 +1260,6 @@ void readin (void)
+@@ -1207,16 +1262,6 @@ void readin (void)
  	if (syntaxerror)
  		flexend (1);
  
@@ -1078,7 +1082,7 @@ index 61a508c..9ded469 100644
  	yyout = stdout;
  
  	if (tablesext)
-@@ -1277,19 +1320,45 @@ void readin (void)
+@@ -1277,19 +1322,45 @@ void readin (void)
  	/* Place a bogus line directive, it will be fixed in the filter. */
  	line_directive_out(NULL, NULL, 0);
  
@@ -1128,7 +1132,7 @@ index 61a508c..9ded469 100644
  	}
  
  	/* This has to be a straight textual substitution rather
-@@ -1516,6 +1585,9 @@ void readin (void)
+@@ -1516,6 +1587,9 @@ void readin (void)
  	if (ctrl.usemecs)
  		visible_define ( "M4_MODE_USEMECS");
  
@@ -1138,7 +1142,7 @@ index 61a508c..9ded469 100644
  	// mode switches for find-action code
  	if (ctrl.fullspd)
  		visible_define ( "M4_MODE_FULLSPD");
-@@ -1599,6 +1671,11 @@ void readin (void)
+@@ -1599,6 +1673,11 @@ void readin (void)
  	if (ctrl.bufsize != 0)
  	    visible_define_int("M4_MODE_YY_BUFSIZE", ctrl.bufsize);
  
@@ -1150,7 +1154,7 @@ index 61a508c..9ded469 100644
  	if (ctrl.yyterminate != NULL)
  	    visible_define_str("M4_MODE_YYTERMINATE", ctrl.yyterminate);
  	
-@@ -1701,6 +1778,7 @@ void set_up_initial_allocations (void)
+@@ -1701,6 +1780,7 @@ void set_up_initial_allocations (void)
  	rule_linenum = allocate_integer_array (current_max_rules);
  	rule_useful = allocate_array(current_max_rules, sizeof(char));
  	rule_has_nl = allocate_array(current_max_rules, sizeof(char));
@@ -1451,7 +1455,7 @@ index 80e7f09..776769c 100644
  
  
 diff --git a/src/scan.l b/src/scan.l
-index f2c6ae8..0851868 100644
+index 55d9418..55d3be3 100644
 --- a/src/scan.l
 +++ b/src/scan.l
 @@ -49,7 +49,9 @@ extern const char *escaped_qstart, *escaped_qend;
@@ -1474,7 +1478,7 @@ index f2c6ae8..0851868 100644
  	never-interactive	{
  			ctrl.never_interactive = option_sense;
              		ctrl.interactive = (trit)!option_sense;
-@@ -923,11 +927,98 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -937,11 +941,98 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
  	<ACTION>"/*"		ACTION_ECHO; yy_push_state( CODE_COMMENT );
  
  	<CODEBLOCK,ACTION>{
@@ -1574,7 +1578,7 @@ index f2c6ae8..0851868 100644
  			add_action("]""]M4_HOOK_REJECT[""[");
  			/* The name, not the match: yytext carries the parentheses
  			   too, and all_lower turns them down, so REJECT was never
-@@ -952,6 +1043,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -966,6 +1057,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
                  add_action( "\t]""]M4_HOOK_STATE_CASE_BREAK\n" );
  
              doing_rule_action = doing_codeblock = false;
@@ -1582,7 +1586,7 @@ index f2c6ae8..0851868 100644
              BEGIN(SECT2);
          }
      }
-@@ -963,23 +1055,27 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -977,23 +1069,27 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
  	"{"		ACTION_ECHO; ++bracelevel;
  	"}"		ACTION_ECHO; --bracelevel;
  	yyecho\(\)|yyinput\(\)|yystart\({FUNARGS}\)|yybegin\({FUNARGS}\)|yyunput\({FUNARGS}\)|yypanic\({FUNARGS}\)|yyatbol\(\)|yysetbol\({FUNARGS}\) {
@@ -1610,7 +1614,7 @@ index f2c6ae8..0851868 100644
  			if (ctrl.rewrite)
  				context_member(yytext, "M4_PROPERTY_BUFFERSTACK_CONTEXT_FORMAT");
  			else
-@@ -998,6 +1094,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
+@@ -1012,6 +1108,7 @@ nmstr[yyleng - 2 - end_is_ws] = '\0';  /* chop trailing brace */
                        add_action( "\t]""]M4_HOOK_STATE_CASE_BREAK\n" );
  
                     doing_rule_action = false;

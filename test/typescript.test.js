@@ -74,6 +74,40 @@ test('the JavaScript back end runs the grammar', function () {
   assert.strictEqual(run.stdout, EXPECTED);
 });
 
+/* The contract is that the output needs nothing but the language: no
+ * @types/node and no dom. The tests around this one compile a driver of their
+ * own that calls console.log, so they ask for dom and cannot see a scanner
+ * that reaches for a global it does not declare - which is how one did.
+ */
+test('the scanner alone type-checks with neither dom nor @types/node',
+  { timeout: 180000 }, function () {
+    var source = path.join(directory, 'bare.l');
+    var output = path.join(directory, 'bare.ts');
+
+    fs.writeFileSync(source, [
+      '%option noyywrap yylineno debug',
+      '%x QUOTED',
+      '%%',
+      '"\\""        { BEGIN(QUOTED); ECHO; }',
+      '<QUOTED>.   { yymore(); }',
+      '[a-z]+      { unput("x"); return yyleng; }',
+      '[0-9]+      { yyless(1); return 2; }',
+      '.|\\n       { return 3; }',
+      '%%',
+      ''
+    ].join('\n'));
+
+    var made = childProcess.spawnSync(GENERATOR,
+      ['--emit=typescript', '--noline', '-o', output, source],
+      { encoding: 'utf8' });
+    assert.strictEqual(made.status, 0, made.stderr);
+
+    var run = tsc(['--strict', '--noEmit', '--target', 'es5',
+      '--lib', 'es2020', output]);
+
+    assert.strictEqual(run.status, 0, run.stdout || run.stderr);
+  });
+
 test('TypeScript output type-checks under --strict', { timeout: 180000 }, function () {
 
   var file = generate('typed', 'typescript', true);

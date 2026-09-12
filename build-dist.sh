@@ -110,8 +110,22 @@ build_m4() {
 			exit 1
 		fi
 		make >>"$work/m4-$m4_name.log" 2>&1 || true
-		if [ -z "$(find src -name 'output.o' -o -name 'output.obj')" ]; then
+		# One object says one file compiled, which a make that died part
+		# way also says; flex links every one of them plus libm4.a, so
+		# that is what has to be here. build.sh asks the same question.
+		m4_missing=
+		for m4_source in "$m4_src"/src/*.c; do
+			m4_stem=$(basename "$m4_source" .c)
+			if [ -z "$(find src -name "$m4_stem.o" -o -name "$m4_stem.obj")" ]; then
+				m4_missing="$m4_missing $m4_stem.o"
+			fi
+		done
+		if [ ! -f lib/libm4.a ]; then
+			m4_missing="$m4_missing libm4.a"
+		fi
+		if [ -n "$m4_missing" ]; then
 			cat "$work/m4-$m4_name.log" >&2
+			echo "m4 for $m4_name did not finish, missing:$m4_missing" >&2
 			exit 1
 		fi
 	)
