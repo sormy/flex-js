@@ -22,6 +22,8 @@ var LINES = 3000;
 var WARMUP_ROUNDS = 20;
 var TIMED_ROUNDS = 30;
 /* Scans inside one child, to warm the heap before maxRSS is read. */
+/* The widest name the table carries, so the columns line up under it. */
+var NAME_WIDTH = 16;
 var MEMORY_ROUNDS = 3;
 /* Children whose peaks are compared, the smallest being the honest one. */
 var MEMORY_CHILDREN = 3;
@@ -565,7 +567,7 @@ function report(workload) {
     return left.samples[0] - right.samples[0];
   }).forEach(function (runner, position) {
     var best = runner.samples[0];
-    console.log('  ' + String(position + 1) + '. ' + runner.name.padEnd(12) +
+    console.log('  ' + String(position + 1) + '. ' + runner.name.padEnd(NAME_WIDTH) +
       best.toFixed(2).padStart(7) + ' ms  ' +
       (megabytes / (best / 1000)).toFixed(1).padStart(7) + ' MB/s  ' +
       (runner.count / best / 1000).toFixed(1).padStart(6) + ' Mtokens/s  ' +
@@ -615,7 +617,7 @@ function runEachSeparately() {
         }
         peaks.push(parseFloat(run.stdout));
       }
-      console.log('  ' + name.padEnd(12) +
+      console.log('  ' + name.padEnd(NAME_WIDTH) +
         Math.min.apply(null, peaks).toFixed(1).padStart(7) + ' MB peak');
     });
   });

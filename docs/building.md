@@ -55,9 +55,9 @@ cannot drift between them; what each back end owns is fenced with
 
 Nothing that runs is fenced. What is: the file header, the back end's name and
 suffix, the declarations each writes, the `declare` lines that let TypeScript
-read `Buffer` and `process`, and the `export`, which is `module.exports` in one
-and `export default` in the other. Every other line is the same in both, which
-is what the drift test checks.
+read `Buffer` and `process`, and the `export`, which names the scanner through
+`module.exports` in one and `export { }` in the other. Every other line is the
+same in both, which is what the drift test checks.
 
 ## Building
 

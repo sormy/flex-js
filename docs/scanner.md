@@ -21,9 +21,9 @@ the scanner in:
 import { Scanner } from "./tokens";
 ```
 
-The name is the one `%name` gave, exported rather than defaulted, so the class
-and the interface of the same name arrive together and a caller can write
-`let s: Scanner` beside `new Scanner(text)`.
+The name is the one `%option prefix` gave, exported rather than defaulted, so
+the class and the interface of the same name arrive together and a caller can
+write `let s: Scanner` beside `new Scanner(text)`.
 
 ## What it will read
 

@@ -192,14 +192,18 @@ Rules are about characters. A rule written with one matches it, and `.` is one
 character - however many bytes that takes:
 
 ```
+[ ]+       ;
 "日本"     return { kind: 'japan' };
 "café"     return { kind: 'cafe' };
 .          return { kind: 'other', value: yytext };
 ```
 
 ```
-2 café 日本 🚀 3  ->  number=2  word=caf  other=é  other=日  other=本  other=🚀  number=3
+2 café 日本 🚀 3  ->  other=2  cafe  japan  other=🚀  other=3
 ```
+
+Longest match counts characters, so `café` beats `.`, and `🚀` is one `.` rather
+than four.
 
 C's `.` is one byte, because flex is a machine over the 256 byte values, and a
 grammar there has to spell the shape of a character out for itself. Underneath
@@ -260,8 +264,12 @@ KB and 123,000 tokens:
 | lezer 1.4.10 \*   | 41.9 ms | 11.4 MB/s  | 2.9 M    | 160 MB      |
 | peggy 5.1.0 \*    | 51.1 ms | 9.4 MB/s   | 2.4 M    | 165 MB      |
 
-Time moves by about a fiftieth between runs and peak memory by about 15 MB. The
-corpus, the grammars and the harness are all in `benchmark/`.
+Time moves by about a fiftieth between runs and peak memory by about 15 MB.
+`npm run bench` prints one row more than these: `flex-js 2 plain` is the same
+scanner with `%option notyped`, which is what that option costs rather than
+another engine. It and chevrotain change places between runs, so it is left out
+of the ranking and quoted under the tables instead. The corpus, the grammars and
+the harness are all in `benchmark/`.
 
 ### The table modes
 

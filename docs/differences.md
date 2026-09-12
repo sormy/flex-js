@@ -105,7 +105,10 @@ reach past it.
 which is what C does, where `yytext` would show U+FFFD for the same byte. It
 answers `''` at the end of the input. The C scanner asks `yywrap()` first and
 reads on if it supplies more, so a rule body that consumes with `input()` stops
-at the end of each piece here rather than running through them.
+at the end of each piece here rather than running through them. Reaching the end
+that way leaves `yytext` as the rule matched it; C empties it, because the read
+that finds the end goes through the buffer `yytext` points into. Read `yytext`
+before `input()` runs off the end, or do not rely on either answer.
 
 ## Scanning another string
 

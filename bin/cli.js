@@ -34,15 +34,11 @@ var BUILD_IT = 'It can be built from source:\n' +
   'https://github.com/sormy/flex-js#installing';
 
 function fail(message) {
-  /* Written synchronously: a write to a terminal is asynchronous on Windows
-   * and process.exit does not wait for one, so the message can be lost on
-   * the platform most likely to have no binary to run.
+  /* Synchronously, since process.exit does not wait for a write it did not
+   * make: a terminal write is asynchronous on Windows, the platform most
+   * likely to have no binary to run. A write that throws says so itself.
    */
-  try {
-    fs.writeSync(2, message + '\n');
-  } catch (error) {
-    process.stderr.write(message + '\n');
-  }
+  fs.writeSync(2, message + '\n');
   process.exit(1);
 }
 

@@ -640,7 +640,7 @@ index 9482736..aa6e2b6 100644
  
  /* vim:set expandtab cindent tabstop=4 softtabstop=4 shiftwidth=4 textwidth=0: */
 diff --git a/src/flexdef.h b/src/flexdef.h
-index 0d8862c..46ace1e 100644
+index 855be24..b9f252a 100644
 --- a/src/flexdef.h
 +++ b/src/flexdef.h
 @@ -68,8 +68,6 @@
@@ -768,7 +768,7 @@ index 6699c2b..2706be0 100644
  
  		geneoltbl ();
 diff --git a/src/main.c b/src/main.c
-index 61a508c..c5a7b91 100644
+index e6ed5d3..24985f7 100644
 --- a/src/main.c
 +++ b/src/main.c
 @@ -101,6 +101,7 @@ jmp_buf flex_main_jmp_buf;
@@ -1455,19 +1455,23 @@ index 80e7f09..776769c 100644
  
  
 diff --git a/src/scan.l b/src/scan.l
-index 55d9418..55d3be3 100644
+index 55d9418..a994b35 100644
 --- a/src/scan.l
 +++ b/src/scan.l
-@@ -49,7 +49,9 @@ extern const char *escaped_qstart, *escaped_qend;
+@@ -49,9 +49,11 @@ extern const char *escaped_qstart, *escaped_qend;
  #define ESCAPED_QSTART "[" M4QEND M4QSTART "[" M4QEND M4QSTART
  #define ESCAPED_QEND M4QEND "]" M4QSTART M4QEND "]" M4QSTART
  
 -#define ACTION_ECHO add_action( yytext )
+-#define ACTION_ECHO_QSTART add_action (ESCAPED_QSTART)
+-#define ACTION_ECHO_QEND   add_action (ESCAPED_QEND)
 +#define ACTION_NOTE do { if (doing_rule_action) note_rule_text (yytext); \
 +			   } while (0)
 +#define ACTION_ECHO do { ACTION_NOTE; add_action (yytext); } while (0)
- #define ACTION_ECHO_QSTART add_action (ESCAPED_QSTART)
- #define ACTION_ECHO_QEND   add_action (ESCAPED_QEND)
++#define ACTION_ECHO_QSTART do { ACTION_NOTE; add_action (ESCAPED_QSTART); } while (0)
++#define ACTION_ECHO_QEND   do { ACTION_NOTE; add_action (ESCAPED_QEND); } while (0)
+ 
+ #define MARK_END_OF_PROLOG mark_prolog();
  
 @@ -400,6 +402,8 @@ void context_member(char *, const char *);
                  		ctrl.do_yywrap = false;

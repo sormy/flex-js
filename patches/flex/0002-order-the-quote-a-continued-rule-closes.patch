@@ -75,7 +75,7 @@ Applies to flex master as of 4fcc714.
 +/* Whether a rule continued with `|' is still waiting for the quote that
 + * finish_rule() opens, so that it can be closed in the right order.
 + */
-+extern int continued_action_pending;
++extern bool continued_action_pending;
 +
  /* Variables used in the flex input routines:
   * datapos - characters on current output line
@@ -86,7 +86,7 @@ Applies to flex master as of 4fcc714.
  /* these globals are all defined and commented in flexdef.h */
  bool    syntaxerror, eofseen;
  int     yymore_used, reject, real_reject, continued_action, in_rule;
-+int     continued_action_pending;
++bool    continued_action_pending;
  int     datapos, dataline, linenum;
  FILE   *skelfile = NULL;
  int     skel_ind = 0;

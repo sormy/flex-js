@@ -114,12 +114,12 @@ that character:
 "café"          return { kind: 'cafe' };
 ```
 
-To match any single character rather than any single byte, name the shape of a
-UTF-8 sequence, which is the idiom FLEX grammars use:
-
-```
-UTF8    [\x20-\x7f]|[\xc2-\xdf][\x80-\xbf]|[\xe0-\xef][\x80-\xbf]{2}|[\xf0-\xf4][\x80-\xbf]{3}
-```
+`.` is one character here, not one byte, so there is nothing to spell out: a
+FLEX grammar names the shape of a UTF-8 sequence for itself because C's `.` is a
+byte, and `%option nounicode` asks for that back. See
+[differences](differences.md) for the shape `.` compiles to, which is stricter
+than the idiom - it takes no overlong encoding, no half of a surrogate pair and
+nothing past U+10FFFF.
 
 ## User code
 
@@ -153,6 +153,8 @@ module.exports.tokenize = function (text) {
 | `never-interactive`            | the only mode there is: the input is a string            |
 | `yyterminate="..."`            | what `yyterminate()` becomes                             |
 | `user-init="..."`              | code to run once, before the first match                 |
+| `typed`, `notyped`             | hold the tables as typed arrays; on unless turned off    |
+| `unicode`, `nounicode`         | `.` is one character; `nounicode` makes it one byte      |
 
 `user-init` runs once for the scanner rather than once per `lex()`, so it is
 where `this.yy` is set up.
